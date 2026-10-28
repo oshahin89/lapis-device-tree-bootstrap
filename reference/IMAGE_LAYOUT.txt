@@ -1,0 +1,13 @@
+Uploaded image header analysis (not a partition map):
+- boot.img: Android boot image header v4; kernel size field 16,544,915 bytes; ramdisk size 0.
+- init_boot.img: Android boot image header v4; kernel size 0; ramdisk size 3,132,668 bytes.
+- vendor_boot.img: vendor_boot header v4; page size 4096; vendor ramdisk size 43,622,340 bytes; DTB size field 331,202 bytes; vendor ramdisk table has 2 entries (normal type 1 and recovery type 2).
+- Separate uploaded candidate DTB is a valid FDT v17 blob of 331,138 bytes. It is retained as candidate evidence; exact match to active boot DTB/DTBO still needs confirmation.
+- The DTB node paths/compatibles include:
+  /fingerprint: mediatek,goodix-fp
+  /touch-panel0: mediatek,touch-panel
+  /touch-tui0: mediatek,tui_common
+  /mtk-leds/backlight: label lcd-backlight; max 16383; min 1
+  /mtk-leds1/backlight: label lcd-backlight1; max 2047; min 4
+- The extracted fstab defines system and system_ext as logical, AVB-protected via vbmeta_system and permits EROFS or EXT4. GSI key paths are q-gsi.avbpubkey, r-gsi.avbpubkey, s-gsi.avbpubkey.
+- These facts do not prove any modified image will pass AVB or boot successfully.

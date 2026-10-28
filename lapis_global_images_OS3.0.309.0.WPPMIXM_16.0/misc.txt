@@ -1,0 +1,5 @@
+device=lapis
+build_number=OS3.0.309.0.WPPMIXM
+userdata_version=20260920.0000.00
+mi_os_build_version=OS3.0.309.0.WPPMIXM
+custom_bulid_number=lapis.mi.1.1.0191

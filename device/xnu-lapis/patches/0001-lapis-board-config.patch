@@ -1,0 +1,134 @@
+diff --git a/makedefs/MakeInc.def b/makedefs/MakeInc.def
+index 5bd6f23..b9fceea 100644
+--- a/makedefs/MakeInc.def
++++ b/makedefs/MakeInc.def
+@@ -29,7 +29,7 @@ SUPPORTED_ARM64_MACHINE_CONFIGS = NONE
+ else ifneq ($(findstring _host,$(RC_ProjectName)),)
+ SUPPORTED_ARM64_MACHINE_CONFIGS = NONE
+ else
+-SUPPORTED_ARM64_MACHINE_CONFIGS = BCM2837 T6000 T8101 T8103 VMAPPLE
++SUPPORTED_ARM64_MACHINE_CONFIGS = BCM2837 T6000 T8101 T8103 VMAPPLE LAPIS
+ 
+ endif
+ 
+@@ -61,6 +61,7 @@ MACHINE_FLAGS_ARM64_T8103 = -DARM64_BOARD_CONFIG_T8103                  -mcpu=ap
+ MACHINE_FLAGS_ARM64_T6000 = -DARM64_BOARD_CONFIG_T6000 		-mcpu=apple-a14
+ MACHINE_FLAGS_ARM64_VMAPPLE = -DARM64_BOARD_CONFIG_VMAPPLE              -march=armv8.5a
+ MACHINE_FLAGS_ARM64_BCM2837 = -DARM64_BOARD_CONFIG_BCM2837
++MACHINE_FLAGS_ARM64_LAPIS = -DARM64_BOARD_CONFIG_LAPIS                  -march=armv8.2-a+crypto
+ 
+ 
+ #
+@@ -259,8 +260,10 @@ ifeq ($(ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG),)
+ # Without embdedded device map, use a default arch string
+ export ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := $(shell echo $(CURRENT_ARCH_CONFIG) | tr A-Z a-z)
+ ifneq ($(filter arm64,$(ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG)),)
++ifeq ($(filter SWEET LAPIS,$(CURRENT_MACHINE_CONFIG)),)
+ export ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := arm64e
+ endif
++endif
+ 
+ endif
+ 
+diff --git a/osfmk/arm64/proc_reg.h b/osfmk/arm64/proc_reg.h
+index 133b07f..1e3845f 100644
+--- a/osfmk/arm64/proc_reg.h
++++ b/osfmk/arm64/proc_reg.h
+@@ -221,6 +221,12 @@
+ /* D-Cache. */
+ #define MMU_CLINE   6
+ 
++#elif defined (LAPIS) /* Cortex-A55 + Cortex-A78 */
++
++/* Both clusters use 64-byte I/D cache lines. */
++#define MMU_I_CLINE 6
++#define MMU_CLINE   6
++
+ #else
+ #error processor not supported
+ #endif
+diff --git a/pexpert/pexpert/arm64/LAPIS.h b/pexpert/pexpert/arm64/LAPIS.h
+new file mode 100644
+index 0000000..306f19d
+--- /dev/null
++++ b/pexpert/pexpert/arm64/LAPIS.h
+@@ -0,0 +1,44 @@
++/*
++ * Board/CPU configuration for Redmi lapis (MediaTek MT6878).
++ *
++ * This is the initial compile-time profile only. Runtime GIC security state,
++ * PSCI conduit behavior, secondary startup, and the LK handoff are not yet
++ * implemented or verified.
++ */
++
++#ifndef _PEXPERT_ARM64_LAPIS_H
++#define _PEXPERT_ARM64_LAPIS_H
++
++#define NO_MONITOR                1
++#define NO_ECORE                  1
++
++#define LAPIS                     1
++
++#define ARM_ARCH_TIMER
++#define __ARM_ARCH__              8
++#define __ARM_VMSA__              8
++#define __ARM_VFP__               4
++#define __ARM_COHERENT_CACHE__    1
++#define __ARM_DEBUG__             7
++#define __ARM_ENABLE_SWAP__       1
++#define __ARM_V8_CRYPTO_EXTENSIONS__ 1
++#define __ARM_16K_PG__            1
++
++#define HAS_GIC_V3                1
++
++#ifndef ASSEMBLER
++#define PLATFORM_PANIC_LOG_DISABLED
++#endif /* ! ASSEMBLER */
++
++/* Values derived from lapis runtime FDT. */
++#define LAPIS_GICD_PA             0x0c000000ULL
++#define LAPIS_GICD_SIZE            0x00040000ULL
++#define LAPIS_GICR_PA             0x0c040000ULL
++#define LAPIS_GICR_REGION_SIZE     0x00200000ULL
++#define LAPIS_TIMEBASE_HZ         13000000U
++#define LAPIS_VTIMER_INTID        27U /* DT PPI 11 plus GIC's 16 SGI IDs */
++#define LAPIS_IPI_SGI             1U  /* Candidate only; no IRQ driver uses it yet. */
++
++#define GIC_SPURIOUS_IRQ          1023
++
++#endif /* !_PEXPERT_ARM64_LAPIS_H */
+diff --git a/pexpert/pexpert/arm64/Makefile b/pexpert/pexpert/arm64/Makefile
+index 8226b8c..6e10a28 100644
+--- a/pexpert/pexpert/arm64/Makefile
++++ b/pexpert/pexpert/arm64/Makefile
+@@ -17,7 +17,8 @@ PRIVATE_KERNELFILES = \
+ 	boot.h \
+ 	H13.h \
+ 	VMAPPLE.h \
+-	BCM2837.h
++	BCM2837.h \
++	LAPIS.h
+ 
+ 
+ # Headers installed into System.framework/PrivateHeaders (userspace internal SDK only).
+diff --git a/pexpert/pexpert/arm64/board_config.h b/pexpert/pexpert/arm64/board_config.h
+index 9454534..bad6931 100644
+--- a/pexpert/pexpert/arm64/board_config.h
++++ b/pexpert/pexpert/arm64/board_config.h
+@@ -110,6 +110,16 @@
+ 
+ #endif  /* ARM64_BOARD_CONFIG_VMAPPLE */
+ 
++#ifdef ARM64_BOARD_CONFIG_LAPIS
++#include <pexpert/arm64/LAPIS.h>
++
++#define MAX_L2_CLINE                   6
++#define MAX_CPUS                       1 /* Initial bring-up exposes CPU0 only. */
++#define MAX_CPU_CLUSTERS               1
++
++#define CORE_NCTRS                     8 /* Placeholder; KPC is not enabled for this target */
++#endif  /* ARM64_BOARD_CONFIG_LAPIS */
++
+ 
+ #ifndef HAS_UNCORE_CTRS
+ #undef UNCORE_VERSION

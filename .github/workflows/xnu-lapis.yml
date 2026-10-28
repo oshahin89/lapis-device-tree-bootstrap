@@ -1,0 +1,82 @@
+name: lapis-xnu
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_config:
+        description: XNU configuration
+        type: choice
+        options: [DEVELOPMENT, DEBUG, RELEASE]
+        default: DEVELOPMENT
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lapis-xnu-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DXB_REPO: https://github.com/blacktop/darwin-xnu-build
+  DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
+  MACOS_VERSION: "13.5"
+  KERNEL_CONFIG: ${{ inputs.kernel_config || 'DEVELOPMENT' }}
+  MACHINE_CONFIG: LAPIS
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch pinned XNU build harness
+        shell: bash
+        run: |
+          git init -q dxb
+          git -C dxb fetch -q --depth 1 "$DXB_REPO" "$DXB_SHA"
+          git -C dxb checkout -q FETCH_HEAD
+          cp device/xnu-lapis/patches/0001-lapis-board-config.patch dxb/patches/
+          # The harness defaults libfirehose_kernel to x86_64 + arm64e;
+          # lapis uses plain arm64 and the same conservative baseline as XNU.
+          sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS="-mkernel -nostdinc -Wno-packed -march=armv8.2-a+crypto"/' dxb/build.sh
+          grep -q 'OTHER_CFLAGS="-mkernel -nostdinc -Wno-packed -march=armv8.2-a+crypto"' dxb/build.sh
+          sed -i '' 's|export CC="$(xcrun -find clang)"|export CC="$CCACHE_WRAP/clang"|; s|export CXX="$(xcrun -find clang++)"|export CXX="$CCACHE_WRAP/clang++"|' dxb/build.sh
+
+      - name: Install build tools and select Xcode 15
+        shell: bash
+        run: |
+          brew install jq gum bash cmake ninja ccache
+          printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
+          sudo chmod +x /usr/local/bin/xcodes
+          XC=$(ls -d /Applications/Xcode_*.app | sort -V | head -1)
+          echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          mkdir -p "$RUNNER_TEMP/lapis-ccache-wrappers"
+          echo "CCACHE_WRAP=$RUNNER_TEMP/lapis-ccache-wrappers" >> "$GITHUB_ENV"
+          for t in clang clang++; do
+            printf '#!/bin/sh\nexec ccache %s "$@"\n' "$(xcrun -find "$t")" > "$RUNNER_TEMP/lapis-ccache-wrappers/$t"
+            chmod +x "$RUNNER_TEMP/lapis-ccache-wrappers/$t"
+          done
+
+      - name: Build XNU for lapis
+        working-directory: dxb
+        shell: bash
+        run: bash build.sh
+
+      - name: Collect kernel and checksums
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out
+          cp -R dxb/fakeroot/System/Library/Kernels/. out/ 2>/dev/null || true
+          (cd out && shasum -a 256 kernel.* > SHA256SUMS) || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lapis-xnu-kernel-${{ inputs.kernel_config || 'DEVELOPMENT' }}
+          path: out/
+          if-no-files-found: warn
+          retention-days: 7
