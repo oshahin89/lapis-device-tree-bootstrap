@@ -7,6 +7,8 @@ This directory holds the lapis-specific XNU work. It is separate from the untouc
 - XNU source tag: `xnu-8796.141.3`, the tag selected by Apple's macOS 13.5 release manifest; checked out at commit `1b191cb58250d0705d8a51287127505aa4bc0789`.
 - The working source is in `xnu/` on branch `lapis-prototype`; the clean tag snapshot remains in `reference/apple-xnu-8796.141.3`.
 - `patches/0001-lapis-board-config.patch` adds the XNU machine config `LAPIS`, plain arm64 target flags for the A55/A78 common baseline, an initial single-CPU cap, 16K pages, cache line assumptions and runtime-FDT GIC/timer constants.
+- `patches/0002-linux-mawk-syscall-generator.patch` makes XNU's syscall-table generator emit valid C with `mawk` as well as `gawk`.
+- `patches/0003-lapis-arm-pmap-reserved-field.patch` renames a reserved field in an inactive preprocessor branch so the LAPIS feature combination compiles without a duplicate member; the field type, position and structure size stay the same.
 
 ## Scope of patch 0001
 
@@ -20,9 +22,11 @@ The first-stage display console is still unresolved: LK's framebuffer base and a
 
 ## Build limitation
 
-The pinned build job is staged at `.github/workflows/xnu-lapis.yml`. It targets macOS 14/Xcode 15, fetches `blacktop/darwin-xnu-build` at `663906528d1cd5ea8fde7de6f16de73db9511549`, requests XNU 13.5 (`xnu-8796.141.3`), applies patch 0001, and uploads the resulting kernel artifact and hashes. This is an offline compile check of the lapis machine profile only; it does not include the Ruby platform-driver patches and cannot produce a phone-bootable image.
+The pinned build job is staged at `.github/workflows/xnu-lapis.yml`. It targets macOS 14/Xcode 15, fetches `blacktop/darwin-xnu-build` at `663906528d1cd5ea8fde7de6f16de73db9511549`, requests XNU 13.5 (`xnu-8796.141.3`), applies the patches in `patches/`, and uploads the resulting kernel artifact and hashes. This is an offline compile check of the lapis machine profile only; it does not include the Ruby platform-driver patches and cannot produce a phone-bootable image.
 
-This Windows host has neither Xcode nor WSL, and the workspace root has no Git remote, so the workflow has not been dispatched. To run it, the workspace needs to be committed to a GitHub repository and the workflow file must be present at that repository's `.github/workflows/` path. The artifact must then be inspected before any device experiment.
+The pinned three-patch queue is now reproducible with `python3 tools/lapis_xnu_patch_preflight.py`: it exports the clean pinned XNU commit, applies every patch with whitespace errors rejected, and reverse-checks the result. This catches malformed hunks before CI.
+
+The workspace has an `origin` remote, but the current build and patch changes are uncommitted, so the GitHub workflow has not been dispatched with them. The Windows-to-Linux move left absolute Windows paths in the LAPIS worktree's `.git` pointers. Those pointers are now relative and the XNU worktree-specific Git setting is `core.autocrlf=input`, so `git status` shows the five intended LAPIS source changes rather than every CRLF file as modified. Source CRLF itself remains; the Linux build normalizes only a disposable copy. An offline Linux attempt used the HakiOS cross-build dependencies and host-tool shims; setup tools and `init_sysent.o` built, but the overall build stops on Apple-specific type checks, aligned `uio_stackbuf_t` arrays, and SHA assembly syntax. The LAPIS header supplies compile-time GICv3 constants only; no LAPIS GIC handoff/initialization path exists. No kernel artifact was produced. The workflow artifact must be inspected before any device experiment.
 
 ## Safety status
 
