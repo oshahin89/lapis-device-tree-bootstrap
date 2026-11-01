@@ -1,0 +1,12 @@
+diff --git a/osfmk/arm64/tunables/tunables.s b/osfmk/arm64/tunables/tunables.s
+new file mode 100644
+index 0000000..711cdef
+--- /dev/null
++++ b/osfmk/arm64/tunables/tunables.s
+@@ -0,0 +1,6 @@
++/*
++ * lapis: Apple's per-SoC CPU tunables program implementation-defined
++ * HID/ACC registers. Cortex-A55/A78 LAPIS CPUs do not use Apple's registers.
++ */
++.macro APPLY_TUNABLES midr, tmp1, tmp2
++.endm
