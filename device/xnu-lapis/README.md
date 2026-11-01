@@ -11,6 +11,7 @@ This directory holds the lapis-specific XNU work. It is separate from the untouc
 - `patches/0003-lapis-arm-pmap-reserved-field.patch` renames a reserved field in an inactive preprocessor branch so the LAPIS feature combination compiles without a duplicate member; the field type, position and structure size stay the same.
 - `patches/0004-lapis-open-arm64-pmap-config.patch` adds a LAPIS XNU master config that selects XNU's published ARM64 assembly and pmap sources (`nos_arm_asm`, `nos_arm_pmap`) instead of expecting those objects from an Apple KDK archive. This is an experimental build configuration, not a completed or validated LAPIS memory-management port.
 - `patches/0005-lapis-no-apple-amcc-translation-units.patch` supplies empty translation units for two AMCC read-only-region source files that XNU's file list expects with `nos_arm_asm` but Apple does not publish. It provides no AMCC hardware routines; LAPIS still needs its own integrity and memory-protection design.
+- `patches/0006-lapis-disable-apple-pmu-kpc.patch` provides XNU's required KPC API with no performance counters enabled. Apple's implementation programs Apple-specific PMU registers, so this backend returns empty counter classes and rejects configuration requests.
 
 ## Scope of patch 0001
 
@@ -34,7 +35,9 @@ Patch 0004 selects the published pmap and assembly implementations, following th
 
 GitHub Actions run `41290346426` applied patch 0004 and started the build, but XNU stopped before linking: `files.arm64` requested `osfmk/arm64/amcc_rorgn_ppl.c`, which is absent from Apple's published source. Patch 0005 adds no-op translation units for the AMCC-only files so we can continue compiling the generic ARM64 code; it does not emulate or implement Apple's AMCC protections. The five-patch queue passes the clean-source apply/reverse preflight. A new CI run is needed to find the next blocker.
 
-The pinned five-patch queue is reproducible with `python3 tools/lapis_xnu_patch_preflight.py`: it exports the clean pinned XNU commit, applies every patch with whitespace errors rejected, and reverse-checks the result. This catches malformed hunks before CI.
+GitHub Actions run `41291027950` got past the AMCC source gap after applying patch 0005, then stopped before linking because `files.arm64` also selects Apple's unpublished `osfmk/arm64/kpc.c` when `kpc` is enabled. Patch 0006 supplies the required KPC interface while reporting no counters and refusing PMU configuration. This is a deliberate loss of kernel performance counters, not an implementation of the LAPIS PMU. The six-patch queue passes apply/reverse preflight; another CI run is needed to check remaining compile and link dependencies.
+
+The pinned six-patch queue is reproducible with `python3 tools/lapis_xnu_patch_preflight.py`: it exports the clean pinned XNU commit, applies every patch with whitespace errors rejected, and reverse-checks the result. This catches malformed hunks before CI.
 
 The Windows-to-Linux move left absolute Windows paths in the LAPIS worktree's `.git` pointers. Those pointers are now relative and the XNU worktree-specific Git setting is `core.autocrlf=input`. Source CRLF remains; the Linux build normalizes only a disposable copy. An offline Linux attempt using HakiOS cross-build dependencies and host-tool shims also stopped on Apple-specific type checks, aligned `uio_stackbuf_t` arrays, and SHA assembly syntax. The LAPIS header supplies compile-time GICv3 constants only; no LAPIS GIC handoff/initialization path exists.
 
