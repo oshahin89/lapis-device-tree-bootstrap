@@ -1,0 +1,24 @@
+diff --git a/osfmk/arm64/amcc_rorgn_common.c b/osfmk/arm64/amcc_rorgn_common.c
+new file mode 100644
+@@ -0,0 +1,9 @@
++/*
++ * LAPIS open-source arm64 build: Apple does not publish this implementation.
++ * AMCC read-only-region control is specific to Apple's memory controller and
++ * is not provided by LAPIS. This translation unit exists only because
++ * files.arm64 selects it with nos_arm_asm; it defines no hardware routines.
++ */
++#include <stdint.h>
++
++static const uint8_t lapis_no_amcc_rorgn __attribute__((unused)) = 0;
+diff --git a/osfmk/arm64/amcc_rorgn_ppl.c b/osfmk/arm64/amcc_rorgn_ppl.c
+new file mode 100644
+@@ -0,0 +1,9 @@
++/*
++ * LAPIS open-source arm64 build: Apple does not publish this implementation.
++ * AMCC read-only-region control is specific to Apple's memory controller and
++ * is not provided by LAPIS. This translation unit exists only because
++ * files.arm64 selects it with nos_arm_asm; it defines no hardware routines.
++ */
++#include <stdint.h>
++
++static const uint8_t lapis_no_amcc_rorgn_ppl __attribute__((unused)) = 0;
