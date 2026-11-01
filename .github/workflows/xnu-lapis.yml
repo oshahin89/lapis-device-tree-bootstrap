@@ -65,18 +65,24 @@ jobs:
         shell: bash
         run: bash build.sh
 
-      - name: Collect kernel and checksums
+      - name: Collect build output and status
         if: always()
         shell: bash
         run: |
           mkdir -p out
-          cp -R dxb/fakeroot/System/Library/Kernels/. out/ 2>/dev/null || true
-          (cd out && shasum -a 256 kernel.* > SHA256SUMS) || true
+          kernel_dir=dxb/fakeroot/System/Library/Kernels
+          if compgen -G "$kernel_dir/kernel.*" >/dev/null; then
+            cp -R "$kernel_dir"/kernel.* out/
+            (cd out && shasum -a 256 kernel.* > SHA256SUMS)
+            echo "Kernel output was produced. This is a compile artifact only, not a bootable Lapis image." > out/BUILD_STATUS.txt
+          else
+            echo "No kernel output was produced. The build did not complete; inspect the Actions log for the first fatal error. This artifact is diagnostics only." > out/BUILD_STATUS.txt
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: lapis-xnu-kernel-${{ inputs.kernel_config || 'DEVELOPMENT' }}
+          name: lapis-xnu-build-output-${{ inputs.kernel_config || 'DEVELOPMENT' }}
           path: out/
           if-no-files-found: warn
           retention-days: 7

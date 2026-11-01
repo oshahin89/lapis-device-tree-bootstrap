@@ -9,6 +9,7 @@ This directory holds the lapis-specific XNU work. It is separate from the untouc
 - `patches/0001-lapis-board-config.patch` adds the XNU machine config `LAPIS`, plain arm64 target flags for the A55/A78 common baseline, an initial single-CPU cap, 16K pages, cache line assumptions and runtime-FDT GIC/timer constants.
 - `patches/0002-linux-mawk-syscall-generator.patch` makes XNU's syscall-table generator emit valid C with `mawk` as well as `gawk`.
 - `patches/0003-lapis-arm-pmap-reserved-field.patch` renames a reserved field in an inactive preprocessor branch so the LAPIS feature combination compiles without a duplicate member; the field type, position and structure size stay the same.
+- `patches/0004-lapis-open-arm64-pmap-config.patch` adds a LAPIS XNU master config that selects XNU's published ARM64 assembly and pmap sources (`nos_arm_asm`, `nos_arm_pmap`) instead of expecting those objects from an Apple KDK archive. This is an experimental build configuration, not a completed or validated LAPIS memory-management port.
 
 ## Scope of patch 0001
 
@@ -22,11 +23,17 @@ The first-stage display console is still unresolved: LK's framebuffer base and a
 
 ## Build limitation
 
-The pinned build job is staged at `.github/workflows/xnu-lapis.yml`. It targets macOS 14/Xcode 15, fetches `blacktop/darwin-xnu-build` at `663906528d1cd5ea8fde7de6f16de73db9511549`, requests XNU 13.5 (`xnu-8796.141.3`), applies the patches in `patches/`, and uploads the resulting kernel artifact and hashes. This is an offline compile check of the lapis machine profile only; it does not include the Ruby platform-driver patches and cannot produce a phone-bootable image.
+The pinned build job is at `.github/workflows/xnu-lapis.yml`. It targets macOS 14/Xcode 15, fetches `blacktop/darwin-xnu-build` at `663906528d1cd5ea8fde7de6f16de73db9511549`, requests XNU 13.5 (`xnu-8796.141.3`), and applies the patches in `patches/`. Its uploaded output is named as build output, with a status file indicating whether a kernel file was produced; a compile artifact is not a phone-bootable image.
 
-The pinned three-patch queue is now reproducible with `python3 tools/lapis_xnu_patch_preflight.py`: it exports the clean pinned XNU commit, applies every patch with whitespace errors rejected, and reverse-checks the result. This catches malformed hunks before CI.
+### Latest CI result
 
-The workspace has an `origin` remote, but the current build and patch changes are uncommitted, so the GitHub workflow has not been dispatched with them. The Windows-to-Linux move left absolute Windows paths in the LAPIS worktree's `.git` pointers. Those pointers are now relative and the XNU worktree-specific Git setting is `core.autocrlf=input`, so `git status` shows the five intended LAPIS source changes rather than every CRLF file as modified. Source CRLF itself remains; the Linux build normalizes only a disposable copy. An offline Linux attempt used the HakiOS cross-build dependencies and host-tool shims; setup tools and `init_sysent.o` built, but the overall build stops on Apple-specific type checks, aligned `uio_stackbuf_t` arrays, and SHA assembly syntax. The LAPIS header supplies compile-time GICv3 constants only; no LAPIS GIC handoff/initialization path exists. No kernel artifact was produced. The workflow artifact must be inspected before any device experiment.
+GitHub Actions run `41288279292` (run 3, XNU 13.5, `DEVELOPMENT`, `ARM64`, `LAPIS`) applied the patches and compiled objects, but failed at the final link with 261 undefined ARM64 symbols. These include pmap and low-level entry, exception-return and cache routines. The XNU source configuration marks the relevant pmap and assembly sources `optional nos_arm_pmap` / `optional nos_arm_asm`; Apple's build harness normally supplies their implementations from a machine-specific KDK archive. There is no LAPIS archive, and borrowing another machine's private archive would not implement this device's platform support. Therefore this run did not produce a kernel. The warnings emitted while applying unrelated compatibility patches were not the fatal error.
+
+As the first investigation step, patch 0004 selects the published pmap and assembly implementations, following the approach used by the Ruby bring-up reference. The four-patch queue passes the clean-source apply/reverse preflight. The next check is a macOS CI build to see which source-level adaptations are still needed for XNU 13.5; this preflight does not compile or link XNU. Do not treat a successful compile or a linker workaround as evidence that the kernel can boot; a separate platform bring-up and verified recovery path are still required before phone experiments.
+
+The pinned four-patch queue is reproducible with `python3 tools/lapis_xnu_patch_preflight.py`: it exports the clean pinned XNU commit, applies every patch with whitespace errors rejected, and reverse-checks the result. This catches malformed hunks before CI.
+
+The Windows-to-Linux move left absolute Windows paths in the LAPIS worktree's `.git` pointers. Those pointers are now relative and the XNU worktree-specific Git setting is `core.autocrlf=input`. Source CRLF remains; the Linux build normalizes only a disposable copy. An offline Linux attempt using HakiOS cross-build dependencies and host-tool shims also stopped on Apple-specific type checks, aligned `uio_stackbuf_t` arrays, and SHA assembly syntax. The LAPIS header supplies compile-time GICv3 constants only; no LAPIS GIC handoff/initialization path exists.
 
 ## Safety status
 
