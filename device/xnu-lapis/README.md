@@ -92,6 +92,26 @@ result: no panic, `Waiting on <IOMedia Apple_HFS>`, one handled EL1 write
 fault, timer IRQs. (In QEMU virt the watchdog store lands in the empty PCIe
 window.)
 
+## First XNU run on the phone (2026-11-11)
+
+Image `5bb385fd…7e1c` (shim + run-42996879535 kernel, ADT `--no-ufs`,
+`cpus=1 sweethw=0 wdt=-1`) flashed to `boot_b`. The user saw many lines of
+white kernel console text, a blue band near the bottom, and as the bottom
+line `Security policy loaded: SWEET built-in Mobile File Integrity`, which did
+not change for two minutes. Power + Vol-down reached fastboot; `boot_b`
+restored and verified (`851a5435…`).
+
+So on lapis hardware LK → shim → xnu works: the kernel ran with the MMU on,
+through pmap/VM bring-up and the fbcon, up to MAC policy registration at
+least. The sweet fbcon **wraps to the top instead of scrolling**. Replaying the
+same kernel in QEMU with the phone's exact console geometry
+(`lapis_mkadt.py --qemu --qemu-lapis-fb`, 1280×2772 → 86 rows) puts that AMFI
+line on the last screen row; the next line wraps to row 2 and the boot
+continues there to `Waiting on <IOMedia Apple_HFS>` (row ~23 after 60 s). The
+phone screen therefore matches a kernel that kept running; the top of the
+screen was not read. **To confirm:** rerun the same image and read the top
+lines.
+
 ## Open blockers before any phone experiment
 
 1. **Early framebuffer constants — patched, not yet run.** ios-sweet

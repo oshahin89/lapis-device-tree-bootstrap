@@ -118,7 +118,7 @@ def product_props(path):
     sys.exit(f"{path}: no /product node")
 
 
-def build(qemu, fb_base, fb_stride, product, ufs=True):
+def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False):
     ids = iter(range(1, 1000))
     ph = lambda: ("AAPL,phandle", u32(next(ids)))
     gicd, gicr, timebase, vtimer = ((QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE, QEMU_VTIMER)
@@ -196,7 +196,7 @@ def build(qemu, fb_base, fb_stride, product, ufs=True):
     ])
 
     children = [chosen, Node("defaults", [ph(), ("no-effaceable-storage", u32(1))]), cpus, arm_io]
-    if qemu:
+    if qemu and not qemu_lapis_fb:
         children.append(Node("sweet-fbcon", [
             ph(),
             ("reg", u64(QEMU_FB, QEMU_FB_W * 4 * QEMU_FB_H)),
@@ -204,7 +204,7 @@ def build(qemu, fb_base, fb_stride, product, ufs=True):
             ("height", u32(QEMU_FB_H)),
             ("stride", u32(QEMU_FB_W * 4)),
         ]))
-    else:
+    if not qemu or qemu_lapis_fb:
         children.append(Node("sweet-fbcon", [
             ph(),
             ("reg", u64(fb_base, FB_RESERVED + FB_RESERVED_SIZE - fb_base)),
@@ -212,12 +212,12 @@ def build(qemu, fb_base, fb_stride, product, ufs=True):
             ("height", u32(FB_H)),
             ("stride", u32(fb_stride)),
         ]))
-        if ufs:
-            children.append(Node("sweet-ufs", [
+    if not qemu and ufs:
+        children.append(Node("sweet-ufs", [
             ph(),
-                ("compatible", cstr("mediatek,mt8183-ufshci")),
-                ("reg", u64(UFS, UFS_SIZE)),
-            ]))
+            ("compatible", cstr("mediatek,mt8183-ufshci")),
+            ("reg", u64(UFS, UFS_SIZE)),
+        ]))
     children.append(Node("buttons", [
         ph(),
         ("button-names", cstr("volup", "voldown", "hold")),
@@ -248,6 +248,9 @@ def main():
     ap.add_argument("--fb-base", type=lambda s: int(s, 0), default=FB_RESERVED)
     ap.add_argument("--fb-stride", type=lambda s: int(s, 0), default=FB_STRIDE)
     ap.add_argument("--product", help="D22AP ADT supplying /product (not in git)")
+    ap.add_argument("--qemu-lapis-fb", action="store_true",
+                    help="with --qemu: put fbcon on the lapis framebuffer geometry, so the QEMU screen "
+                         "matches what the phone shows (tools/lapis_shim/qemu_shim.py)")
     ap.add_argument("--no-ufs", action="store_true",
                     help="omit /sweet-ufs so xnu never touches the storage controller")
     ap.add_argument("--dump", metavar="ADT")
@@ -268,7 +271,8 @@ def main():
     if not a.product:
         print("warning: no --product; MobileGestalt will lack /product", file=sys.stderr)
 
-    blob = serialize(build(a.qemu, a.fb_base, a.fb_stride, product_props(a.product), ufs=not a.no_ufs))
+    blob = serialize(build(a.qemu, a.fb_base, a.fb_stride, product_props(a.product), ufs=not a.no_ufs,
+                           qemu_lapis_fb=a.qemu_lapis_fb))
     with open(a.out, "wb") as f:
         f.write(blob)
     print(f"{a.out}: {len(blob)} bytes", file=sys.stderr)
