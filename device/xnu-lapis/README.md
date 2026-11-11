@@ -229,6 +229,14 @@ warm-resets into LK fastboot (reboot mode 3 + `WDT_SWRST`, as Linux's
 the phone this depends on the warm-reset probe (`pstest`), which has not
 run yet.
 
+**CI run `43037314359` (`9bf5bec`, 83 patches):** green, kernel
+`a4374bc0…6ed9`. QEMU with `--debug` and the phone console geometry:
+normal HFS boot → the pstore zone decodes (Linux's algorithm, 129 lines) to
+the full console log incl. `hfs: mounted SweetRoot`, PID 1 and the heartbeat;
+forced panic (`rd=ufsroot0`, no UFS node) → the zone ends with the panic
+string and `lapis: warm reset to fastboot` after `lapispanicreboot=5` s (the
+reset itself is a no-op in QEMU).
+
 ## Open blockers before any phone experiment
 
 1. **Early framebuffer constants — patched, not yet run.** ios-sweet

@@ -35,9 +35,14 @@ be rebuilt with the tools below from the CI kernel.
    device/slot_b_readback/boot_b.img && fastboot reboot`; then root
    `sha256sum /dev/block/by-name/boot_b` must be `851a5435…ae4f5`.
 2. Re-run the `pstest` probe (warm reset to fastboot, pstore marker).
-3. If it works: boot xnu with `lapis_mkadt.py --debug` and
-   `lapispanicreboot=10` (patch 0083) and read the full kernel log from
-   `/sys/fs/pstore/console-ramoops-0` after the automatic return to fastboot.
+   Prepared: `build/pstest_boot.img` (`727eb96d…`).
+3. If it works: flash `build/xnu_debug_boot.img` (`8c8fb61a…`: CI kernel
+   `a4374bc0…` with patch 0083, ADT `--no-ufs --with-a78 --debug`, HFS RAM-disk
+   root, `cpus=8 rd=md0 lapispanicreboot=15`). It boots to PID 1 and stays up;
+   the console is mirrored into pstore. Recover with Power + Vol-down as
+   usual, or — once the warm reset is proven — trigger a panic image to test
+   the automatic return. After a warm return, read
+   `/sys/fs/pstore/console-ramoops-0`. (`build/` is gitignored.)
 
 ## Tools
 
