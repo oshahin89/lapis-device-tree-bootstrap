@@ -1,5 +1,11 @@
 name: lapis-xnu
 
+# Builds the SWEET-config XNU (ios-sweet 0001-0079 via the pinned ios-topaz
+# commit) plus the LAPIS patch queue. The upstream trees have no license file,
+# so they are fetched at build time and never committed here
+# (device/xnu-lapis/ci/prepare_baseline.py). The output is a compile artifact
+# only: it is NOT a phone-bootable lapis image.
+
 on:
   workflow_dispatch:
     inputs:
@@ -21,14 +27,20 @@ env:
   DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
   MACOS_VERSION: "13.5"
   KERNEL_CONFIG: ${{ inputs.kernel_config || 'DEVELOPMENT' }}
-  MACHINE_CONFIG: LAPIS
+  # The whole ios-sweet series and its stage scripts are gated on SWEET;
+  # lapis differences come from the ADT (tools/lapis_mkadt.py) and boot-args.
+  MACHINE_CONFIG: SWEET
 
 jobs:
   build:
+    # macos-14 ships Xcode 15.x, whose iig matches the xnu-8796 IORPC ABI
     runs-on: macos-14
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+
+      - name: Assemble LAPIS patch queue
+        run: python3 device/xnu-lapis/ci/prepare_baseline.py queue | tee queue.txt
 
       - name: Fetch pinned XNU build harness
         shell: bash
@@ -36,53 +48,61 @@ jobs:
           git init -q dxb
           git -C dxb fetch -q --depth 1 "$DXB_REPO" "$DXB_SHA"
           git -C dxb checkout -q FETCH_HEAD
-          cp device/xnu-lapis/patches/*.patch dxb/patches/
-          # The harness defaults libfirehose_kernel to x86_64 + arm64e;
-          # lapis uses plain arm64 and the same conservative baseline as XNU.
-          sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS="-mkernel -nostdinc -Wno-packed -march=armv8.2-a+crypto"/' dxb/build.sh
-          grep -q 'OTHER_CFLAGS="-mkernel -nostdinc -Wno-packed -march=armv8.2-a+crypto"' dxb/build.sh
-          sed -i '' 's|export CC="$(xcrun -find clang)"|export CC="$CCACHE_WRAP/clang"|; s|export CXX="$(xcrun -find clang++)"|export CXX="$CCACHE_WRAP/clang++"|' dxb/build.sh
+          cp queue/*.patch queue/*.sh dxb/patches/
+          # plain arm64 for Cortex-A55; clang's default would emit LSE/LDAPR
+          sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS="-mkernel -nostdinc -Wno-packed -mcpu=cortex-a55"/' dxb/build.sh
+          grep -q 'OTHER_CFLAGS="-mkernel -nostdinc -Wno-packed -mcpu=cortex-a55"' dxb/build.sh
 
-      - name: Install build tools and select Xcode 15
+      - name: Install build tools and select Xcode 15.0.1
         shell: bash
         run: |
-          brew install jq gum bash cmake ninja ccache
+          brew install jq gum bash cmake ninja
           printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
           sudo chmod +x /usr/local/bin/xcodes
-          XC=$(ls -d /Applications/Xcode_*.app | sort -V | head -1)
+          XC=/Applications/Xcode_15.0.1.app
+          [ -d "$XC" ] || { echo "Xcode 15.0.1 missing; refusing to drift"; exit 1; }
           echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$XC"
           xcodebuild -version
-          mkdir -p "$RUNNER_TEMP/lapis-ccache-wrappers"
-          echo "CCACHE_WRAP=$RUNNER_TEMP/lapis-ccache-wrappers" >> "$GITHUB_ENV"
-          for t in clang clang++; do
-            printf '#!/bin/sh\nexec ccache %s "$@"\n' "$(xcrun -find "$t")" > "$RUNNER_TEMP/lapis-ccache-wrappers/$t"
-            chmod +x "$RUNNER_TEMP/lapis-ccache-wrappers/$t"
-          done
 
-      - name: Build XNU for lapis
+      - name: Build XNU
         working-directory: dxb
         shell: bash
-        run: bash build.sh
+        run: |
+          set -o pipefail
+          bash build.sh 2>&1 | tee ../build.log
+
+      - name: Fail on silently skipped patches
+        if: always()
+        shell: bash
+        run: |
+          # darwin-xnu-build only warns when a patch does not apply
+          if grep -n "Skipping patch" build.log; then
+            echo "::error::a patch was skipped; the kernel would be missing part of the port"
+            exit 1
+          fi
 
       - name: Collect build output and status
         if: always()
         shell: bash
         run: |
           mkdir -p out
+          cp build.log out/ 2>/dev/null || true
           kernel_dir=dxb/fakeroot/System/Library/Kernels
           if compgen -G "$kernel_dir/kernel.*" >/dev/null; then
             cp -R "$kernel_dir"/kernel.* out/
             (cd out && shasum -a 256 kernel.* > SHA256SUMS)
-            echo "Kernel output was produced. This is a compile artifact only, not a bootable Lapis image." > out/BUILD_STATUS.txt
+            echo "Kernel produced. Compile artifact only: the early framebuffer constants are still ios-sweet's and lapis has no boot shim yet. Do not boot it on the phone." > out/BUILD_STATUS.txt
           else
-            echo "No kernel output was produced. The build did not complete; inspect the Actions log for the first fatal error. This artifact is diagnostics only." > out/BUILD_STATUS.txt
+            echo "No kernel produced; see build.log for the first fatal error." > out/BUILD_STATUS.txt
           fi
+          { cat queue.txt 2>/dev/null; echo "dxb_sha=$DXB_SHA"; echo "commit=$GITHUB_SHA"; echo "run_id=$GITHUB_RUN_ID";
+            echo "patches=$(ls queue/*.patch | wc -l | tr -d ' ')"; } > out/PROVENANCE.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: lapis-xnu-build-output-${{ inputs.kernel_config || 'DEVELOPMENT' }}
+          name: lapis-xnu-${{ inputs.kernel_config || 'DEVELOPMENT' }}
           path: out/
           if-no-files-found: warn
           retention-days: 7

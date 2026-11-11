@@ -6,7 +6,7 @@ index 0000000..a8cd7b6
 @@ -0,0 +1,13 @@
 +/*
 + * lapis: Apple's SART (IOMMU for NVMe/ANS) header is not in the open
-+ * source drop. LAPIS uses Qualcomm hardware; this bootstrap hook is a no-op.
++ * source drop. LAPIS (MediaTek MT6878) has no SART; this bootstrap hook is a no-op.
 + */
 +#ifndef _ARM64_PPL_SART_H_
 +#define _ARM64_PPL_SART_H_

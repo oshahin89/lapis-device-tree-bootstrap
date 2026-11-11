@@ -1,50 +1,44 @@
 #!/usr/bin/env python3
-"""Verify the LAPIS patch queue against the pinned clean XNU source tag."""
-from pathlib import Path
-import subprocess
-import tempfile
+"""Offline check of the LAPIS XNU patch queue against the pinned clean XNU.
 
+1. assembles the queue from the local ios-topaz checkout
+   (reference/xnu-topaz-baseline) with device/xnu-lapis/ci/prepare_baseline.py;
+2. exports the pinned xnu-8796.141.3 source to a temporary directory;
+3. applies the queue the way darwin-xnu-build does, but stops on the first
+   patch that does not apply (device/xnu-lapis/ci/strict_apply.py).
+
+The stage scripts fetch libpthread, BearSSL and HFS from GitHub. Pass
+--no-scripts to stay offline; patches after 0030 then cannot be checked.
+"""
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "reference/apple-xnu-8796.141.3"
-PATCH_DIR = ROOT / "device/xnu-lapis/patches"
+XNU = ROOT / "reference/apple-xnu-8796.141.3"
+TOPAZ = ROOT / "reference/xnu-topaz-baseline"
+CI = ROOT / "device/xnu-lapis/ci"
 EXPECTED_HEAD = "1b191cb58250d0705d8a51287127505aa4bc0789"
 
 
-def run(args, *, cwd=None, stdout=None):
-    subprocess.run(args, cwd=cwd, check=True, stdout=stdout)
-
-
 def main():
-    head = subprocess.check_output(
-        ["git", "-C", str(SOURCE), "rev-parse", "HEAD"], text=True
-    ).strip()
+    head = subprocess.check_output(["git", "-C", str(XNU), "rev-parse", "HEAD"], text=True).strip()
     if head != EXPECTED_HEAD:
-        raise SystemExit(f"Pinned XNU HEAD mismatch: expected {EXPECTED_HEAD}, got {head}")
+        sys.exit(f"Pinned XNU HEAD mismatch: expected {EXPECTED_HEAD}, got {head}")
 
-    patches = sorted(PATCH_DIR.glob("*.patch"))
-    if not patches:
-        raise SystemExit(f"No patches found in {PATCH_DIR}")
-
-    with tempfile.TemporaryDirectory(prefix="lapis-xnu-patch-preflight-") as tmp:
-        with subprocess.Popen(
-            ["git", "-C", str(SOURCE), "archive", "HEAD"], stdout=subprocess.PIPE
-        ) as archive:
-            assert archive.stdout is not None
-            extract = subprocess.run(["tar", "-x", "-C", tmp], stdin=archive.stdout)
-            archive.stdout.close()
-            if archive.wait() != 0 or extract.returncode != 0:
-                raise SystemExit("Could not export the pinned XNU source")
-
-        for patch in patches:
-            args = ["git", "apply", "--check", "--whitespace=error", str(patch)]
-            run(args, cwd=tmp)
-            run(["git", "apply", str(patch)], cwd=tmp)
-
-        for patch in reversed(patches):
-            run(["git", "apply", "--reverse", "--check", str(patch)], cwd=tmp)
-
-    print(f"PASS: {len(patches)} patches apply and reverse cleanly on XNU {EXPECTED_HEAD}")
+    with tempfile.TemporaryDirectory(prefix="lapis-xnu-preflight-") as tmp:
+        queue, src = Path(tmp) / "queue", Path(tmp) / "xnu"
+        subprocess.run([sys.executable, str(CI / "prepare_baseline.py"), str(queue),
+                        "--base-dir", str(TOPAZ)], check=True)
+        src.mkdir()
+        archive = subprocess.Popen(["git", "-C", str(XNU), "archive", "HEAD"], stdout=subprocess.PIPE)
+        subprocess.run(["tar", "-x", "-C", str(src)], stdin=archive.stdout, check=True)
+        if archive.wait() != 0:
+            sys.exit("could not export the pinned XNU source")
+        subprocess.run(["git", "init", "-q"], cwd=src, check=True)
+        subprocess.run([sys.executable, str(CI / "strict_apply.py"), str(queue), str(src),
+                        *sys.argv[1:]], check=True)
 
 
 if __name__ == "__main__":
