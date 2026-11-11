@@ -197,7 +197,7 @@ four A55s only. Phone image (`--with-a78 --no-ufs`, `cpus=8`, RAM-disk init):
 all four A78 cores start too, running the 16K-page kernel. Recovered with
 Power + Vol-down → stock `boot_b` (`851a5435…`, Android `_b` in ~21 s).
 
-## HFS+ RAM-disk root (QEMU, 2026-11-11)
+## HFS+ RAM-disk root (QEMU and phone, 2026-11-11)
 
 `tools/lapis_mkroot_hfs.sh` (run with sudo; needs hfsprogs) builds an 8 MiB
 HFS+ volume `SweetRoot` with `/sbin/launchd` = ios-sweet's init (local output
@@ -205,6 +205,17 @@ HFS+ volume `SweetRoot` with `/sbin/launchd` = ios-sweet's init (local output
 with `rd=md0`, QEMU shows `BSD root: md0` → `hfs: mounted SweetRoot on device
 b(1, 0)` → `load_init_program: /sbin/launchd` → `init running as PID 1`
 (built-in Apple OSS HFS, patches 0026/0027). Same format the iOS root will use.
+
+**On the phone (15:52, image `468dc8fd…2a45`, 8 cores, `--no-ufs`):** the user
+saw `hfs: mounted SweetRoot` and `init running as PID 1`. Recovered with
+Power + Vol-down → stock `boot_b`. That restore boot then hit an unrelated
+**stock Linux oops** after 398 s (NULL dereference in
+`rt_mutex_adjust_prio_chain` from a userspace `sched_setattr`; stock kernel,
+clean LK boot, no lapis code involved) and rebooted itself
+(`sys.boot.reason = kernel_panic`). The next boot is normal; `boot_b` reads
+back `851a5435…`. The oops log was recovered from
+`/sys/fs/pstore/console-ramoops-0`, so pstore does survive a warm
+(panic) reboot — only the Power + Vol-down reset loses it.
 
 ## Open blockers before any phone experiment
 

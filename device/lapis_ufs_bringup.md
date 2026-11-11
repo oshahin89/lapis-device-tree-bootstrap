@@ -92,7 +92,9 @@ did **not** reach pstore: after Power + Vol-down → fastboot → restore, Andro
 `console-ramoops-0` held an older Android log. LK reserves the region
 (`mblock … name:pstore`, `RAM_CONSOLE pstore_addr:0x48090000`), so it likely
 reinitialises it on this kind of reset; pstore is not a usable channel for
-key-reset recoveries.
+key-reset recoveries. It does survive a warm reboot (a stock Linux
+panic log was read from it afterwards), so a software-triggered warm reset
+would keep it.
 
 ### MT6878-specific link setup (upstream `ufs_mtk_pre_link`/`post_link`)
 
