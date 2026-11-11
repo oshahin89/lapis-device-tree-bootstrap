@@ -71,13 +71,42 @@ recorded readback): output sha256
 to the payload and draws all three patterns. The image is not committed.
 
 Still unverified before flashing it anywhere: LK accepting a changed
-`kernel_size` and a stale AVB hash in orange state, LK's handling of a
-watchdog reset while the probe is parked, and above all the restore path.
-Proposed order, each step needing explicit approval: (1) prove fastboot entry
-(Vol-down + Power) and `fastboot flash boot_a <exact stock image>` + reboot
-restores a working system — slot A first, since slot B is the daily system;
-(2) only then flash the probe to the same slot, photograph the screen, and
-restore.
+`kernel_size` and a stale AVB hash in orange state, and LK's behaviour while
+the probe is parked (watchdog reset → boot loop on the same image).
+
+### Restore sources (checked 2026-11-11, read-only)
+
+The full OS3.0.309.0 factory package is now present in
+`lapis_global_images_OS3.0.309.0.WPPMIXM_16.0/images/` (12 GiB, not in git).
+Against the readbacks: `boot`, `init_boot`, `vendor_boot`, `dtbo` are
+byte-identical to slot B; `vbmeta`, `vbmeta_system`, `vbmeta_vendor` and `lk`
+are identical to slot B up to the partition's zero padding. Every slot A image
+differs (A is OS3.0.308.0). So slot B has two independent restore sources: the
+raw readbacks and the factory images.
+
+`flash_all_except_data_storage.sh` is the last-resort fastboot restore: it
+checks `anti` (package anti-rollback 1) and product `lapis`, erases
+`misc`/`boot`, flashes every firmware partition to **both** slots
+(`*_ab`, including `preloader_ab`, `lk`, `vbmeta*`, `super`, `boot`,
+`vendor_boot`, `init_boot`), keeps `userdata`, then `set_active a` and
+reboots. It needs a working LK fastboot. `flash_all.sh` additionally erases
+`metadata` and flashes `userdata` (wipes data). The scatter files and
+`download_agent/` are for MediaTek BROM flashing, which on Xiaomi normally
+needs an authorised account; do not count on it.
+
+### Revised device order (each step needs explicit approval)
+
+1. **No writes:** `adb reboot bootloader`, confirm fastboot sees the device,
+   read `getvar current-slot`, `getvar anti`, `getvar product`,
+   `getvar partition-size:boot_b`, then `fastboot reboot` and confirm Android.
+   Also confirm entering fastboot from power-off with Vol-down + Power.
+2. **Content no-op write:** `fastboot flash boot_b` with the exact stock image
+   (sha256 `851a5435…ae4f5`, identical to what is already there), reboot,
+   confirm Android. This proves the write path without changing any byte or
+   switching to the older slot A.
+3. **Probe:** flash the probe image to `boot_b`, reboot, photograph the
+   screen; then return to fastboot (Vol-down + Power) and flash the stock
+   `boot_b` back, reboot, confirm Android.
 
 ## Immediate next actions
 
