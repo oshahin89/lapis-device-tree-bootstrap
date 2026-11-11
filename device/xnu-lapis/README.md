@@ -69,7 +69,7 @@ the local reference checkout (not committed here):
 
 ```sh
 python3 tools/lapis_mkadt.py qemu.adt --qemu
-python3 reference/xnu-topaz-baseline/tools/mkpayload.py kernel.development.sweet qemu.adt qemu.payload \
+python3 tools/ios-sweet/mkpayload.py kernel.development.sweet qemu.adt qemu.payload \
   --cmdline "debug=0xc serial=3 cpus=1 keepsyms=1 -noprogress sweethw=0 wdt=-1"
 # the run directory path must be short: QEMU's QMP unix socket is limited to 108 bytes
 python3 reference/xnu-topaz-baseline/tools/qemu-sweet.py qemu.payload /tmp/lq --secs 60 --kernel kernel.development.sweet
@@ -117,6 +117,18 @@ xnu 8796 therefore boots on lapis hardware — EL1 under GenieZone, GICv3
 timer interrupts, scheduler, IOKit, MAC policies, HFS, networking — up to the
 root-device wait, the same point as in QEMU. Recovered with Power + Vol-down →
 fastboot → stock `boot_b` (`851a5435…`, Android `_b` in ~21 s).
+
+## RAM-disk PID 1 (QEMU, 2026-11-11)
+
+With ios-sweet's static init (`tools/ios-sweet/sweet-init.S` via `mkinit.py`,
+vendored MIT) as the RAM disk and `rd=md0`, the run-42996879535 kernel under
+the lapis shim in QEMU (`--qemu --qemu-lapis-fb` ADT) reaches
+`Added memory device md0` → `BSD root: md0` →
+`load_init_program: attempting to load /sbin/launchd` →
+`*** SWEET userspace: init running as PID 1 ***` → `SWEET init: still alive`
+every 5 s (150 s, no panic). mockfs serves the RAM disk file as
+`/sbin/launchd`; no storage is touched. Phone image (ADT `--no-ufs`):
+`393c3cd3…1020`.
 
 ## Open blockers before any phone experiment
 
