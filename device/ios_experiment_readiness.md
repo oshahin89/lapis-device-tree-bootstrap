@@ -42,6 +42,43 @@ Before the first device boot, separately establish and document all of the follo
 
 Until those gates pass, do not change slot selection, boot-critical partitions, LK, AVB state, reset GPIO90, or SPI hardware state. The safe work available now is offline source adaptation, image parsing and build preparation.
 
+## Stage 1 probe image (built offline 2026-11-11, never flashed)
+
+A first device experiment can measure the open framebuffer questions without
+running XNU. Tools (all host-only; none talks to the phone):
+
+- `tools/lapis_payload/probe_fb.S` — 200-byte, position-independent AArch64
+  payload. It writes only the LK framebuffer reservation, then parks in `wfe`.
+  Each derived buffer gets: a top band of word `0xFFFF0000` (red = ARGB8888,
+  blue = ABGR), *(index+1)* green bands out of 8 (which buffer LK scans out),
+  and a white stripe in columns 0–63 (vertical = stride 5120 is right).
+- `tools/lapis_payload/qemu_check.py` — runs a payload in QEMU `virt` and
+  checks all three buffers. Result: all three patterns correct, CPU parked.
+- `tools/lapis_lz4.py` — LZ4 legacy codec; decodes the stock kernel to the
+  documented 35,432,960-byte Image and round-trips block 0 exactly.
+- `tools/lapis_boot_pack.py` — copies the stock 64 MiB boot partition,
+  replaces Image code0 with `b 0x1000`, puts the payload at Image+0x1000,
+  recompresses LZ4 block 0 only, keeps blocks 1–4, the boot-signature blob and
+  vbmeta byte-identical, and rewrites the AVB footer offsets. It re-parses its
+  output and fails unless the decompressed Image differs only in code0 and the
+  payload.
+
+Built from `slot_b_readback/boot_b.img` (sha256 `851a5435…ae4f5`, matches the
+recorded readback): output sha256
+`a66e4e30ae0f2222f239725a6a2e6be5381cba1b795f293f3bc065c2be41bcbb`, kernel
+16,544,915 → 17,125,864 bytes, AVB `original_image_size` `0xfcd000` →
+`0x105b000`. The decompressed packed Image, run in QEMU from byte 0, branches
+to the payload and draws all three patterns. The image is not committed.
+
+Still unverified before flashing it anywhere: LK accepting a changed
+`kernel_size` and a stale AVB hash in orange state, LK's handling of a
+watchdog reset while the probe is parked, and above all the restore path.
+Proposed order, each step needing explicit approval: (1) prove fastboot entry
+(Vol-down + Power) and `fastboot flash boot_a <exact stock image>` + reboot
+restores a working system — slot A first, since slot B is the daily system;
+(2) only then flash the probe to the same slot, photograph the screen, and
+restore.
+
 ## Immediate next actions
 
 1. Run `python3 tools/lapis_xnu_patch_preflight.py` after patch changes; then run the pinned macOS/Xcode workflow from a commit containing those patches and inspect the artifact and checksums. The Linux build is a diagnostic path only and has known host-compiler blockers.
