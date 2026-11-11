@@ -11,6 +11,9 @@ lapis kernel bank (0x140000000 + 4 GiB) and the LK framebuffer (0xfd72f000)
 exist as plain memory. Use a payload built with `lapis_mkadt.py --qemu` so the
 kernel finds QEMU's GIC; the shim itself still uses the lapis framebuffer.
 
+With --pstore, also save the ramoops console zone (0x480af000) and decode it
+the way Linux persistent_ram_save_old does into pstore.txt.
+
 Afterwards OUTDIR has screen.png (the lapis framebuffer), screen.txt (text
 decoded with the shim's 3x font and, with --kernel, xnu's 2x iso_font),
 regs.txt and qemu.log. This tests the shim and loader logic only: no LK, no
@@ -20,6 +23,7 @@ import argparse, json, os, socket, struct, subprocess, sys, time, zlib
 
 FB, W, H, STRIDE = 0xFD72F000, 1280, 2772, 5120
 LOAD = 0x40200000
+PSTORE = 0x480AF000          # ramoops console zone (device/lapis_ufs_bringup.md)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -79,6 +83,7 @@ def main():
     ap.add_argument("image"); ap.add_argument("outdir")
     ap.add_argument("--secs", type=float, default=60)
     ap.add_argument("--kernel", help="unstripped xnu (for its _iso_font)")
+    ap.add_argument("--pstore", action="store_true", help="decode the ramoops console zone")
     a = ap.parse_args()
     out = os.path.abspath(a.outdir); os.makedirs(out, exist_ok=True)
     mon = os.path.join(out, "m.sock")
@@ -98,8 +103,11 @@ def main():
         time.sleep(0.2)
     if p.poll() is not None:
         sys.exit(f"qemu exited early: {p.returncode}")
-    r = qmp(mon, ("stop", {}), ("pmemsave", {"val": FB, "size": STRIDE * H, "filename": f"{out}/fb.raw"}),
-            ("human-monitor-command", {"command-line": "info registers"}))
+    calls = [("stop", {}), ("pmemsave", {"val": FB, "size": STRIDE * H, "filename": f"{out}/fb.raw"})]
+    if a.pstore:
+        calls.append(("pmemsave", {"val": PSTORE, "size": 0x40000, "filename": f"{out}/pstore.raw"}))
+    calls.append(("human-monitor-command", {"command-line": "info registers"}))
+    r = qmp(mon, *calls)
     p.kill(); p.wait()
     open(f"{out}/regs.txt", "w").write(r[-1].get("return", ""))
     raw = open(f"{out}/fb.raw", "rb").read()
@@ -126,6 +134,17 @@ def main():
                      decode(raw, glyphs, 2, 16, 32, 0, 0, False, lambda v: v == 0xFFFFFFFF)]
     open(f"{out}/screen.txt", "w").write("\n".join(text))
     os.unlink(f"{out}/fb.raw")
+    if a.pstore:
+        z = open(f"{out}/pstore.raw", "rb").read()
+        sig, start, size = struct.unpack_from("<III", z, 0)
+        cap = len(z) - 12
+        if sig != 0x43474244 or size > cap or start > size:
+            msg = f"pstore: invalid header sig={sig:#x} start={start} size={size}\n"
+        else:   # persistent_ram_save_old: data[start..size) then data[0..start)
+            d = z[12:]
+            msg = (d[start:size] + d[:start]).decode("latin-1")
+        open(f"{out}/pstore.txt", "w").write(msg)
+        os.unlink(f"{out}/pstore.raw")
     pc = [l.strip() for l in r[-1].get("return", "").splitlines() if l.strip().startswith("PC=")]
     print(pc[0] if pc else "PC unknown")
     print(f"{out}/screen.png {out}/screen.txt")

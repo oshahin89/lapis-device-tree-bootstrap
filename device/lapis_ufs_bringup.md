@@ -92,6 +92,12 @@ measured). If DRAM survives the Power + Vol-down reset and LK does not clear
 the region, a shim or xnu that writes this format makes its whole log readable
 with adb after the restore boot. Unverified.
 
+Tooling (2026-11-11): `tools/lapis_shim/pstore.c` writes that format;
+`tools/lapis_shim/regdump.c` (`build.sh OUT regdump`) is the register-dump
+probe of step 1 below; `qemu_shim.py --pstore` decodes the zone the way
+Linux's `persistent_ram_save_old` does (QEMU: 66 lines, header valid).
+Device image: `407f270d…f9d3` (kernel stream 4040 bytes).
+
 ## Proposed next steps (each device step needs explicit approval)
 
 1. **Register-dump probe**, no MMIO writes except the known TOPRGU store:
