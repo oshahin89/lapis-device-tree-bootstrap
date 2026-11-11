@@ -41,6 +41,37 @@ _start:
 	str	w1, [x0]
 	dsb	sy
 
+	/*
+	 * lapis enters at EL1 (GenieZone owns EL2). QEMU virt with
+	 * virtualization=on (needed for its smc PSCI conduit) enters at EL2:
+	 * drop to EL1h the way ios-sweet's secondary entry does. Not taken on
+	 * the phone.
+	 */
+	mrs	x1, CurrentEL
+	cmp	x1, #(2 << 2)
+	b.ne	.Lat_el1
+	mov	x1, #(1 << 31)		/* HCR_EL2.RW: AArch64 EL1, no stage 2 */
+	msr	hcr_el2, x1
+	msr	vttbr_el2, xzr
+	msr	cptr_el2, xzr
+	msr	mdcr_el2, xzr
+	mov	x1, #3			/* EL1 physical timer/counter access */
+	msr	cnthctl_el2, x1
+	msr	cntvoff_el2, xzr
+	mrs	x1, ICC_SRE_EL2		/* allow ICC_SRE_EL1, sysreg GIC interface */
+	orr	x1, x1, #1
+	orr	x1, x1, #8
+	msr	ICC_SRE_EL2, x1
+	movz	x1, #0x0800		/* SCTLR_EL1 RES1 bits, MMU/caches off */
+	movk	x1, #0x30d0, lsl #16
+	msr	sctlr_el1, x1
+	adr	x1, .Lat_el1
+	msr	elr_el2, x1
+	mov	x1, #0x3c5		/* EL1h, DAIF masked */
+	msr	spsr_el2, x1
+	isb
+	eret
+.Lat_el1:
 	msr	spsel, #1
 	adr	x1, _stack_top
 	mov	sp, x1

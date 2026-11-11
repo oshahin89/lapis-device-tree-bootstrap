@@ -44,6 +44,7 @@ FB_STRIDE = 5120                            # measured: ARGB8888, buffer 0 at FB
 A55_MPIDRS = (0x000, 0x100, 0x200, 0x300)
 
 QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE, QEMU_VTIMER = 0x08000000, 0x080A0000, 62500000, 27
+QEMU_GICR_SIZE = 0xF60000      # virt's first redistributor region (123 CPUs)
 # QEMU only: the framebuffer the host runner reads back as plain RAM. It is
 # the address the sweet 0010/0012 early console still hard-codes, not lapis'.
 QEMU_FB, QEMU_FB_W, QEMU_FB_H = 0x9C000000, 1080, 2400
@@ -118,7 +119,7 @@ def product_props(path):
     sys.exit(f"{path}: no /product node")
 
 
-def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False):
+def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False, qemu_smp=1):
     ids = iter(range(1, 1000))
     ph = lambda: ("AAPL,phandle", u32(next(ids)))
     gicd, gicr, timebase, vtimer = ((QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE, QEMU_VTIMER)
@@ -145,7 +146,11 @@ def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False):
     ], [Node("memory-map", [ph()]),
         Node("asmb", [ph(), ("lp-sip0", u64(0x6F)), ("lp-sip1", u32(1))])])
 
-    mpidrs = (0,) if qemu else A55_MPIDRS
+    # QEMU virt with GICv3 packs 16 CPUs per cluster (MPIDR Aff1 = index / 16),
+    # so CPU indices 0, 16, 32, 48 have MPIDR 0x000/0x100/0x200/0x300 -- the
+    # lapis A55 layout the SWEET CPU driver expects. Run QEMU with
+    # -smp 16*(N-1)+1; the CPUs not listed here stay powered off.
+    mpidrs = tuple(i << 8 for i in range(qemu_smp)) if qemu else A55_MPIDRS
     cpus = Node("cpus", [ph(), ("#address-cells", u32(1)), ("#size-cells", u32(0))], [
         Node(f"cpu{i}", [
             ph(),
@@ -183,7 +188,8 @@ def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False):
             ("compatible", cstr("arm,gic-v3")),
             ("interrupt-controller", b""),
             ("virtual-timer-intid", u32(vtimer)),
-            ("reg", u64(gicd - SOC_BASE, GICD_SIZE, gicr - SOC_BASE, GICR_SIZE)),
+            ("reg", u64(gicd - SOC_BASE, GICD_SIZE, gicr - SOC_BASE,
+                        QEMU_GICR_SIZE if qemu else GICR_SIZE)),
         ]),
         Node("wdt", [ph(), ("no-pmu", u32(1))]),
         Node("disp0", [
@@ -251,6 +257,9 @@ def main():
     ap.add_argument("--qemu-lapis-fb", action="store_true",
                     help="with --qemu: put fbcon on the lapis framebuffer geometry, so the QEMU screen "
                          "matches what the phone shows (tools/lapis_shim/qemu_shim.py)")
+    ap.add_argument("--qemu-smp", type=int, default=1,
+                    help="with --qemu: list N CPUs with MPIDR 0x000, 0x100, ... "
+                         "(run QEMU with -smp 16*(N-1)+1)")
     ap.add_argument("--no-ufs", action="store_true",
                     help="omit /sweet-ufs so xnu never touches the storage controller")
     ap.add_argument("--dump", metavar="ADT")
@@ -272,7 +281,7 @@ def main():
         print("warning: no --product; MobileGestalt will lack /product", file=sys.stderr)
 
     blob = serialize(build(a.qemu, a.fb_base, a.fb_stride, product_props(a.product), ufs=not a.no_ufs,
-                           qemu_lapis_fb=a.qemu_lapis_fb))
+                           qemu_lapis_fb=a.qemu_lapis_fb, qemu_smp=a.qemu_smp))
     with open(a.out, "wb") as f:
         f.write(blob)
     print(f"{a.out}: {len(blob)} bytes", file=sys.stderr)

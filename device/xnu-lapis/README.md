@@ -162,6 +162,22 @@ reboot alone also changes 16 bytes there (offset ~0xEC0; the block is not an
 F2FS superblock, probably encryption metadata), so Android rewrites it on
 every boot; XNU sent no command.
 
+## SMP: four A55 cores (QEMU, 2026-11-11)
+
+The SWEET CPU driver starts secondaries with PSCI `CPU_ON` over `smc #0`
+(the conduit Linux uses on lapis; GenieZone forwards it) and requires
+MPIDR Aff1 numbering (`0x000`…`0x300`), which is exactly the lapis A55
+layout already in the ADT. QEMU virt with GICv3 puts 16 CPUs per cluster, so
+`lapis_mkadt.py --qemu --qemu-smp 4` lists MPIDR `0x000/0x100/0x200/0x300`
+and `qemu_shim.py --smp 49` provides them (other CPUs stay off); `--smp > 1`
+also enables EL2 so QEMU answers PSCI on `smc`, and the shim now drops
+EL2 → EL1 when it is entered at EL2 (never taken on the phone, which enters
+at EL1). With `cpus=4` and the RAM-disk init: `CPU_ON rc=0` and
+`came alive; SGI1 OK` for CPUs 1–3, `SWEET CPU: 4/4 CPUs initialized, SGI1
+verified`, PID 1 heartbeat running. One CPU still works (23 heartbeats in
+150 s). Phone image (shim with the EL2 drop, `cpus=4`, `--no-ufs`, RAM-disk
+init): `1d6cbc1f…640f`.
+
 ## Open blockers before any phone experiment
 
 1. **Early framebuffer constants — patched, not yet run.** ios-sweet

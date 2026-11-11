@@ -84,6 +84,10 @@ def main():
     ap.add_argument("--secs", type=float, default=60)
     ap.add_argument("--kernel", help="unstripped xnu (for its _iso_font)")
     ap.add_argument("--pstore", action="store_true", help="decode the ramoops console zone")
+    ap.add_argument("--trace-int", action="store_true",
+                    help="log every exception to qemu.log (grows by GBs with --smp)")
+    ap.add_argument("--smp", type=int, default=1,
+                    help="CPUs; >1 also enables EL2 so QEMU answers PSCI on the smc conduit")
     a = ap.parse_args()
     out = os.path.abspath(a.outdir); os.makedirs(out, exist_ok=True)
     mon = os.path.join(out, "m.sock")
@@ -91,10 +95,11 @@ def main():
         sys.exit("OUTDIR path too long for a QMP unix socket")
     if os.path.exists(mon):
         os.unlink(mon)
-    cmd = ["qemu-system-aarch64", "-M", "virt,gic-version=3", "-cpu", "cortex-a76", "-smp", "1",
+    machine = "virt,gic-version=3" + (",virtualization=on" if a.smp > 1 else "")
+    cmd = ["qemu-system-aarch64", "-M", machine, "-cpu", "cortex-a76", "-smp", str(a.smp),
            "-m", "12G", "-nographic", "-serial", f"file:{out}/serial.txt", "-monitor", "none",
            "-qmp", f"unix:{mon},server,nowait", "-no-reboot",
-           "-d", "int,guest_errors,unimp", "-D", f"{out}/qemu.log",
+           "-d", ("int," if a.trace_int else "") + "guest_errors,unimp", "-D", f"{out}/qemu.log",
            "-device", f"loader,file={os.path.abspath(a.image)},addr={LOAD:#x},force-raw=on",
            "-device", f"loader,addr={LOAD:#x},cpu-num=0"]
     p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL)
