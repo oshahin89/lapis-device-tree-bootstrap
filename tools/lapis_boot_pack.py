@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Pack a first-stage payload into a copy of the lapis stock boot partition.
+"""Pack a first-stage payload or a whole kernel Image into a copy of the lapis stock boot partition.
 
-  lapis_boot_pack.py STOCK_BOOT PAYLOAD.bin OUT.img [--expect-stock-sha256 H]
+  lapis_boot_pack.py STOCK_BOOT OUT.img --probe PAYLOAD.bin [--expect-stock-sha256 H]
+  lapis_boot_pack.py STOCK_BOOT OUT.img --image Image [--append BLOB] [--expect-stock-sha256 H]
 
 This only WRITES A FILE. It never talks to the phone. Flashing the result is
 a separate, explicitly authorised step that needs a proven restore path
@@ -11,7 +12,7 @@ STOCK_BOOT is the full 64 MiB boot partition (e.g. device/slot_b_readback/
 boot_b.img): Android boot header v4, LZ4 legacy kernel, the 16 KiB boot
 signature blob, and an AVB hash footer at the end of the partition.
 
-Following ruby-ios-bringup's "small payload" recipe, adapted to v4 + LZ4:
+--probe follows ruby-ios-bringup's "small payload" recipe, adapted to v4 + LZ4:
   1. decompress the stock kernel (Linux arm64 Image, 'ARMd' at 0x38);
   2. replace code0 (raw[0:4]) with `b 0x1000` and put the payload at
      raw+0x1000; keep the Image header and every other byte;
@@ -19,6 +20,12 @@ Following ruby-ios-bringup's "small payload" recipe, adapted to v4 + LZ4:
      copied byte for byte) and update the header's kernel_size;
   4. lay out header | kernel | stock boot-signature blob | stock vbmeta, and
      rewrite the AVB footer's original_image_size / vbmeta_offset.
+
+--image replaces the whole decompressed kernel with IMAGE (an arm64 Image,
+e.g. tools/lapis_shim), optionally followed at the next 4 KiB boundary by
+BLOB (a SWEETXNU payload); the Image header's image_size is patched to cover
+both, the result is LZ4-compressed from scratch, and the same header /
+signature / vbmeta / footer handling applies.
 
 The AVB hash no longer matches the image. LK on this unlocked (orange)
 device is expected to continue, as it does for unsigned root-patched boot
@@ -62,6 +69,34 @@ def parse(img):
                 orig=orig, vbmeta=img[vbo:vbo + vbs], footer=f)
 
 
+def assemble(stock, kernel):
+    s = parse(stock)
+    hdr = bytearray(stock[:PAGE])
+    struct.pack_into("<I", hdr, 8, len(kernel))
+    body = bytes(hdr) + bytes(kernel) + b"\0" * (pad(len(kernel)) - len(kernel)) + s["trailer"]
+    orig = len(body)
+    if orig + len(s["vbmeta"]) > len(stock) - FOOTER:
+        sys.exit("kernel too large for the partition")
+    img = bytearray(len(stock))
+    img[:orig] = body
+    img[orig:orig + len(s["vbmeta"])] = s["vbmeta"]
+    footer = bytearray(s["footer"])
+    struct.pack_into(">QQ", footer, 12, orig, orig)        # original_image_size, vbmeta_offset
+    img[-FOOTER:] = footer
+    return bytes(img)
+
+
+def build_image(stock, image, blob):
+    if image[0x38:0x3C] != b"ARMd":
+        sys.exit("--image is not a Linux arm64 Image")
+    raw = bytearray(image)
+    if blob:
+        raw += b"\0" * (-len(raw) % 0x1000)
+        raw += blob
+    struct.pack_into("<Q", raw, 16, len(raw))             # image_size covers the payload
+    return assemble(stock, lz4.compress(bytes(raw))), bytes(raw)
+
+
 def build(stock, payload):
     s = parse(stock)
     blocks = lz4.split_blocks(s["kernel"])
@@ -79,17 +114,7 @@ def build(stock, payload):
     for off, size in blocks[1:]:
         kernel += s["kernel"][off - 4:off + size]
 
-    hdr = bytearray(stock[:PAGE])
-    struct.pack_into("<I", hdr, 8, len(kernel))
-    body = bytes(hdr) + bytes(kernel) + b"\0" * (pad(len(kernel)) - len(kernel)) + s["trailer"]
-    orig = len(body)
-    img = bytearray(len(stock))
-    img[:orig] = body
-    img[orig:orig + len(s["vbmeta"])] = s["vbmeta"]
-    footer = bytearray(s["footer"])
-    struct.pack_into(">QQ", footer, 12, orig, orig)        # original_image_size, vbmeta_offset
-    img[-FOOTER:] = footer
-    return bytes(img), raw0
+    return assemble(stock, kernel), raw0
 
 
 def verify(stock, out, payload, raw0_stock):
@@ -115,26 +140,58 @@ def verify(stock, out, payload, raw0_stock):
     return len(diff)
 
 
+def verify_layout(stock, out):
+    a, b = parse(stock), parse(out)
+    if stock[:8] + stock[12:PAGE] != out[:8] + out[12:PAGE]:
+        sys.exit("verify: header changed beyond kernel_size")
+    if a["trailer"] != b["trailer"] or a["vbmeta"] != b["vbmeta"]:
+        sys.exit("verify: boot signature or vbmeta changed")
+    if a["footer"][:12] != b["footer"][:12] or a["footer"][28:] != b["footer"][28:]:
+        sys.exit("verify: AVB footer changed beyond the two offsets")
+    return b
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("stock"); ap.add_argument("payload"); ap.add_argument("out")
+    ap.add_argument("stock"); ap.add_argument("out")
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument("--probe", help="small payload placed at Image+0x1000 of the stock kernel")
+    g.add_argument("--image", help="replacement arm64 Image (e.g. the lapis shim)")
+    ap.add_argument("--append", help="with --image: blob appended at the next 4 KiB boundary")
     ap.add_argument("--expect-stock-sha256")
     a = ap.parse_args()
+    if a.append and not a.image:
+        ap.error("--append needs --image")
     stock = open(a.stock, "rb").read()
     h = hashlib.sha256(stock).hexdigest()
     if a.expect_stock_sha256 and h != a.expect_stock_sha256:
         sys.exit(f"stock image sha256 {h} does not match")
-    payload = open(a.payload, "rb").read()
-    out, raw0 = build(stock, payload)
-    changed = verify(stock, out, payload, raw0)
+    s = parse(stock)
+    if a.probe:
+        payload = open(a.probe, "rb").read()
+        out, raw0 = build(stock, payload)
+        changed = verify(stock, out, payload, raw0)
+        what = (f"{changed} bytes of the decompressed Image differ, all inside code0 "
+                f"and the {len(payload)}-byte payload")
+        how = "LZ4 block 0 recompressed, others copied"
+    else:
+        image = open(a.image, "rb").read()
+        blob = open(a.append, "rb").read() if a.append else b""
+        out, raw = build_image(stock, image, blob)
+        o = verify_layout(stock, out)
+        if lz4.decompress(o["kernel"]) != raw:
+            sys.exit("verify: decompressed kernel differs from Image + payload")
+        what = (f"decompressed kernel == Image ({len(image)} B) + payload ({len(blob)} B), "
+                f"image_size {len(raw):#x}")
+        how = "whole Image compressed"
     with open(a.out, "wb") as f:
         f.write(out)
-    s, o = parse(stock), parse(out)
+    o = parse(out)
     print(f"stock   sha256 {h}")
     print(f"out     sha256 {hashlib.sha256(out).hexdigest()}  ({len(out)} bytes, same as partition)")
-    print(f"kernel  {s['kernel_size']} -> {o['kernel_size']} bytes (LZ4 block 0 recompressed, others copied)")
+    print(f"kernel  {s['kernel_size']} -> {o['kernel_size']} bytes ({how})")
     print(f"AVB     original_image_size {s['orig']:#x} -> {o['orig']:#x} (hash now stale)")
-    print(f"verify  OK: {changed} bytes of the decompressed Image differ, all inside code0 and the {len(payload)}-byte payload")
+    print(f"verify  OK: {what}")
 
 
 if __name__ == "__main__":

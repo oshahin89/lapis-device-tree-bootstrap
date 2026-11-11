@@ -100,9 +100,18 @@ window.)
    lapis values: scan-out buffer `0xfd72f000`, ARGB8888, stride 5120,
    1280 wide. Only one 32 MiB block (`0xfc000000`) is mapped, and the buffer
    starts `0x172f000` into it, so the early console uses the first 1792 rows.
-2. **Boot shim / image.** Lapis LK loads an Android boot **v4** image with an
-   **LZ4** kernel (ruby: v2 + gzip; topaz: v4 shim via Qualcomm ABL). A lapis
-   shim and packer, plus the LK handoff contract, are still to be written.
+2. **Boot shim / image — written, QEMU-tested.** `tools/lapis_shim/` (console
+   and loader derived from ios-sweet's MIT shim) is an arm64 Image that LK
+   loads at `0x40000000`; it clears the TOPRGU watchdog, prints the entry
+   state on the measured framebuffer, finds the SWEETXNU payload appended at
+   the next 4 KiB boundary, refuses kernel RAM outside the measured free bank
+   `0x140000000–0x32df00000`, copies segments/ADT/boot_args (Video = LK
+   buffer) and jumps to xnu at EL1 with the MMU off.
+   `lapis_boot_pack.py STOCK OUT --image Image --append payload` packs it into
+   a boot_b copy (whole Image LZ4-compressed, verified by decompression).
+   `tools/lapis_shim/qemu_shim.py` runs the shim+payload in QEMU virt: the
+   shim console, then xnu's early console (`SWEET EARLY 1`…`20`, i.e. patch
+   0081) on the lapis framebuffer, then the same boot as the direct QEMU run.
 3. **Recovery proof.** Show that flashing the exact factory image back to a
    boot slot restores Android before writing any experiment image.
 4. **Watchdog — patched; the same store is confirmed on the device.** LK leaves the MT6878 TOPRGU

@@ -1,0 +1,94 @@
+/*
+ * lapis XNU boot shim: entry.
+ *
+ * LK decompresses boot_b's kernel to 0x40000000 and the EL2 hypervisor
+ * (GenieZone) erets here at EL1 with the MMU and caches off, x0 = DTB
+ * (device/lapis_boot_contract.md). The Linux arm64 Image header keeps LK
+ * happy; lapis_boot_pack.py --image appends the SWEETXNU payload at the first
+ * 4 KiB boundary after _end and patches image_size to cover it.
+ *
+ * Layout of the header follows Documentation/arch/arm64/booting.rst; the
+ * structure (header, stack, vectors, bss) mirrors ios-sweet's shim/start.S
+ * (MIT, see LICENSE.ios-sweet).
+ */
+	.section .text.head, "ax"
+	.globl	_head
+_head:
+	b	_start			/* code0 */
+	.long	0			/* code1 */
+	.quad	0			/* text_offset */
+	.quad	_end			/* image_size; the packer grows it to cover the payload */
+	.quad	0xa			/* flags: LE, 4K pages, place anywhere */
+	.quad	0, 0, 0			/* res2..res4 */
+	.ascii	"ARM\x64"		/* magic */
+	.long	0			/* res5 */
+
+	.text
+	.globl	_start
+_start:
+	msr	daifset, #0xf
+	mov	x19, x0			/* DTB from LK */
+
+	/*
+	 * LK leaves the MT6878 TOPRGU watchdog armed; clear WDT_MODE with its
+	 * 0x22 key first (confirmed on the device with the stage 1 probe).
+	 * XNU patch 0082 repeats the store.
+	 */
+	movz	x0, #0xa000
+	movk	x0, #0x1c00, lsl #16
+	movz	w1, #0
+	movk	w1, #0x2200, lsl #16
+	str	w1, [x0]
+	dsb	sy
+
+	msr	spsel, #1
+	adr	x1, _stack_top
+	mov	sp, x1
+	adr	x1, vectors
+	msr	vbar_el1, x1
+	isb
+
+	adr	x1, _bss_start
+	adr	x2, _bss_end
+1:	cmp	x1, x2
+	b.hs	2f
+	str	xzr, [x1], #8
+	b	1b
+2:	mov	x0, x19
+	bl	shim_main
+3:	wfe
+	b	3b
+
+/*
+ * Exception vectors: report slot, ESR, ELR, FAR on screen and park. The shim
+ * never expects an exception; with the watchdog off, recovery is
+ * Power + Vol-down into LK fastboot.
+ */
+.macro vent slot
+	.balign	0x80
+	mov	x0, #\slot
+	mrs	x1, esr_el1
+	mrs	x2, elr_el1
+	mrs	x3, far_el1
+	b	exc_report
+.endm
+
+	.balign	0x800
+	.globl	vectors
+vectors:
+	vent 0
+	vent 1
+	vent 2
+	vent 3
+	vent 4
+	vent 5
+	vent 6
+	vent 7
+	vent 8
+	vent 9
+	vent 10
+	vent 11
+	vent 12
+	vent 13
+	vent 14
+	vent 15
