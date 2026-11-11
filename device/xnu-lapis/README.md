@@ -197,6 +197,15 @@ four A55s only. Phone image (`--with-a78 --no-ufs`, `cpus=8`, RAM-disk init):
 all four A78 cores start too, running the 16K-page kernel. Recovered with
 Power + Vol-down → stock `boot_b` (`851a5435…`, Android `_b` in ~21 s).
 
+## HFS+ RAM-disk root (QEMU, 2026-11-11)
+
+`tools/lapis_mkroot_hfs.sh` (run with sudo; needs hfsprogs) builds an 8 MiB
+HFS+ volume `SweetRoot` with `/sbin/launchd` = ios-sweet's init (local output
+`build/root-hfs.img`, sha256 `833c808e…`, not committed). As the RAM disk
+with `rd=md0`, QEMU shows `BSD root: md0` → `hfs: mounted SweetRoot on device
+b(1, 0)` → `load_init_program: /sbin/launchd` → `init running as PID 1`
+(built-in Apple OSS HFS, patches 0026/0027). Same format the iOS root will use.
+
 ## Open blockers before any phone experiment
 
 1. **Early framebuffer constants — patched, not yet run.** ios-sweet

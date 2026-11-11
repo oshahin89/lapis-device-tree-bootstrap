@@ -12,3 +12,6 @@ device/xnu-lapis/xnu/
 # Python bytecode.
 __pycache__/
 *.pyc
+
+# Local build outputs (images, payloads).
+build/
