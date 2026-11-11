@@ -105,11 +105,12 @@ window.)
    shim and packer, plus the LK handoff contract, are still to be written.
 3. **Recovery proof.** Show that flashing the exact factory image back to a
    boot slot restores Android before writing any experiment image.
-4. **Watchdog — patched, not yet run.** LK leaves the MT6878 TOPRGU
+4. **Watchdog — patched; the same store is confirmed on the device.** LK leaves the MT6878 TOPRGU
    (`0x1c00a000`) armed; the parked probe was reset five times.
    `patches/0082-lapis-disable-toprgu-watchdog.patch` clears WDT_MODE with
    the `0x22` key at the very start of `start_first_cpu` (MMU off), the same
-   store ruby makes on MT6877. To be confirmed on the device first with the
-   `-DDISABLE_WDT` probe (no resets in expdb; Power + Vol-down still recovers).
+   store ruby makes on MT6877. **Confirmed on the device** with the
+   `-DDISABLE_WDT` probe: no resets for two minutes, and Power + Vol-down
+   still reaches fastboot with the watchdog off.
 5. UFS LUN/GPT layout for the `iosroot` partition (`ufslun=` boot-arg) and the
    A78 cluster (kept out of the ADT for now).
