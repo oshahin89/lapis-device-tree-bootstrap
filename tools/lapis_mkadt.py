@@ -38,10 +38,12 @@ UFS, UFS_SIZE = 0x112B0000, 0x2300          # 112b0000.ufshci (iomem)
 FB_RESERVED, FB_RESERVED_SIZE = 0xFD72F000, 0x028D0000   # mblock-15-framebuffer
 FB_W, FB_H = 1280, 2772                     # p16_36_02_0b_dsc_vdo
 FB_STRIDE = 5120                            # measured: ARGB8888, buffer 0 at FB_RESERVED
-# Little cluster only: Cortex-A55 (MIDR part 0xD05), MPIDR Aff1 = 0..3. The
-# Linux boot CPU is CPU0 (MPIDR 0). The A78 cluster (0x400-0x700) stays out
-# until PSCI bring-up of the second cluster is verified.
+# Cortex-A55 (MIDR part 0xD05) MPIDR 0x000-0x300, booted on the phone with
+# cpus=4. Cortex-A78 (part 0xD41) MPIDR 0x400-0x700 are added with --with-a78:
+# like ios-sweet's A55+A76 phone, all cores form one homogeneous SMP cluster
+# (same ARMv8.2 ISA level, 64-byte lines, 16K granule on both).
 A55_MPIDRS = (0x000, 0x100, 0x200, 0x300)
+A78_MPIDRS = (0x400, 0x500, 0x600, 0x700)
 
 QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE, QEMU_VTIMER = 0x08000000, 0x080A0000, 62500000, 27
 QEMU_GICR_SIZE = 0xF60000      # virt's first redistributor region (123 CPUs)
@@ -119,7 +121,7 @@ def product_props(path):
     sys.exit(f"{path}: no /product node")
 
 
-def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False, qemu_smp=1):
+def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False, qemu_smp=1, a78=False):
     ids = iter(range(1, 1000))
     ph = lambda: ("AAPL,phandle", u32(next(ids)))
     gicd, gicr, timebase, vtimer = ((QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE, QEMU_VTIMER)
@@ -150,14 +152,16 @@ def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False, qemu
     # so CPU indices 0, 16, 32, 48 have MPIDR 0x000/0x100/0x200/0x300 -- the
     # lapis A55 layout the SWEET CPU driver expects. Run QEMU with
     # -smp 16*(N-1)+1; the CPUs not listed here stay powered off.
-    mpidrs = tuple(i << 8 for i in range(qemu_smp)) if qemu else A55_MPIDRS
+    mpidrs = (tuple(i << 8 for i in range(qemu_smp)) if qemu
+              else A55_MPIDRS + (A78_MPIDRS if a78 else ()))
     cpus = Node("cpus", [ph(), ("#address-cells", u32(1)), ("#size-cells", u32(0))], [
         Node(f"cpu{i}", [
             ph(),
             ("device_type", cstr("cpu")),
             # qcom,kryo470 is the IONameMatch of the SWEET CPU driver; it is a
             # match key, not a claim about the hardware.
-            ("compatible", cstr("arm,cortex-a55", "qcom,kryo470", "ARM,v8")),
+            ("compatible", cstr("arm,cortex-a78" if mpidr >= 0x400 else "arm,cortex-a55",
+                                "qcom,kryo470", "ARM,v8")),
             ("reg", u32(mpidr)),                 # MPIDR, not the logical CPU ID
             ("cpu-id", u32(i)),
             ("cluster-id", u32(0)),
@@ -260,6 +264,8 @@ def main():
     ap.add_argument("--qemu-smp", type=int, default=1,
                     help="with --qemu: list N CPUs with MPIDR 0x000, 0x100, ... "
                          "(run QEMU with -smp 16*(N-1)+1)")
+    ap.add_argument("--with-a78", action="store_true",
+                    help="also list the four Cortex-A78 cores (MPIDR 0x400-0x700); boot with cpus=8")
     ap.add_argument("--no-ufs", action="store_true",
                     help="omit /sweet-ufs so xnu never touches the storage controller")
     ap.add_argument("--dump", metavar="ADT")
@@ -281,7 +287,8 @@ def main():
         print("warning: no --product; MobileGestalt will lack /product", file=sys.stderr)
 
     blob = serialize(build(a.qemu, a.fb_base, a.fb_stride, product_props(a.product), ufs=not a.no_ufs,
-                           qemu_lapis_fb=a.qemu_lapis_fb, qemu_smp=a.qemu_smp))
+                           qemu_lapis_fb=a.qemu_lapis_fb, qemu_smp=a.qemu_smp,
+                           a78=a.with_a78))
     with open(a.out, "wb") as f:
         f.write(blob)
     print(f"{a.out}: {len(blob)} bytes", file=sys.stderr)
