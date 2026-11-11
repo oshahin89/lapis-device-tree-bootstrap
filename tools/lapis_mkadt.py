@@ -17,8 +17,10 @@ Usage:
 
 Open measurements (the script refuses to guess them):
   * framebuffer stride / visible layer: --fb-stride is required for a phone
-    tree. ruby (MT6877) found its visible LK layer at a different address than
-    the reserved framebuffer, with a padded pitch; verify on lapis before use.
+    tree. Derived offline (device/lapis_boot_contract.md): 32 bpp, stride
+    5120, probable visible layer 0xff25f000 (third buffer, as ruby measured
+    on MT6877). Unverified on lapis, so the values are not defaulted; pass
+    --fb-base 0xff25f000 --fb-stride 5120 only once the device confirms them.
 """
 import argparse
 import hashlib
