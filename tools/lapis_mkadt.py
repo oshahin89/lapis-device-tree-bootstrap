@@ -44,6 +44,9 @@ FB_W, FB_H = 1280, 2772                     # p16_36_02_0b_dsc_vdo
 A55_MPIDRS = (0x000, 0x100, 0x200, 0x300)
 
 QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE, QEMU_VTIMER = 0x08000000, 0x080A0000, 62500000, 27
+# QEMU only: the framebuffer the host runner reads back as plain RAM. It is
+# the address the sweet 0010/0012 early console still hard-codes, not lapis'.
+QEMU_FB, QEMU_FB_W, QEMU_FB_H = 0x9C000000, 1080, 2400
 
 ECID = 0x4C41504953000001                   # 'LAPIS' + 1, synthetic
 BOOT_MANIFEST_HASH = hashlib.sha384(b"lapis boot manifest").digest()
@@ -193,7 +196,15 @@ def build(qemu, fb_base, fb_stride, product):
     ])
 
     children = [chosen, Node("defaults", [ph(), ("no-effaceable-storage", u32(1))]), cpus, arm_io]
-    if not qemu:
+    if qemu:
+        children.append(Node("sweet-fbcon", [
+            ph(),
+            ("reg", u64(QEMU_FB, QEMU_FB_W * 4 * QEMU_FB_H)),
+            ("width", u32(QEMU_FB_W)),
+            ("height", u32(QEMU_FB_H)),
+            ("stride", u32(QEMU_FB_W * 4)),
+        ]))
+    else:
         children.append(Node("sweet-fbcon", [
             ph(),
             ("reg", u64(fb_base, FB_RESERVED + FB_RESERVED_SIZE - fb_base)),

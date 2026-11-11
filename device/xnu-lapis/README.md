@@ -61,6 +61,28 @@ upstream authors' permission, before publishing anything derived from them.
   `--fb-stride`, which has not been measured. `--qemu` writes the QEMU virt
   variant.
 
+## QEMU boot (2026-11-11)
+
+The CI kernel from run `42987441560` boots in QEMU `virt` (GICv3,
+cortex-a76, 1 CPU) with a lapis QEMU ADT, using ios-topaz's host tools from
+the local reference checkout (not committed here):
+
+```sh
+python3 tools/lapis_mkadt.py qemu.adt --qemu
+python3 reference/xnu-topaz-baseline/tools/mkpayload.py kernel.development.sweet qemu.adt qemu.payload \
+  --cmdline "debug=0xc serial=3 cpus=1 keepsyms=1 -noprogress sweethw=0 wdt=-1"
+# the run directory path must be short: QEMU's QMP unix socket is limited to 108 bytes
+python3 reference/xnu-topaz-baseline/tools/qemu-sweet.py qemu.payload /tmp/lq --secs 60 --kernel kernel.development.sweet
+```
+
+Result after 60 s: no panic. The kernel runs at the ADT's RAM base
+`0x140000000`, loads the SWEET AMFI/Sandbox stand-ins and HFS, finishes VM
+bootstrap, mbuf/dlil and loopback/gif/stf, and stops at
+`Waiting on <IOMedia Apple_HFS>` — expected, as QEMU has no UFS and no iOS
+root was attached. `qemu.log` shows timer IRQs and one handled EL1 write
+fault in `skmem_sysctl_init`. This validates the kernel and the ADT layout
+against QEMU's GIC/timer, not lapis hardware.
+
 ## Open blockers before any phone experiment
 
 1. **Early framebuffer constants.** ios-sweet 0010/0012 hard-code sweet's
