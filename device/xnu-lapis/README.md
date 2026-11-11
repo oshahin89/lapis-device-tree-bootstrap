@@ -118,7 +118,7 @@ timer interrupts, scheduler, IOKit, MAC policies, HFS, networking — up to the
 root-device wait, the same point as in QEMU. Recovered with Power + Vol-down →
 fastboot → stock `boot_b` (`851a5435…`, Android `_b` in ~21 s).
 
-## RAM-disk PID 1 (QEMU, 2026-11-11)
+## RAM-disk PID 1 (QEMU and phone, 2026-11-11)
 
 With ios-sweet's static init (`tools/ios-sweet/sweet-init.S` via `mkinit.py`,
 vendored MIT) as the RAM disk and `rd=md0`, the run-42996879535 kernel under
@@ -129,6 +129,13 @@ the lapis shim in QEMU (`--qemu --qemu-lapis-fb` ADT) reaches
 every 5 s (150 s, no panic). mockfs serves the RAM disk file as
 `/sbin/launchd`; no storage is touched. Phone image (ADT `--no-ufs`):
 `393c3cd3…1020`.
+
+**On the phone (13:02, same image):** the user saw
+`*** SWEET userspace: init running as PID 1 ***` and `SWEET init: still
+alive` lines being added. xnu on lapis loads and execs a signed Mach-O,
+switches to EL0 and back through syscalls, opens `/dev/console` (devfs) and
+wakes from `select` timeouts. Recovered with Power + Vol-down → stock
+`boot_b` (`851a5435…`, Android `_b` in ~18 s).
 
 ## Open blockers before any phone experiment
 
