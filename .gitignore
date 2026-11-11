@@ -1,0 +1,14 @@
+# Factory ROM images (12 GiB, Xiaomi firmware): never commit or push.
+lapis_global_images_OS3.0.309.0.WPPMIXM_16.0/images/
+lapis_global_images_*/images/
+
+# Upstream checkouts staged for reference only; fetched or cloned, not vendored
+# (ios-sweet/ios-topaz code must not be redistributed from this repository).
+reference/
+
+# Old vanilla-XNU worktree (separate git repository).
+device/xnu-lapis/xnu/
+
+# Python bytecode.
+__pycache__/
+*.pyc
