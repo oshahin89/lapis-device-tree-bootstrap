@@ -100,6 +100,20 @@ needs an authorised account; do not count on it.
    read `getvar current-slot`, `getvar anti`, `getvar product`,
    `getvar partition-size:boot_b`, then `fastboot reboot` and confirm Android.
    Also confirm entering fastboot from power-off with Vol-down + Power.
+   **Step 1 result (2026-11-11, no writes):** `adb reboot bootloader` reached
+   LK fastboot in ~10 s. Read-only `getvar`: product `lapis`, current-slot
+   `b`, slot-count 2, anti `1` (equals the package's `anti_version.txt`, so
+   the factory flash script would pass its rollback check), unlocked `yes`,
+   secure `no`, is-userspace `no` (LK fastboot, not fastbootd),
+   max-download-size `0x8000000` (128 MiB, holds a 64 MiB boot image),
+   `partition-size:boot_a`/`boot_b` `0x4000000`, `partition-type:boot_b`
+   `raw`, version-bootloader `lapis_3f2e32c7d_202609200804`,
+   bypass_check_imgkey `no`. Slot state: **b successful=yes, unbootable=no,
+   retry-count 1; a successful=no, unbootable=no, retry-count 0** — slot A is
+   not a working fallback, so a broken `boot_b` would not fall back to A;
+   recovery is through LK fastboot. `fastboot reboot` returned to Android
+   (`_b`, OS3.0.309.0, orange) with boot_completed after ~21 s. Still to do by
+   hand: enter fastboot from power-off with Vol-down + Power.
 2. **Content no-op write:** `fastboot flash boot_b` with the exact stock image
    (sha256 `851a5435…ae4f5`, identical to what is already there), reboot,
    confirm Android. This proves the write path without changing any byte or
