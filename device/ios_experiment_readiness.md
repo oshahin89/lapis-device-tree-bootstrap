@@ -118,6 +118,14 @@ needs an authorised account; do not count on it.
    (sha256 `851a5435…ae4f5`, identical to what is already there), reboot,
    confirm Android. This proves the write path without changing any byte or
    switching to the older slot A.
+   **Step 2 result (2026-11-11):** before writing, root `sha256sum` of
+   `/dev/block/by-name/boot_b` = `851a5435…ae4f5` (64 MiB), i.e. stock.
+   `adb reboot bootloader` → `fastboot flash boot_b
+   device/slot_b_readback/boot_b.img`: Sending OKAY (1.9 s), Writing OKAY
+   (0.15 s). `fastboot reboot` → Android `_b`, OS3.0.309.0, orange,
+   boot_completed ~21 s. Root readback afterwards: `851a5435…ae4f5`
+   unchanged. LK fastboot writes to `boot_b` and the reboot path work.
+   (KernelSU's `su` appears some seconds after boot_completed.)
 3. **Probe:** flash the probe image to `boot_b`, reboot, photograph the
    screen; then return to fastboot (Vol-down + Power) and flash the stock
    `boot_b` back, reboot, confirm Android.
