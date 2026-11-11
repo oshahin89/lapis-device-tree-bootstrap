@@ -92,7 +92,7 @@ result: no panic, `Waiting on <IOMedia Apple_HFS>`, one handled EL1 write
 fault, timer IRQs. (In QEMU virt the watchdog store lands in the empty PCIe
 window.)
 
-## First XNU run on the phone (2026-11-11)
+## First XNU runs on the phone (2026-11-11) — boots to the root wait
 
 Image `5bb385fd…7e1c` (shim + run-42996879535 kernel, ADT `--no-ufs`,
 `cpus=1 sweethw=0 wdt=-1`) flashed to `boot_b`. The user saw many lines of
@@ -109,8 +109,14 @@ same kernel in QEMU with the phone's exact console geometry
 line on the last screen row; the next line wraps to row 2 and the boot
 continues there to `Waiting on <IOMedia Apple_HFS>` (row ~23 after 60 s). The
 phone screen therefore matches a kernel that kept running; the top of the
-screen was not read. **To confirm:** rerun the same image and read the top
-lines.
+screen was not read.
+
+**Confirmed (second run, same image, 12:32):** the user read the top part of
+the screen and found the `Waiting on <dict … IOMedia … Apple_HFS …>` line.
+xnu 8796 therefore boots on lapis hardware — EL1 under GenieZone, GICv3
+timer interrupts, scheduler, IOKit, MAC policies, HFS, networking — up to the
+root-device wait, the same point as in QEMU. Recovered with Power + Vol-down →
+fastboot → stock `boot_b` (`851a5435…`, Android `_b` in ~21 s).
 
 ## Open blockers before any phone experiment
 
