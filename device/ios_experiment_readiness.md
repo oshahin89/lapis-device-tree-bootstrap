@@ -112,8 +112,8 @@ needs an authorised account; do not count on it.
    retry-count 1; a successful=no, unbootable=no, retry-count 0** — slot A is
    not a working fallback, so a broken `boot_b` would not fall back to A;
    recovery is through LK fastboot. `fastboot reboot` returned to Android
-   (`_b`, OS3.0.309.0, orange) with boot_completed after ~21 s. Still to do by
-   hand: enter fastboot from power-off with Vol-down + Power.
+   (`_b`, OS3.0.309.0, orange) with boot_completed after ~21 s. The user confirmed
+   entering fastboot from power-off with Vol-down + Power works (same day).
 2. **Content no-op write:** `fastboot flash boot_b` with the exact stock image
    (sha256 `851a5435…ae4f5`, identical to what is already there), reboot,
    confirm Android. This proves the write path without changing any byte or
