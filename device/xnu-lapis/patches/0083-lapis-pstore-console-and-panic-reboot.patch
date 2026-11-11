@@ -1,0 +1,145 @@
+diff --git a/osfmk/kern/debug.c b/osfmk/kern/debug.c
+index 437adb1..1acbae5 100644
+--- a/osfmk/kern/debug.c
++++ b/osfmk/kern/debug.c
+@@ -1155,9 +1155,17 @@ panic_trap_to_debugger(const char *panic_format_str, va_list *panic_args, unsign
+ 	__builtin_unreachable();
+ }
+ 
++#if defined(SWEET)
++extern void lapis_panic_reboot(void);
++#endif
++
+ void
+ panic_spin_forever(void)
+ {
++#if defined(SWEET)
++	/* lapis: optional warm reset into fastboot (boot-arg lapispanicreboot=N) */
++	lapis_panic_reboot();
++#endif
+ 	for (;;) {
+ #if defined(__arm__) || defined(__arm64__)
+ 		/* On arm32, which doesn't have a WFE timeout, this may not return.  But that should be OK on this path. */
+diff --git a/pexpert/arm/pe_serial.c b/pexpert/arm/pe_serial.c
+index 19f27cd..3182126 100644
+--- a/pexpert/arm/pe_serial.c
++++ b/pexpert/arm/pe_serial.c
+@@ -721,6 +721,102 @@ static volatile uint32_t *fbcon_base;
+ static uint32_t fbcon_width, fbcon_height, fbcon_stride;
+ static uint32_t fbcon_cols, fbcon_rows, fbcon_col, fbcon_row;
+ 
++/*
++ * lapis: optional mirror of the console into Android's ramoops console zone
++ * and a warm reset into LK fastboot after a panic. Both come from the ADT
++ * node "lapis-debug" (tools/lapis_mkadt.py --debug):
++ *   pstore-reg = <phys size>   ramoops console zone (struct persistent_ram_buffer)
++ *   rgu-reg    = <phys size>   MT6878 TOPRGU (mediatek,mt6878-wdt)
++ * Android shows the zone as /sys/fs/pstore/console-ramoops-0 after a warm
++ * reset. The ring keeps the newest text: Linux reads data[start..size) then
++ * data[0..start).
++ */
++#define LAPIS_PRZ_SIG           0x43474244u     /* "DBGC" */
++static volatile uint32_t *lapis_prz_hdr;        /* sig, start, size */
++static volatile uint8_t *lapis_prz_data;
++static uint32_t lapis_prz_cap, lapis_prz_start, lapis_prz_size;
++static volatile uint32_t *lapis_rgu;
++
++static void
++lapis_debug_probe(void)
++{
++	DTEntry entry;
++	uint64_t const *reg;
++	unsigned int size;
++
++	if (SecureDTFindEntry("name", "lapis-debug", &entry) != kSuccess) {
++		return;
++	}
++	if (SecureDTGetProperty(entry, "pstore-reg", (void const **)&reg, &size) == kSuccess &&
++	    size >= 16 && reg[1] > 4096) {
++		volatile uint8_t *base = (volatile uint8_t *)ml_io_map(reg[0], reg[1]);
++		if (base != NULL) {
++			lapis_prz_hdr = (volatile uint32_t *)base;
++			lapis_prz_data = base + 12;
++			lapis_prz_cap = (uint32_t)(reg[1] - 12);
++			lapis_prz_start = lapis_prz_size = 0;
++			lapis_prz_hdr[1] = 0;
++			lapis_prz_hdr[2] = 0;
++			lapis_prz_hdr[0] = LAPIS_PRZ_SIG;
++		}
++	}
++	if (SecureDTGetProperty(entry, "rgu-reg", (void const **)&reg, &size) == kSuccess && size >= 16) {
++		lapis_rgu = (volatile uint32_t *)ml_io_map(reg[0], reg[1]);
++	}
++}
++
++static void
++lapis_pstore_putc(uint8_t c)
++{
++	if (lapis_prz_hdr == NULL) {
++		return;
++	}
++	lapis_prz_data[lapis_prz_start] = c;
++	lapis_prz_start = (lapis_prz_start + 1) % lapis_prz_cap;
++	if (lapis_prz_size < lapis_prz_cap) {
++		lapis_prz_size++;
++	}
++	lapis_prz_hdr[1] = lapis_prz_start;
++	lapis_prz_hdr[2] = lapis_prz_size;
++}
++
++/*
++ * Called from panic_spin_forever(): with boot-arg lapispanicreboot=N (1..600)
++ * wait N seconds, then do what Linux's `reboot bootloader` does on lapis:
++ * TOPRGU +0x24 bits[3:0] = 3 (syscon-reboot-mode "mode-bootloader"),
++ * WDT_MODE &= ~IRQ_EN (key 0x22), WDT_SWRST = 0x1209. Returns if not set up.
++ */
++void lapis_panic_reboot(void);
++void
++lapis_panic_reboot(void)
++{
++	uint32_t secs = 0;
++
++	if (lapis_rgu == NULL || !PE_parse_boot_argn("lapispanicreboot", &secs, sizeof(secs)) ||
++	    secs == 0 || secs > 600) {
++		return;
++	}
++	const char *msg = "lapis: warm reset to fastboot\n";
++	for (const char *p = msg; *p; p++) {
++		lapis_pstore_putc((uint8_t)*p);
++	}
++	__builtin_arm_dsb(DSB_SY);
++	uint64_t freq = gPEClockFrequencyInfo.timebase_frequency_hz;
++	uint64_t t0 = ml_get_timebase();
++	while (ml_get_timebase() - t0 < freq * secs) {
++	}
++	lapis_rgu[0x24 / 4] = (lapis_rgu[0x24 / 4] & ~0xfu) | 0x3u;
++	lapis_rgu[0] = (lapis_rgu[0] & 0x00ffffffu & ~(1u << 3)) | 0x22000000u;
++	__builtin_arm_dsb(DSB_SY);
++	for (;;) {
++		lapis_rgu[0x14 / 4] = 0x1209u;
++		__builtin_arm_dsb(DSB_SY);
++		uint64_t t1 = ml_get_timebase();
++		while (ml_get_timebase() - t1 < freq / 200) {
++		}
++	}
++}
++
+ static void
+ fbcon_clear_row(uint32_t row)
+ {
+@@ -761,6 +857,7 @@ fbcon_transmit_ready(void)
+ static void
+ fbcon_transmit_data(uint8_t c)
+ {
++	lapis_pstore_putc(c);
+ 	if (c == '\r') {
+ 		fbcon_col = 0;
+ 		return;
+@@ -834,6 +931,7 @@ fbcon_probe(void)
+ 	if (!fbcon_width || !fbcon_height || fbcon_stride < fbcon_width * 4) {
+ 		return;
+ 	}
++	lapis_debug_probe();
+ 	sweet_early_mark(17, "fbcon config read; mapping");
+ 	fbcon_base = (volatile uint32_t *)ml_io_map_wcomb(reg[0], reg[1]);
+ 	sweet_early_mark(18, "fbcon mapping returned");

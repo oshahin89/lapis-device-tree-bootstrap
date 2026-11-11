@@ -41,10 +41,10 @@ upstream authors' permission, before publishing anything derived from them.
 
 - `python3 tools/lapis_xnu_patch_preflight.py` assembles the queue from
   `reference/xnu-topaz-baseline`, runs the libpthread/BearSSL/HFS stage
-  scripts (network) and applies all **82 patches strictly** to a clean export
+  scripts (network) and applies all **83 patches strictly** to a clean export
   of `xnu-8796.141.3`. Patchset hash
-  `14f8402b7528a51a1710e76055493b2905eda257e073ea6a376f319bb3054408`
-  (85 files). This checks patch order only; it does not compile.
+  `809464e03704bfde1ddeeb6a5d9289f84da899ae41e51f8447c6204600010b9c`
+  (86 files). This checks patch order only; it does not compile.
 - `.github/workflows/xnu-lapis.yml` builds the queue on `macos-15` / Xcode
   16.0 (macos-14 and Xcode 15 were retired from GitHub-hosted runners on
   2026-11-02; ruby-ios-bringup builds the same series with Xcode 16.0) and
@@ -216,6 +216,18 @@ clean LK boot, no lapis code involved) and rebooted itself
 back `851a5435…`. The oops log was recovered from
 `/sys/fs/pstore/console-ramoops-0`, so pstore does survive a warm
 (panic) reboot — only the Power + Vol-down reset loses it.
+
+## Patch 0083: pstore console mirror and panic warm reset (2026-11-11, offline)
+
+With the ADT node `/lapis-debug` (`lapis_mkadt.py --debug`: `pstore-reg` =
+ramoops console zone `0x480af000`+`0x40000`, `rgu-reg` = TOPRGU), the sweet
+fbcon also writes every console byte into that zone as a ring in Linux's
+`persistent_ram_buffer` format, and `panic_spin_forever()` calls
+`lapis_panic_reboot()`: with boot-arg `lapispanicreboot=N` it waits N s and
+warm-resets into LK fastboot (reboot mode 3 + `WDT_SWRST`, as Linux's
+`reboot bootloader`). Without the node or the boot-arg nothing changes. On
+the phone this depends on the warm-reset probe (`pstest`), which has not
+run yet.
 
 ## Open blockers before any phone experiment
 

@@ -38,6 +38,8 @@ UFS, UFS_SIZE = 0x112B0000, 0x2300          # 112b0000.ufshci (iomem)
 FB_RESERVED, FB_RESERVED_SIZE = 0xFD72F000, 0x028D0000   # mblock-15-framebuffer
 FB_W, FB_H = 1280, 2772                     # p16_36_02_0b_dsc_vdo
 FB_STRIDE = 5120                            # measured: ARGB8888, buffer 0 at FB_RESERVED
+PSTORE_CONSOLE, PSTORE_CONSOLE_SIZE = 0x480AF000, 0x40000   # ramoops console zone
+TOPRGU, TOPRGU_SIZE = 0x1C00A000, 0x100     # mediatek,mt6878-wdt
 # Cortex-A55 (MIDR part 0xD05) MPIDR 0x000-0x300, booted on the phone with
 # cpus=4. Cortex-A78 (part 0xD41) MPIDR 0x400-0x700 are added with --with-a78:
 # like ios-sweet's A55+A76 phone, all cores form one homogeneous SMP cluster
@@ -121,7 +123,8 @@ def product_props(path):
     sys.exit(f"{path}: no /product node")
 
 
-def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False, qemu_smp=1, a78=False):
+def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False, qemu_smp=1, a78=False,
+          debug=False):
     ids = iter(range(1, 1000))
     ph = lambda: ("AAPL,phandle", u32(next(ids)))
     gicd, gicr, timebase, vtimer = ((QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE, QEMU_VTIMER)
@@ -228,6 +231,14 @@ def build(qemu, fb_base, fb_stride, product, ufs=True, qemu_lapis_fb=False, qemu
             ("compatible", cstr("mediatek,mt8183-ufshci")),
             ("reg", u64(UFS, UFS_SIZE)),
         ]))
+    if debug:
+        # XNU patch 0083: console mirror into Android's ramoops console zone
+        # and warm reset to fastboot after a panic (boot-arg lapispanicreboot=N).
+        children.append(Node("lapis-debug", [
+            ph(),
+            ("pstore-reg", u64(PSTORE_CONSOLE, PSTORE_CONSOLE_SIZE)),
+            ("rgu-reg", u64(TOPRGU, TOPRGU_SIZE)),
+        ]))
     children.append(Node("buttons", [
         ph(),
         ("button-names", cstr("volup", "voldown", "hold")),
@@ -266,6 +277,8 @@ def main():
                          "(run QEMU with -smp 16*(N-1)+1)")
     ap.add_argument("--with-a78", action="store_true",
                     help="also list the four Cortex-A78 cores (MPIDR 0x400-0x700); boot with cpus=8")
+    ap.add_argument("--debug", action="store_true",
+                    help="add /lapis-debug (pstore console mirror, panic warm reset; XNU patch 0083)")
     ap.add_argument("--no-ufs", action="store_true",
                     help="omit /sweet-ufs so xnu never touches the storage controller")
     ap.add_argument("--dump", metavar="ADT")
@@ -288,7 +301,7 @@ def main():
 
     blob = serialize(build(a.qemu, a.fb_base, a.fb_stride, product_props(a.product), ufs=not a.no_ufs,
                            qemu_lapis_fb=a.qemu_lapis_fb, qemu_smp=a.qemu_smp,
-                           a78=a.with_a78))
+                           a78=a.with_a78, debug=a.debug))
     with open(a.out, "wb") as f:
         f.write(blob)
     print(f"{a.out}: {len(blob)} bytes", file=sys.stderr)
