@@ -183,7 +183,7 @@ initialized` — PSCI `CPU_ON` through GenieZone starts all four A55 cores
 (MPIDR `0x000`–`0x300`) and inter-processor SGIs work. Recovered with
 Power + Vol-down → stock `boot_b` (`851a5435…`, Android `_b` in ~18 s).
 
-## SMP: all eight cores (QEMU, 2026-11-11)
+## SMP: all eight cores (QEMU and phone, 2026-11-11)
 
 `lapis_mkadt.py --with-a78` adds the four Cortex-A78 cores (MPIDR
 `0x400`–`0x700`) to the same homogeneous SMP cluster, as ios-sweet does with
@@ -191,7 +191,11 @@ its A55 + A76 phone (no AMP/P-cluster scheduling yet). QEMU
 (`--qemu-smp 8`, `qemu_shim.py --smp 113`, `cpus=8`): `SWEET CPU: 8/8 CPUs
 initialized, SGI1 verified`, PID 1 heartbeat. The default ADT still lists the
 four A55s only. Phone image (`--with-a78 --no-ufs`, `cpus=8`, RAM-disk init):
-see below once tested.
+`adc0d35d…6586`.
+
+**On the phone (14:49):** the user saw `SWEET CPU: 8/8 CPUs initialized` —
+all four A78 cores start too, running the 16K-page kernel. Recovered with
+Power + Vol-down → stock `boot_b` (`851a5435…`, Android `_b` in ~21 s).
 
 ## Open blockers before any phone experiment
 
