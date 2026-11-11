@@ -3,8 +3,9 @@
  *
  * Entered from LK's "jump to kernel" (Linux arm64 boot protocol: EL1/EL2,
  * MMU off, x0 = DTB). It never touches anything but the LK framebuffer
- * reservation and then parks the CPU. Nothing is written to storage, PMIC,
- * GPIO or any MMIO register.
+ * reservation (and, with -DDISABLE_WDT, the watchdog mode register) and then
+ * parks the CPU. Nothing is written to storage, PMIC,
+ * GPIO or any other MMIO register.
  *
  * Each of the three derived LK buffers (see device/lapis_boot_contract.md)
  * gets a pattern that answers one open question when the screen is seen:
@@ -31,6 +32,20 @@
 	.globl	_start
 _start:
 	msr	daifset, #0xf
+#ifdef DISABLE_WDT
+	/*
+	 * Optional (-DDISABLE_WDT): clear the MT6878 TOPRGU WDT_MODE (0x1c00a000)
+	 * with its 0x22 key, the same store XNU patch 0082 makes. This is the
+	 * only MMIO write in the probe; without it LK's armed watchdog resets the
+	 * phone every few seconds while the probe is parked.
+	 */
+	movz	x0, #0xa000
+	movk	x0, #0x1c00, lsl #16
+	movz	w1, #0
+	movk	w1, #0x2200, lsl #16
+	str	w1, [x0]
+	dsb	sy
+#endif
 	mov	x20, #0                       /* buffer index */
 1:	movz	x21, #(FB_BASE & 0xffff)
 	movk	x21, #((FB_BASE >> 16) & 0xffff), lsl #16

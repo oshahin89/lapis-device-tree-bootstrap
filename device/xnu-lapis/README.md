@@ -41,10 +41,10 @@ upstream authors' permission, before publishing anything derived from them.
 
 - `python3 tools/lapis_xnu_patch_preflight.py` assembles the queue from
   `reference/xnu-topaz-baseline`, runs the libpthread/BearSSL/HFS stage
-  scripts (network) and applies all **80 patches strictly** to a clean export
+  scripts (network) and applies all **82 patches strictly** to a clean export
   of `xnu-8796.141.3`. Patchset hash
-  `cd347d9465809033ba792c1cebbea045efe9b9621466d4a7f3b00455abc1902b`
-  (83 files). This checks patch order only; it does not compile.
+  `14f8402b7528a51a1710e76055493b2905eda257e073ea6a376f319bb3054408`
+  (85 files). This checks patch order only; it does not compile.
 - `.github/workflows/xnu-lapis.yml` builds the queue on `macos-15` / Xcode
   16.0 (macos-14 and Xcode 15 were retired from GitHub-hosted runners on
   2026-11-02; ruby-ios-bringup builds the same series with Xcode 16.0) and
@@ -85,19 +85,22 @@ against QEMU's GIC/timer, not lapis hardware.
 
 ## Open blockers before any phone experiment
 
-1. **Early framebuffer constants.** ios-sweet 0010/0012 hard-code sweet's
-   framebuffer (`0x9c000000`, stride 4320); ruby replaces them with MT6877
-   values. The lapis values are now **measured** (stage 1 probe, see
-   `device/lapis_boot_contract.md`): ARGB8888, scan-out buffer `0xfd72f000`,
-   stride 5120, 1280×2772. A LAPIS baseline change for 0010/0012 still has to
-   be written; until then the kernel must not run on the phone.
+1. **Early framebuffer constants — patched, not yet run.** ios-sweet
+   0010/0012 hard-code sweet's framebuffer (`0x9c000000`, stride 4320).
+   `patches/0081-lapis-early-framebuffer.patch` switches them to the measured
+   lapis values: scan-out buffer `0xfd72f000`, ARGB8888, stride 5120,
+   1280 wide. Only one 32 MiB block (`0xfc000000`) is mapped, and the buffer
+   starts `0x172f000` into it, so the early console uses the first 1792 rows.
 2. **Boot shim / image.** Lapis LK loads an Android boot **v4** image with an
    **LZ4** kernel (ruby: v2 + gzip; topaz: v4 shim via Qualcomm ABL). A lapis
    shim and packer, plus the LK handoff contract, are still to be written.
 3. **Recovery proof.** Show that flashing the exact factory image back to a
    boot slot restores Android before writing any experiment image.
-4. **Watchdog.** LK leaves the MT6878 RGU watchdog (`0x1c00a000`) armed;
-   the probe was reset five times while parked. The kernel must service or
-   disable it early.
+4. **Watchdog — patched, not yet run.** LK leaves the MT6878 TOPRGU
+   (`0x1c00a000`) armed; the parked probe was reset five times.
+   `patches/0082-lapis-disable-toprgu-watchdog.patch` clears WDT_MODE with
+   the `0x22` key at the very start of `start_first_cpu` (MMU off), the same
+   store ruby makes on MT6877. To be confirmed on the device first with the
+   `-DDISABLE_WDT` probe (no resets in expdb; Power + Vol-down still recovers).
 5. UFS LUN/GPT layout for the `iosroot` partition (`ufslun=` boot-arg) and the
    A78 cluster (kept out of the ADT for now).

@@ -1,0 +1,25 @@
+diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
+index 895399d..117a407 100644
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -514,6 +514,20 @@ LEXT(start_first_cpu)
+ 	mov		x21, #0
+ 
+ #if defined(SWEET)
++	/*
++	 * lapis: LK leaves the MT6878 TOPRGU watchdog (mediatek,mt6878-wdt at
++	 * 0x1c00a000) armed; LK's log writes WDT_MODE as 0x2200007D (key 0x22 in
++	 * bits 31:24, EN = bit 0). Nothing here services it, so clear the mode
++	 * register with the key, as ruby-ios-bringup does for MT6877's TOPRGU.
++	 * MMU is off: this is a Device-nGnRnE store to the physical register.
++	 */
++	movz	x0, #0xa000
++	movk	x0, #0x1c00, lsl #16
++	movz	w1, #0
++	movk	w1, #0x2200, lsl #16
++	str		w1, [x0]
++	dsb		sy
++
+ 	/* Stage 0: white 64x32 band, no stack or page tables needed. */
+ 	/* lapis: LK scan-out buffer 0xfd72f000, ARGB8888, stride 5120 (measured) */
+ 	MOV64	x0, (0xfd72f000 + 1760 * 5120)
