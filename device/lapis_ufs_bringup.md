@@ -160,3 +160,20 @@ dump section above for the result.
    logging: SMC MTCMOS, ref clock, resets, `HCE = 1`, `DME_LINKSTARTUP`, stop at
    `HCS.DP | UTRLRDY` without any SCSI command; then hand the running host to
    the ios-sweet driver.
+
+## Warm reset into fastboot (no keys), keeping pstore
+
+The runtime FDT's `watchdog@1c00a000` has a `syscon-reboot-mode` child:
+TOPRGU `+0x24` (non-reset register), mask `0x0f`, `mode-bootloader = <3>`
+(also charger 1, recovery 2, …). Linux's `reboot bootloader` sets those
+bits, then `mtk_wdt_restart` clears `WDT_MODE.IRQ_EN` (key `0x22`) and
+writes `WDT_SWRST` (`+0x14`) = `0x1209` until the reset. A warm reset keeps
+DRAM, so the pstore console zone should survive it (a stock Linux panic
+reboot kept it).
+
+`tools/lapis_shim/reboot.c` does exactly that; `pstest.c`
+(`build.sh OUT pstest`) writes a `LAPIS-PSTEST` marker into pstore, shows a
+10 s countdown and reboots. QEMU: marker decodes, the probe ends in the SWRST
+loop (no TOPRGU there). Device image: `727eb96d…19c3`. If this works, xnu
+can log into pstore and reboot to fastboot from its panic path, and tests no
+longer need Power + Vol-down.
