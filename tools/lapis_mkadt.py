@@ -11,16 +11,13 @@ It is an independent implementation of the ADT layout (no upstream code):
   prop = char name[32], u32 size (bit 31 = placeholder flag), value padded to 4
 
 Usage:
-  lapis_mkadt.py OUT.adt --fb-stride BYTES [--fb-base ADDR] [--product D22AP.adt]
+  lapis_mkadt.py OUT.adt [--fb-base ADDR] [--fb-stride BYTES] [--product D22AP.adt]
   lapis_mkadt.py OUT.adt --qemu          (QEMU virt values, single CPU, no UFS)
   lapis_mkadt.py --dump FILE.adt
 
-Open measurements (the script refuses to guess them):
-  * framebuffer stride / visible layer: --fb-stride is required for a phone
-    tree. Derived offline (device/lapis_boot_contract.md): 32 bpp, stride
-    5120, probable visible layer 0xff25f000 (third buffer, as ruby measured
-    on MT6877). Unverified on lapis, so the values are not defaulted; pass
-    --fb-base 0xff25f000 --fb-stride 5120 only once the device confirms them.
+Framebuffer: measured on the device with the stage 1 probe (2026-11-11):
+ARGB8888, LK scans out buffer 0 at 0xfd72f000, stride 5120. These are now
+the phone defaults; --fb-base/--fb-stride remain for experiments.
 """
 import argparse
 import hashlib
@@ -40,6 +37,7 @@ VTIMER_INTID = 27                           # PPI 11 -> INTID 27
 UFS, UFS_SIZE = 0x112B0000, 0x2300          # 112b0000.ufshci (iomem)
 FB_RESERVED, FB_RESERVED_SIZE = 0xFD72F000, 0x028D0000   # mblock-15-framebuffer
 FB_W, FB_H = 1280, 2772                     # p16_36_02_0b_dsc_vdo
+FB_STRIDE = 5120                            # measured: ARGB8888, buffer 0 at FB_RESERVED
 # Little cluster only: Cortex-A55 (MIDR part 0xD05), MPIDR Aff1 = 0..3. The
 # Linux boot CPU is CPU0 (MPIDR 0). The A78 cluster (0x400-0x700) stays out
 # until PSCI bring-up of the second cluster is verified.
@@ -247,7 +245,7 @@ def main():
     ap.add_argument("out", nargs="?")
     ap.add_argument("--qemu", action="store_true")
     ap.add_argument("--fb-base", type=lambda s: int(s, 0), default=FB_RESERVED)
-    ap.add_argument("--fb-stride", type=lambda s: int(s, 0))
+    ap.add_argument("--fb-stride", type=lambda s: int(s, 0), default=FB_STRIDE)
     ap.add_argument("--product", help="D22AP ADT supplying /product (not in git)")
     ap.add_argument("--dump", metavar="ADT")
     a = ap.parse_args()
@@ -258,9 +256,6 @@ def main():
     if not a.out:
         ap.error("OUT.adt is required")
     if not a.qemu:
-        if a.fb_stride is None:
-            ap.error("--fb-stride is required for a phone tree: the LK framebuffer "
-                     "pitch has not been measured on lapis")
         if a.fb_stride < FB_W * 4 or a.fb_stride % 4:
             ap.error(f"--fb-stride {a.fb_stride} is below 1280*4 or not 4-byte aligned")
         end = a.fb_base + a.fb_stride * FB_H

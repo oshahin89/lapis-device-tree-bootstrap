@@ -130,6 +130,13 @@ needs an authorised account; do not count on it.
    screen; then return to fastboot (Vol-down + Power) and flash the stock
    `boot_b` back, reboot, confirm Android.
 
+   **Step 3 result (2026-11-11):** probe flashed to `boot_b` (OKAY), reboot.
+   No USB device appeared (expected). Screen: red top band, one green band,
+   straight white stripe → ARGB8888, buffer 0 at `0xfd72f000`, stride 5120.
+   LK log shows five probe boots (watchdog resets). Recovery: Power + Vol-down
+   → fastboot → `fastboot flash boot_b` stock (OKAY) → Android `_b` in ~21 s,
+   root readback `851a5435…ae4f5`. Details in lapis_boot_contract.md.
+
 ## Immediate next actions
 
 1. Run `python3 tools/lapis_xnu_patch_preflight.py` after patch changes; then run the pinned macOS/Xcode workflow from a commit containing those patches and inspect the artifact and checksums. The Linux build is a diagnostic path only and has known host-compiler blockers.

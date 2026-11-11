@@ -57,8 +57,8 @@ upstream authors' permission, before publishing anything derived from them.
   reproducible-build gate. Compile artifact only; see blockers below.
 - `tools/lapis_mkadt.py` writes a lapis ADT from measured values (RAM bank
   `0x140000000`+4 GiB, GICv3, 13 MHz timer, VTIMER 27, UFS `0x112b0000`, four
-  A55 MPIDRs `0x000`–`0x300`). It refuses to write a phone tree without
-  `--fb-stride`, which has not been measured. `--qemu` writes the QEMU virt
+  A55 MPIDRs `0x000`–`0x300`). It refuses to write a phone tree; its
+  framebuffer defaults are the measured values. `--qemu` writes the QEMU virt
   variant.
 
 ## QEMU boot (2026-11-11)
@@ -87,13 +87,17 @@ against QEMU's GIC/timer, not lapis hardware.
 
 1. **Early framebuffer constants.** ios-sweet 0010/0012 hard-code sweet's
    framebuffer (`0x9c000000`, stride 4320); ruby replaces them with MT6877
-   values. Lapis needs its own LK visible-layer address and pitch (reserved
-   region `0xfd72f000`+`0x28d0000`, 1280×2772). Not measured yet — a kernel
-   built now must not run on the phone.
+   values. The lapis values are now **measured** (stage 1 probe, see
+   `device/lapis_boot_contract.md`): ARGB8888, scan-out buffer `0xfd72f000`,
+   stride 5120, 1280×2772. A LAPIS baseline change for 0010/0012 still has to
+   be written; until then the kernel must not run on the phone.
 2. **Boot shim / image.** Lapis LK loads an Android boot **v4** image with an
    **LZ4** kernel (ruby: v2 + gzip; topaz: v4 shim via Qualcomm ABL). A lapis
    shim and packer, plus the LK handoff contract, are still to be written.
 3. **Recovery proof.** Show that flashing the exact factory image back to a
    boot slot restores Android before writing any experiment image.
-4. UFS LUN/GPT layout for the `iosroot` partition (`ufslun=` boot-arg) and the
+4. **Watchdog.** LK leaves the MT6878 RGU watchdog (`0x1c00a000`) armed;
+   the probe was reset five times while parked. The kernel must service or
+   disable it early.
+5. UFS LUN/GPT layout for the `iosroot` partition (`ufslun=` boot-arg) and the
    A78 cluster (kept out of the ADT for now).
