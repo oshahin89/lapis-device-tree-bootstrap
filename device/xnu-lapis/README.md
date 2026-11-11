@@ -137,6 +137,31 @@ switches to EL0 and back through syscalls, opens `/dev/console` (devfs) and
 wakes from `select` timeouts. Recovered with Power + Vol-down → stock
 `boot_b` (`851a5435…`, Android `_b` in ~18 s).
 
+## Read-only UFS test (phone, 2026-11-11) — host left disabled by LK
+
+Layout read from Android (read-only): `userdata` = `sdc93` on **LUN 2**,
+4 KiB logical blocks, GPT header at byte 4096 (LBA 1), 94 entries from LBA 2;
+simulated driver lookup: `userdata` first block `0x366800`, 230119 MiB.
+
+Image `e6d438af…07f1`: phone ADT with `/sweet-ufs` (`0x112b0000`), boot-args
+`rd=ufsroot0 ufsroot=userdata ufslun=2 sweetlog=0`, **no `ufsrw`/`rootrw`**.
+Result on screen: `SWEET UFS: host not ready (hce 0x0 hcs 0x0)`, then a panic
+because the root device is missing (expected with `rd=ufsroot0`). The driver
+stops before ringing any doorbell, so no UFS command was sent.
+
+Unlike ruby's MT6877 LK, **lapis LK leaves the UFSHCI disabled** (HCE = 0,
+HCS = 0, likely clocks gated) when it jumps to the kernel; the ios-sweet
+driver only adopts a running host. Booting a root from UFS needs a real host
+bring-up (MediaTek clocks/power via SIP SMCs, HCE reset, UIC link startup,
+NOP/fDeviceInit), modelled on Linux `ufs-mediatek`. RAM-disk roots keep working
+meanwhile.
+
+Checks after restoring `boot_b` (`851a5435…`): LUN 2 GPT (first 32 KiB)
+hash unchanged. The first 4 KiB of `userdata` did change, but a plain Android
+reboot alone also changes 16 bytes there (offset ~0xEC0; the block is not an
+F2FS superblock, probably encryption metadata), so Android rewrites it on
+every boot; XNU sent no command.
+
 ## Open blockers before any phone experiment
 
 1. **Early framebuffer constants — patched, not yet run.** ios-sweet
@@ -166,5 +191,6 @@ wakes from `select` timeouts. Recovered with Power + Vol-down → stock
    store ruby makes on MT6877. **Confirmed on the device** with the
    `-DDISABLE_WDT` probe: no resets for two minutes, and Power + Vol-down
    still reaches fastboot with the watchdog off.
-5. UFS LUN/GPT layout for the `iosroot` partition (`ufslun=` boot-arg) and the
-   A78 cluster (kept out of the ADT for now).
+5. **UFS host bring-up**: LK leaves the host disabled (see above); an
+   `iosroot` partition also needs a GPT change (dual boot) — and the A78
+   cluster is still kept out of the ADT.
