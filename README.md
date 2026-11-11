@@ -18,6 +18,7 @@ This workspace contains offline hardware captures and a prototype XNU profile fo
 - [SPI3 and NT38771 XNU contract](device/lapis_spi3_xnu_contract.md)
 - [Live SPI runtime snapshot](device/spi3_runtime_snapshot.md)
 - [XNU profile and build notes](device/xnu-lapis/README.md)
+- [UFS host bring-up study and pstore log channel](device/lapis_ufs_bringup.md)
 
 Read-only inspection helpers:
 
