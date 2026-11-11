@@ -71,6 +71,54 @@ Registers of interest: `REG_UFS_MTK_IP_VER` `+0x2240`, `REG_UFS_PROBE`
 The vendor module on the phone is newer than upstream and may differ; it can
 be read from `vendor_boot` for the exact MT6878 path if needed.
 
+## Register dump at LK's jump (phone, 2026-11-11, probe `407f270d…`)
+
+Read-only probe (`tools/lapis_shim/regdump.c`); values as shown on screen:
+
+| Register | Value | Meaning |
+|---|---|---|
+| UFSHCI `CAP` +0x00 | `0x3587071f` | host alive and readable: 32 UTRL slots, 8 UTMRL, 64-bit addressing |
+| UFSHCI `VER` +0x08 | `0x00000310` | UFSHCI 3.1 |
+| `HCS` +0x30 / `HCE` +0x34 | `0` / `0` | host disabled, no device present |
+| `REG_UFS_XOUFS_CTRL` +0x140 | `0x00000102` | bit 7 (`0x80`, set by Linux's HCE pre-notify) clear |
+| `REG_UFS_REFCLK_CTRL` +0x144 | `0x00000003` | REQUEST = 1 and ACK = 1: **reference clock on** |
+| `REG_UFS_MTK_IP_VER` +0x2240 | `0x10420200` | **= upstream `IP_VER_MT6878`**; not a legacy IP, below MT6989/MT6899 |
+| `REG_UFS_PROBE` +0x22c8 | `0` | |
+| ufscfg_ao/pdn +0x00, +0x48 | `0` | (+0x48 is the write-only reset-set register) |
+
+So LK leaves the host's register clocks and the reference clock on and only
+disables the controller; upstream Linux supports this exact IP. The full dump
+did **not** reach pstore: after Power + Vol-down → fastboot → restore, Android's
+`console-ramoops-0` held an older Android log. LK reserves the region
+(`mblock … name:pstore`, `RAM_CONSOLE pstore_addr:0x48090000`), so it likely
+reinitialises it on this kind of reset; pstore is not a usable channel for
+key-reset recoveries.
+
+### MT6878-specific link setup (upstream `ufs_mtk_pre_link`/`post_link`)
+
+For `IP_VER_MT6878`: before `DME_LINKSTARTUP`, DME_SET
+`VS_UNIPROPOWERDOWNCONTROL` (`0xD0A8`, sel 0) = 0; DME_SET
+`PA_LOCAL_TX_LCC_ENABLE` (`0x155E`) = 0; clear bit 6 ("deep stall") of
+`VS_SAVEPOWERCONTROL` (`0xD0A6`). After link-up, optional UniPro clock
+gating via `VS_SAVEPOWERCONTROL` / `VS_DEBUGCLOCKENABLE` (`0xD0A1`). The
+MT6989-only `VS_DEBUGOMC` and MT6899+ PA_INIT fix do not apply.
+
+### Minimal first bring-up attempt (proposal)
+
+Since the reference clock is already on, the first device attempt can skip
+the clock/MTCMOS SMCs and only do what the HCE pre-notify does, then link up:
+
+1. assert `hci/crypto/unipro` resets (`ufscfg_pdn +0x48` bits 0–2), 100 µs,
+   deassert (`+0x4c`);
+2. `XOUFS_CTRL |= 0x80`;
+3. `HCE = 1`, poll `HCE == 1` (≥ 600 µs);
+4. the three DME_SETs above, then `DME_LINKSTARTUP` via `UICCMD`, poll
+   `IS.UCCS`, check `UICCMDARG2` result and `HCS.DP`/`UTRLRDY`;
+5. stop: print the registers, send no SCSI or UPIU command.
+
+If link-up fails, add SMC `0xC2000276` DEVICE_RESET(0)/(1) and
+MTCMOS_CTRL next.
+
 ## Open questions
 
 1. Which of the 13 clocks / the MTCMOS / the PHY LK leaves on at the jump, and
@@ -96,7 +144,8 @@ Tooling (2026-11-11): `tools/lapis_shim/pstore.c` writes that format;
 `tools/lapis_shim/regdump.c` (`build.sh OUT regdump`) is the register-dump
 probe of step 1 below; `qemu_shim.py --pstore` decodes the zone the way
 Linux's `persistent_ram_save_old` does (QEMU: 66 lines, header valid).
-Device image: `407f270d…f9d3` (kernel stream 4040 bytes).
+Device image: `407f270d…f9d3` (kernel stream 4040 bytes); see the register
+dump section above for the result.
 
 ## Proposed next steps (each device step needs explicit approval)
 
