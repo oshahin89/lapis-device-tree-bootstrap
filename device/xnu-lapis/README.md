@@ -83,6 +83,15 @@ root was attached. `qemu.log` shows timer IRQs and one handled EL1 write
 fault in `skmem_sysctl_init`. This validates the kernel and the ADT layout
 against QEMU's GIC/timer, not lapis hardware.
 
+**Run `42996879535` (2026-11-11, `ff72e27`, 82 patches incl. 0081/0082):**
+green; `kernel.development.sweet` sha256 `8a7d3723…8790`. Disassembly shows
+the TOPRGU store (`0x1c00a000` ← `0x22000000`) at the start of
+`start_first_cpu` and the stage-0 band at `0xfdfc7000`
+(= `0xfd72f000 + 1760 × 5120`). The same QEMU run as above gives the same
+result: no panic, `Waiting on <IOMedia Apple_HFS>`, one handled EL1 write
+fault, timer IRQs. (In QEMU virt the watchdog store lands in the empty PCIe
+window.)
+
 ## Open blockers before any phone experiment
 
 1. **Early framebuffer constants — patched, not yet run.** ios-sweet

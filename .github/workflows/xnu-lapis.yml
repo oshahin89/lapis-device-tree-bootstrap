@@ -116,7 +116,7 @@ jobs:
           if compgen -G "$kernel_dir/kernel.*" >/dev/null; then
             cp -R "$kernel_dir"/kernel.* out/
             (cd out && find . -maxdepth 1 -type f -name 'kernel.*' -exec shasum -a 256 {} + > SHA256SUMS)
-            echo "Kernel produced. Compile artifact only: the early framebuffer constants are still ios-sweet's and lapis has no boot shim yet. Do not boot it on the phone." > out/BUILD_STATUS.txt
+            echo "Kernel produced. Compile artifact only: lapis has no XNU boot shim/loader yet and the kernel has not run on the phone. Do not flash it." > out/BUILD_STATUS.txt
           else
             echo "No kernel produced; see build.log for the first fatal error." > out/BUILD_STATUS.txt
           fi
