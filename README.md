@@ -5,7 +5,7 @@ This workspace contains offline hardware captures and a prototype XNU profile fo
 ## Current state
 
 - **2026-11-11 direction change:** the kernel now builds on the ios-sweet/ios-topaz patch series (as ruby-ios-bringup does for MT6877) instead of a from-scratch vanilla XNU port. The earlier patches moved to `device/xnu-lapis/legacy-patches/`. See [XNU workspace notes](device/xnu-lapis/README.md), including the licensing constraint (no upstream code is committed).
-- The 80-patch queue (ios-sweet 0001–0079 + LAPIS 0080) applies strictly to a clean `xnu-8796.141.3` (`1b191cb58250d0705d8a51287127505aa4bc0789`). No kernel has been built from it yet; the macOS CI workflow is staged but not run.
+- The 80-patch queue (ios-sweet 0001–0079 + LAPIS 0080) applies strictly to a clean `xnu-8796.141.3` (`1b191cb58250d0705d8a51287127505aa4bc0789`). CI (`macos-15`, Xcode 16.0) built the first `kernel.development.sweet` from it on 2026-11-11 (run `42987441560`). It is a compile artifact only and must not be booted on the phone yet.
 - `tools/lapis_mkadt.py` produces the lapis Apple Device Tree from measured values; the framebuffer pitch is still unmeasured, so it refuses to write a phone tree without `--fb-stride`.
 - The phone's captured `boot`, `init_boot`, `vendor_boot`, and `dtbo` match the supplied active slot-B factory set. LK rejected `fastboot boot`; no replacement image or proven recovery/restore trial exists.
 - A live, read-only SPI audit confirmed `spi3.0` binds to Novatek. The FDT also lists Goodix on the same CS0; duplicate chip-select rejection by SPI core is the leading explanation for its absence, but the Xiaomi kernel's exact error was not captured.

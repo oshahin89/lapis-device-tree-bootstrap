@@ -49,6 +49,12 @@ upstream authors' permission, before publishing anything derived from them.
   16.0 (macos-14 and Xcode 15 were retired from GitHub-hosted runners on
   2026-11-02; ruby-ios-bringup builds the same series with Xcode 16.0) and
   fails if darwin-xnu-build skips any patch (it only warns by default).
+  **First green build (2026-11-11):** run `42987441560` at `40b80c6`
+  produced `kernel.development.sweet` (Mach-O arm64, xnu-8796.141.3, Xcode
+  16.0) with all 80 queue patches applied; SHA-256
+  `d1904ddade62244d6a3779a721e6e86629338983219a7e1c04e9eaaf42400b85`. The
+  hash differs between runs (build timestamp), so it is not yet a
+  reproducible-build gate. Compile artifact only; see blockers below.
 - `tools/lapis_mkadt.py` writes a lapis ADT from measured values (RAM bank
   `0x140000000`+4 GiB, GICv3, 13 MHz timer, VTIMER 27, UFS `0x112b0000`, four
   A55 MPIDRs `0x000`–`0x300`). It refuses to write a phone tree without
