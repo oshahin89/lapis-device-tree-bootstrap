@@ -162,7 +162,7 @@ reboot alone also changes 16 bytes there (offset ~0xEC0; the block is not an
 F2FS superblock, probably encryption metadata), so Android rewrites it on
 every boot; XNU sent no command.
 
-## SMP: four A55 cores (QEMU, 2026-11-11)
+## SMP: four A55 cores (QEMU and phone, 2026-11-11)
 
 The SWEET CPU driver starts secondaries with PSCI `CPU_ON` over `smc #0`
 (the conduit Linux uses on lapis; GenieZone forwards it) and requires
@@ -177,6 +177,11 @@ at EL1). With `cpus=4` and the RAM-disk init: `CPU_ON rc=0` and
 verified`, PID 1 heartbeat running. One CPU still works (23 heartbeats in
 150 s). Phone image (shim with the EL2 drop, `cpus=4`, `--no-ufs`, RAM-disk
 init): `1d6cbc1f…640f`.
+
+**On the phone (14:32, same image):** the user saw `SWEET CPU: 4/4 CPUs
+initialized` — PSCI `CPU_ON` through GenieZone starts all four A55 cores
+(MPIDR `0x000`–`0x300`) and inter-processor SGIs work. Recovered with
+Power + Vol-down → stock `boot_b` (`851a5435…`, Android `_b` in ~18 s).
 
 ## Open blockers before any phone experiment
 
