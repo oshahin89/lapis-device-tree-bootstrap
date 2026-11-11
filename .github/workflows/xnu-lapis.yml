@@ -33,8 +33,12 @@ env:
 
 jobs:
   build:
-    # macos-14 ships Xcode 15.x, whose iig matches the xnu-8796 IORPC ABI
-    runs-on: macos-14
+    # macos-14 (the last image with Xcode 15.x) was retired on 2026-11-02.
+    # macos-15 carries Xcode 16.x/26.x only; ruby-ios-bringup builds the same
+    # sweet 0001-0079 series there with Xcode 16.0, source unchanged. Later
+    # Xcode 16 iig versions emit the IORPC "kernelContent" member xnu-8796
+    # lacks, so the Xcode is pinned exactly and the job fails instead of drifting.
+    runs-on: macos-15
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -53,21 +57,32 @@ jobs:
           sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS="-mkernel -nostdinc -Wno-packed -mcpu=cortex-a55"/' dxb/build.sh
           grep -q 'OTHER_CFLAGS="-mkernel -nostdinc -Wno-packed -mcpu=cortex-a55"' dxb/build.sh
 
-      - name: Install build tools and select Xcode 15.0.1
+      - name: Install build tools and select Xcode 16.0
         shell: bash
         run: |
           brew install jq gum bash cmake ninja
           printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
           sudo chmod +x /usr/local/bin/xcodes
-          XC=/Applications/Xcode_15.0.1.app
-          [ -d "$XC" ] || { echo "Xcode 15.0.1 missing; refusing to drift"; exit 1; }
+          ls -d /Applications/Xcode*.app
+          XC=""
+          for cand in /Applications/Xcode_16.0.app /Applications/Xcode_16.0.0.app; do
+            [ -d "$cand" ] && { XC="$cand"; break; }
+          done
+          [ -n "$XC" ] || { echo "Xcode 16.0 missing on this image; refusing to drift"; exit 1; }
           echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$XC"
           xcodebuild -version
+          xcrun --find iig
 
       - name: Build XNU
         working-directory: dxb
         shell: bash
+        env:
+          # bearssl.org intermittently returns 502; this mirror carries the same
+          # pinned commit, which 0020-stage-bearssl.sh verifies by SHA.
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: url.https://github.com/status-im/BearSSL.insteadOf
+          GIT_CONFIG_VALUE_0: https://www.bearssl.org/git/BearSSL
         run: |
           set -o pipefail
           bash build.sh 2>&1 | tee ../build.log

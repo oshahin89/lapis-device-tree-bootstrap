@@ -45,9 +45,10 @@ upstream authors' permission, before publishing anything derived from them.
   of `xnu-8796.141.3`. Patchset hash
   `cd347d9465809033ba792c1cebbea045efe9b9621466d4a7f3b00455abc1902b`
   (83 files). This checks patch order only; it does not compile.
-- `.github/workflows/xnu-lapis.yml` builds the queue on macOS 14 / Xcode
-  15.0.1 and fails if darwin-xnu-build skips any patch (it only warns by
-  default). It has not been run yet with the new recipe.
+- `.github/workflows/xnu-lapis.yml` builds the queue on `macos-15` / Xcode
+  16.0 (macos-14 and Xcode 15 were retired from GitHub-hosted runners on
+  2026-11-02; ruby-ios-bringup builds the same series with Xcode 16.0) and
+  fails if darwin-xnu-build skips any patch (it only warns by default).
 - `tools/lapis_mkadt.py` writes a lapis ADT from measured values (RAM bank
   `0x140000000`+4 GiB, GICv3, 13 MHz timer, VTIMER 27, UFS `0x112b0000`, four
   A55 MPIDRs `0x000`–`0x300`). It refuses to write a phone tree without
