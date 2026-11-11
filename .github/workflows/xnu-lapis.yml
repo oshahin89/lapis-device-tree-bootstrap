@@ -91,11 +91,20 @@ jobs:
         if: always()
         shell: bash
         run: |
-          # darwin-xnu-build only warns when a patch does not apply
-          if grep -n "Skipping patch" build.log; then
-            echo "::error::a patch was skipped; the kernel would be missing part of the port"
-            exit 1
-          fi
+          # darwin-xnu-build only warns when a patch does not apply. Its own
+          # version-specific patches (Monterey/Sonoma/TrustCache) are expected
+          # to skip on 13.5; every patch of our queue must be applied.
+          missing=0
+          for p in queue/*.patch; do
+            name=$(basename "$p")
+            if ! grep -q "Applying patch: .*/$name\$" build.log; then
+              echo "::error::queue patch not applied: $name"
+              missing=1
+            fi
+          done
+          grep -n "Skipping patch" build.log || true
+          [ "$missing" = 0 ] && echo "all $(ls queue/*.patch | wc -l | tr -d ' ') queue patches applied"
+          exit $missing
 
       - name: Collect build output and status
         if: always()
@@ -106,7 +115,7 @@ jobs:
           kernel_dir=dxb/fakeroot/System/Library/Kernels
           if compgen -G "$kernel_dir/kernel.*" >/dev/null; then
             cp -R "$kernel_dir"/kernel.* out/
-            (cd out && shasum -a 256 kernel.* > SHA256SUMS)
+            (cd out && find . -maxdepth 1 -type f -name 'kernel.*' -exec shasum -a 256 {} + > SHA256SUMS)
             echo "Kernel produced. Compile artifact only: the early framebuffer constants are still ios-sweet's and lapis has no boot shim yet. Do not boot it on the phone." > out/BUILD_STATUS.txt
           else
             echo "No kernel produced; see build.log for the first fatal error." > out/BUILD_STATUS.txt
