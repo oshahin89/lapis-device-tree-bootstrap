@@ -1,4 +1,4 @@
-# Lapis iOS-port status (end of 2026-11-11)
+# Lapis iOS-port status (2026-11-12)
 
 ## Working on the phone (each run flashed to `boot_b`, restored afterwards)
 
@@ -12,40 +12,31 @@
 | SMP: 4× A55 + 4× A78 | `adc0d35d…` | `8/8 CPUs initialized` |
 | HFS+ RAM-disk root (`SweetRoot`) | `468dc8fd…` | `hfs: mounted SweetRoot`, PID 1 |
 | UFS host state read at LK's jump | probe `407f270d…` | IP_VER `0x10420200` = MT6878, refclk on, HCE = 0 |
+| Return to fastboot without keys (reboot mode 3 + PSCI `SYSTEM_RESET`) | probe `2b06b551…` | back in fastboot after ~32 s |
+| xnu panic → automatic return to fastboot (patch 0083, `lapispanicreboot=N`) | `04f5aae0…` | back in fastboot after ~59 s |
+| NT38771 touch controller answers over bit-banged SPI3 | probe `b864fef0…` | chip ID `71 87 03` |
 
-Images live in the session scratchpad / `build/` (not in git); every one can
-be rebuilt with the tools below from the CI kernel.
+Images live in `build/` or the session scratchpad (gitignored); each can be
+rebuilt from the CI kernel with the tools below. Recovery after every run:
+LK fastboot → `fastboot flash boot_b device/slot_b_readback/boot_b.img` →
+root `sha256sum /dev/block/by-name/boot_b` = `851a5435…ae4f5`.
 
-## Not working / open
+## Open
 
-- **UFS root**: LK leaves the host disabled; needs a MediaTek host bring-up
-  (study in [lapis_ufs_bringup.md](lapis_ufs_bringup.md)). Not written.
-- **pstore across Power + Vol-down**: lost (LK reinitialises it). It survives
-  a warm reset (a stock Linux panic log was read from it).
-- **xnu panic → automatic return to fastboot: works on the phone** (patch 0083,
-  `lapispanicreboot=N`, 2026-11-12).
-- **Return to fastboot without keys: works** (2026-11-12, `pstest` v4:
-  reboot mode 3 + PSCI `SYSTEM_RESET`). The PSCI reset is cold, so pstore
-  does not survive it.
-- Touch: the NT38771 answers its chip ID (`71 87 03`) over bit-banged SPI3
-  from our code (2026-11-12). It is flashless; firmware download is next
-  ([lapis_touch_bringup.md](lapis_touch_bringup.md)). Keys, USB, display power, AMP scheduling: not started.
+| Area | State | Notes |
+|---|---|---|
+| UFS root (needed for a real iOS root) | **not implemented** | LK leaves the host disabled; register dump and Linux sequence in [lapis_ufs_bringup.md](lapis_ufs_bringup.md) |
+| Touch | chip ID works; **firmware download not implemented** | the NT38771 is flashless; protocol, memory map and image layout in [nt38771_host_download.md](nt38771_host_download.md), [lapis_touch_bringup.md](lapis_touch_bringup.md) |
+| Keys (power, volume) | not started | runtime FDT has `gpio-keys` (volume down), `mediatek,mt6363-keys` (power/home on the PMIC) and `kp@1c00e000` |
+| pstore log channel | partial | survives warm resets, lost on PSCI cold reset and on Power + Vol-down |
+| USB, audio, Wi-Fi/BT, modem, camera, sensors, GPU | not started | none of ios-sweet/topaz/ruby has GPU, Wi-Fi, modem or camera either |
+| AMP scheduling (A78 as P cluster) | not started | all eight cores run as one SMP cluster |
+| iOS userland | blocked on storage | needs the UFS root and a user-supplied IPSW (see ruby's `LEGAL.md`) |
 
-## First things next session
-
-1. Check the phone: `adb devices` / `fastboot devices`; if it is not in
-   Android, Power + Vol-down → `fastboot flash boot_b
-   device/slot_b_readback/boot_b.img && fastboot reboot`; then root
-   `sha256sum /dev/block/by-name/boot_b` must be `851a5435…ae4f5`.
-2. Re-run the `pstest` probe (warm reset to fastboot, pstore marker).
-   Prepared: `build/pstest4_boot.img` (`2b06b551…`, v4: mode store + PSCI SYSTEM_RESET; v1–v3 reset via WDT_SWRST and LK skipped fastboot).
-3. If it works: flash `build/xnu_debug_boot.img` (`8c8fb61a…`: CI kernel
-   `a4374bc0…` with patch 0083, ADT `--no-ufs --with-a78 --debug`, HFS RAM-disk
-   root, `cpus=8 rd=md0 lapispanicreboot=15`). It boots to PID 1 and stays up;
-   the console is mirrored into pstore. Recover with Power + Vol-down as
-   usual, or — once the warm reset is proven — trigger a panic image to test
-   the automatic return. After a warm return, read
-   `/sys/fs/pstore/console-ramoops-0`. (`build/` is gitignored.)
+Pieces the assistant could not write in this project: the UFS host bring-up
+code, the NT38771 firmware-download code, and the key-driver work (its
+responses were stopped by an automated safety check). The studies above hold
+everything gathered for them.
 
 ## Tools
 
@@ -53,8 +44,13 @@ be rebuilt with the tools below from the CI kernel.
 |---|---|
 | `tools/lapis_xnu_patch_preflight.py` | strict patch-queue check (83 patches) |
 | `.github/workflows/xnu-lapis.yml` | CI kernel build (macos-15, Xcode 16.0) |
-| `tools/lapis_mkadt.py` | ADT (`--no-ufs`, `--with-a78`, `--debug`, `--qemu…`) |
+| `tools/lapis_mkadt.py` | ADT (`--no-ufs`, `--with-a78`, `--debug`, `--qemu`, `--qemu-lapis-fb`, `--qemu-smp`) |
 | `tools/ios-sweet/` | vendored MIT `mkpayload`, `mkinit`, `sweet-init.S` |
 | `tools/lapis_mkroot_hfs.sh` | HFS+ root image (sudo, hfsprogs) |
-| `tools/lapis_shim/` | LK boot shim + probes (`build.sh OUT shim|regdump|pstest`), `qemu_shim.py` |
+| `tools/lapis_shim/` | LK boot shim + probes (`build.sh OUT shim\|regdump\|pstest\|tchip`), `qemu_shim.py` |
 | `tools/lapis_boot_pack.py` | pack into a boot_b copy (`--probe` / `--image --append`) |
+| `tools/lapis_lz4.py` | LZ4 legacy codec for the stock kernel format |
+| `tools/nt38771_fw_map.py` | parse the NT38771 firmware partition table |
+| `tools/lapis_payload/` | first-stage framebuffer probe and its QEMU check |
+
+See [HANDOFF.md](../HANDOFF.md) for how to continue.

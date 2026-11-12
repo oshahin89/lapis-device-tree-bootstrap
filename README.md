@@ -14,6 +14,7 @@ This workspace contains offline hardware captures and a prototype XNU profile fo
 ## Start here
 
 - **[Current status and next steps](device/lapis_status.md)**
+- **[Handoff guide: build/run loop, measured facts, next work](HANDOFF.md)**
 - [Experiment readiness and device gate](device/ios_experiment_readiness.md)
 - [Measured boot/runtime contract](device/lapis_boot_contract.md)
 - [SPI3 and NT38771 XNU contract](device/lapis_spi3_xnu_contract.md)
