@@ -229,6 +229,15 @@ arm64; proven on the phone with `pstest` v4). The PSCI reset is cold, so the
 pstore copy is lost on the phone; it is useful in QEMU and for warm resets.
 Without the node or the boot-arg nothing changes.
 
+**CI run `43179013523` (`07eab02`, PSCI version of 0083):** green, kernel
+`0335d027…ef40`. QEMU forced panic (`rd=ufsroot0` without UFS,
+`lapispanicreboot=5`): with EL2 (`qemu_shim.py --smp 2`) the machine resets
+through PSCI after the panic; without EL2 the pstore copy shows the panic
+string and `lapis: reset to fastboot (PSCI SYSTEM_RESET)`. Phone test image
+(same panic on purpose, 8 cores, `--no-ufs --debug`, `lapispanicreboot=15`):
+`build/xnu_panicreboot_boot.img` `04f5aae0…d153` — expected: xnu console,
+panic text, then back to fastboot alone about 15 s later.
+
 **CI run `43037314359` (`9bf5bec`, 83 patches):** green, kernel
 `a4374bc0…6ed9`. QEMU with `--debug` and the phone console geometry:
 normal HFS boot → the pstore zone decodes (Linux's algorithm, 129 lines) to
