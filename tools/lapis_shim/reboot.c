@@ -70,3 +70,23 @@ void lapis_reboot_bootloader(void)
 		delay_ticks(frq / 200);		/* 5 ms, as mtk_wdt_restart */
 	}
 }
+
+/*
+ * Linux on arm64 restarts through PSCI SYSTEM_RESET when the firmware
+ * provides it, after the reboot-mode notifier wrote NONRST_REG2. Our direct
+ * WDT_SWRST resets left the preloader reading NONRST_REG2 = 0x2C002820
+ * although we had written ...2003, so let the firmware do the reset.
+ * Returns only if the PSCI call fails (x0 = negative PSCI error).
+ */
+int64_t lapis_reboot_bootloader_psci(void)
+{
+	uint32_t m = rd32(TOPRGU + RGU_REBOOT_MODE);
+	wr32(TOPRGU + RGU_REBOOT_MODE,
+	    (m & ~(REBOOT_MODE_MASK | RGU_KERNEL_FLAGS)) | REBOOT_MODE_BOOTLOADER);
+	__asm__ volatile("dsb sy" ::: "memory");
+
+	register uint64_t x0 __asm__("x0") = 0x84000009ULL;	/* PSCI SYSTEM_RESET */
+	__asm__ volatile("smc #0" : "+r"(x0) : : "x1", "x2", "x3", "x4", "x5", "x6", "x7",
+	    "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17", "memory");
+	return (int64_t)x0;
+}

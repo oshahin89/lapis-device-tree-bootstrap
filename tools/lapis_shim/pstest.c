@@ -25,7 +25,7 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	ps_init();
-	ps_puts("LAPIS-PSTEST v3: pstore written by the lapis shim before a warm reset\n");
+	ps_puts("LAPIS-PSTEST v4: pstore written by the lapis shim before a warm reset\n");
 	ps_puts("CNTVCT=");
 	ps_hex(rsr("cntvct_el0"), 16);
 	ps_puts("\nMIDR=");
@@ -33,7 +33,7 @@ void shim_main(uint64_t dtb)
 	ps_puts("\nLAPIS-PSTEST end\n");
 
 	con_clear(BLUE);
-	con_str("LAPIS", "pstore + warm reset probe v3");
+	con_str("LAPIS", "pstore + warm reset probe v4");
 	con_str("PSTORE", "marker written at 0x480af000");
 	/*
 	 * v3 diagnostic: v1/v2 reset the SoC but the preloader still saw
@@ -42,7 +42,7 @@ void shim_main(uint64_t dtb)
 	 */
 	volatile uint32_t *rgu = (volatile uint32_t *)0x1c00a000UL;
 	uint32_t before = rgu[0x24 / 4];
-	rgu[0x24 / 4] = (before & ~0x82fU) | 0x3U;
+	rgu[0x24 / 4] = (before & ~0x82fU) | 0x3U;	/* repeated in the PSCI path */
 	__asm__ volatile("dsb sy" ::: "memory");
 	uint32_t after = rgu[0x24 / 4];
 	con_hex2("NONRST2", "before=", before, "after=", after);
@@ -52,10 +52,14 @@ void shim_main(uint64_t dtb)
 	ps_puts(" after=");
 	ps_hex(after, 8);
 	ps_puts("\n");
-	con_str("REBOOT", "to fastboot in 20 s, no keys");
+	con_str("REBOOT", "PSCI SYSTEM_RESET in 20 s, no keys");
 	wait_seconds(20);
-	con_str("REBOOT", "now");
-	lapis_reboot_bootloader();
+	con_str("REBOOT", "now (PSCI)");
+	int64_t rc = lapis_reboot_bootloader_psci();
+	con_hex("PSCI rc", (uint64_t)rc);
+	con_str("REBOOT", "PSCI returned; Power+Vol-down");
+	for (;;)
+		__asm__ volatile("wfe");
 }
 
 void exc_report(uint64_t slot, uint64_t esr, uint64_t elr, uint64_t far)

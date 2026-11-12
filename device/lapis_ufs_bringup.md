@@ -209,3 +209,13 @@ off) and `WDT_SWRST` (reset) do. Either the hypervisor filters that register
 for EL1, or MediaTek's vendor WDT driver writes it differently (key/sequence).
 `pstest` v3 (`build/pstest3_boot.img`, `3e99f5df…`) shows the register before
 and after the store on screen for 20 s before resetting.
+
+### Third attempt (`pstest` v3 `3e99f5df…`, 09:42)
+
+On screen: `NONRST2 … after=40002003` — the store **does** take effect from
+EL1. The preloader after the `WDT_SWRST` reset still read `0x2C002820`, so
+the value is rewritten on the way through a direct watchdog reset. Linux on
+arm64 resets through PSCI `SYSTEM_RESET` after writing the mode, letting the
+firmware handle it. `pstest` v4 (`build/pstest4_boot.img`, `2b06b551…`) writes
+the mode the same way and then calls PSCI `SYSTEM_RESET` (`0x84000009`); in
+QEMU (smc conduit) the call resets the machine after the 20 s countdown.
