@@ -25,7 +25,7 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	ps_init();
-	ps_puts("LAPIS-PSTEST v1: pstore written by the lapis shim before a warm reset\n");
+	ps_puts("LAPIS-PSTEST v2: pstore written by the lapis shim before a warm reset\n");
 	ps_puts("CNTVCT=");
 	ps_hex(rsr("cntvct_el0"), 16);
 	ps_puts("\nMIDR=");

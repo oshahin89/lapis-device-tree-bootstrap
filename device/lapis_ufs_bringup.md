@@ -177,3 +177,24 @@ reboot kept it).
 loop (no TOPRGU there). Device image: `727eb96d…19c3`. If this works, xnu
 can log into pstore and reboot to fastboot from its panic path, and tests no
 longer need Power + Vol-down.
+
+### First warm-reset attempt (phone, 2026-11-12, `pstest` v1 `727eb96d…`)
+
+The `WDT_SWRST` store **did reset the SoC**: the next preloader RGU dump in
+expdb reads `rst from: kernel`, `STA 0x40000000`, `g_rgu_status 0x2` (software
+reset). LK did **not** enter fastboot (black screen; the user then used
+Power + Vol-down), and the pstore marker was gone. The same dumps show the
+cause: `NONRST_REG2` (`+0x24`) was `0x2C002820` after our reset, but
+`0x2C002003` after each of Android's `adb reboot bootloader` (followed by
+`starting app fastboot`), `0x2C002000` after a plain Android reboot, and
+`0x20000000` after a cold boot. Bits `0x820` appear only after resets from
+our kernels (probes/xnu), never after Linux's. `reboot.c` and patch 0083 now
+clear `0x82f` and set `3`, i.e. leave `0x2C002003` like Linux; `pstest` v2:
+`build/pstest2_boot.img` (`b07735a7…`). The meaning of `0x820` is inferred,
+not documented.
+
+Unrelated: the stock Android kernel's known oops
+(`_raw_spin_trylock` / `rt_mutex_adjust_prio_chain`, recorded by AEE in
+`/data/vendor/aee_exp/db_history`) hit again a few minutes after the restore
+boot (09:17). AEE lists the same crash on 2026-10-27 (×3) and 10-29, before
+any experiment, so it is a pre-existing stock-kernel bug.

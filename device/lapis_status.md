@@ -35,7 +35,7 @@ be rebuilt with the tools below from the CI kernel.
    device/slot_b_readback/boot_b.img && fastboot reboot`; then root
    `sha256sum /dev/block/by-name/boot_b` must be `851a5435…ae4f5`.
 2. Re-run the `pstest` probe (warm reset to fastboot, pstore marker).
-   Prepared: `build/pstest_boot.img` (`727eb96d…`).
+   Prepared: `build/pstest2_boot.img` (`b07735a7…`, v2: clears NONRST_REG2 bits 0x820; v1 reset the SoC but LK skipped fastboot).
 3. If it works: flash `build/xnu_debug_boot.img` (`8c8fb61a…`: CI kernel
    `a4374bc0…` with patch 0083, ADT `--no-ufs --with-a78 --debug`, HFS RAM-disk
    root, `cpus=8 rd=md0 lapispanicreboot=15`). It boots to PID 1 and stays up;

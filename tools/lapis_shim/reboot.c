@@ -2,8 +2,9 @@
  * Warm reset into LK fastboot, the way Linux's `reboot bootloader` does on
  * lapis (device/lapis_ufs_bringup.md, runtime FDT watchdog@1c00a000):
  *
- *  1. syscon-reboot-mode: TOPRGU +0x24 (a non-reset register), bits [3:0] =
- *     mode; "mode-bootloader = <3>". Read-modify-write, other bits kept.
+ *  1. syscon-reboot-mode: TOPRGU +0x24 (NONRST_REG2, survives reset), bits
+ *     [3:0] = mode; "mode-bootloader = <3>". Read-modify-write; bits 0x820
+ *     are cleared too (see below).
  *  2. mtk_wdt_restart (drivers/watchdog/mtk_wdt.c): WDT_MODE &= ~IRQ_EN,
  *     written with the 0x22 key; then WDT_SWRST (+0x14) = 0x1209, repeated.
  *
@@ -22,6 +23,7 @@
 #define RGU_REBOOT_MODE		0x24
 #define REBOOT_MODE_MASK	0x0fU
 #define REBOOT_MODE_BOOTLOADER	0x03U
+#define RGU_KERNEL_FLAGS	0x820U	/* see lapis_reboot_bootloader() */
 
 static inline uint32_t rd32(uintptr_t a)
 {
@@ -44,8 +46,17 @@ static void delay_ticks(uint64_t n)
 
 void lapis_reboot_bootloader(void)
 {
+	/*
+	 * Measured in the preloader's RGU dumps (expdb): after Linux's
+	 * `reboot bootloader` this register (NONRST_REG2) reads 0x2C002003;
+	 * after our first try it read 0x2C002820 and LK did not enter fastboot
+	 * (black screen). Bits 0x820 only appear after our kernels' resets, never
+	 * after Linux's; their meaning is inferred, not documented. Clear them and
+	 * leave the value Linux leaves.
+	 */
 	uint32_t m = rd32(TOPRGU + RGU_REBOOT_MODE);
-	wr32(TOPRGU + RGU_REBOOT_MODE, (m & ~REBOOT_MODE_MASK) | REBOOT_MODE_BOOTLOADER);
+	wr32(TOPRGU + RGU_REBOOT_MODE,
+	    (m & ~(REBOOT_MODE_MASK | RGU_KERNEL_FLAGS)) | REBOOT_MODE_BOOTLOADER);
 
 	uint32_t mode = rd32(TOPRGU + WDT_MODE) & 0x00ffffffU;
 	wr32(TOPRGU + WDT_MODE, (mode & ~WDT_MODE_IRQ_EN) | WDT_MODE_KEY);

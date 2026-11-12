@@ -21,10 +21,10 @@ index 437adb1..1acbae5 100644
  #if defined(__arm__) || defined(__arm64__)
  		/* On arm32, which doesn't have a WFE timeout, this may not return.  But that should be OK on this path. */
 diff --git a/pexpert/arm/pe_serial.c b/pexpert/arm/pe_serial.c
-index 19f27cd..3182126 100644
+index 19f27cd..199b083 100644
 --- a/pexpert/arm/pe_serial.c
 +++ b/pexpert/arm/pe_serial.c
-@@ -721,6 +721,102 @@ static volatile uint32_t *fbcon_base;
+@@ -721,6 +721,108 @@ static volatile uint32_t *fbcon_base;
  static uint32_t fbcon_width, fbcon_height, fbcon_stride;
  static uint32_t fbcon_cols, fbcon_rows, fbcon_col, fbcon_row;
  
@@ -90,7 +90,8 @@ index 19f27cd..3182126 100644
 +/*
 + * Called from panic_spin_forever(): with boot-arg lapispanicreboot=N (1..600)
 + * wait N seconds, then do what Linux's `reboot bootloader` does on lapis:
-+ * TOPRGU +0x24 bits[3:0] = 3 (syscon-reboot-mode "mode-bootloader"),
++ * TOPRGU +0x24 bits[3:0] = 3 (syscon-reboot-mode "mode-bootloader", bits
++ * 0x820 cleared),
 + * WDT_MODE &= ~IRQ_EN (key 0x22), WDT_SWRST = 0x1209. Returns if not set up.
 + */
 +void lapis_panic_reboot(void);
@@ -112,7 +113,12 @@ index 19f27cd..3182126 100644
 +	uint64_t t0 = ml_get_timebase();
 +	while (ml_get_timebase() - t0 < freq * secs) {
 +	}
-+	lapis_rgu[0x24 / 4] = (lapis_rgu[0x24 / 4] & ~0xfu) | 0x3u;
++	/*
++	 * NONRST_REG2 reads 0x2C002003 after Linux's `reboot bootloader` but
++	 * 0x2C002820 after a reset from our kernels (preloader RGU dumps in
++	 * expdb), and LK then skipped fastboot: clear bits 0x820 as well.
++	 */
++	lapis_rgu[0x24 / 4] = (lapis_rgu[0x24 / 4] & ~0x82fu) | 0x3u;
 +	lapis_rgu[0] = (lapis_rgu[0] & 0x00ffffffu & ~(1u << 3)) | 0x22000000u;
 +	__builtin_arm_dsb(DSB_SY);
 +	for (;;) {
@@ -127,7 +133,7 @@ index 19f27cd..3182126 100644
  static void
  fbcon_clear_row(uint32_t row)
  {
-@@ -761,6 +857,7 @@ fbcon_transmit_ready(void)
+@@ -761,6 +863,7 @@ fbcon_transmit_ready(void)
  static void
  fbcon_transmit_data(uint8_t c)
  {
@@ -135,7 +141,7 @@ index 19f27cd..3182126 100644
  	if (c == '\r') {
  		fbcon_col = 0;
  		return;
-@@ -834,6 +931,7 @@ fbcon_probe(void)
+@@ -834,6 +937,7 @@ fbcon_probe(void)
  	if (!fbcon_width || !fbcon_height || fbcon_stride < fbcon_width * 4) {
  		return;
  	}
