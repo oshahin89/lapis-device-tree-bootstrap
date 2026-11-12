@@ -70,7 +70,7 @@ takes about 6–7 s, acceptable for a first test.
 4. Device: report reading → `SweetHID`, then a touch test under the RAM-disk
    init.
 
-## Chip-ID probe (built 2026-11-12, not yet run)
+## Chip-ID probe (2026-11-12) — the NT38771 answers
 
 `tools/lapis_shim/tchip.c` (`build.sh OUT tchip`): shows GPIO 68–71
 mux/dir/do, switches only those pins to GPIO (CSB high, CLK low, MOSI out,
@@ -79,4 +79,21 @@ MISO in), sends `FF 07 E0` (page `0x3F004`) and a 6-byte read
 `rx[5..7]` (driver `buf[4..6]`) are `72|71 87 03`, then returns to fastboot
 after 30 s via PSCI. The page select is its only write to the chip; GPIO 90
 is not touched. QEMU: runs to the countdown (pins read `FFFFFFFF` there).
-Image `build/tchip_boot.img`.
+
+**On the phone** (final image `b864fef0…`, which keeps the result on screen
+instead of rebooting; earlier `78c4381d…`/`6133de23…` rebooted via PSCI after
+30/120 s and did return to fastboot alone):
+
+| | value | meaning |
+|---|---|---|
+| mode before / after (`+0x380`) | `22021111` → `00001111` | pins 68, 70, 71 were function 2 and 69 (CSB) already GPIO at xnu entry; only 68–71 changed |
+| dir before / after (`+0x20`) | `04018020` → `04018070` | CLK/MOSI become outputs (CSB was already an output) |
+| do / di before | `04000000` / `14065202` | |
+| rx bytes 0–7 | `01 ff 00 00 00 71 87 03` | |
+| ID (`rx[5..7]` = driver `buf[4..6]`) | **`71 87 03`** | **NT38771** (second trim-ID entry) |
+
+So at xnu entry the controller is powered and out of reset (no GPIO 90
+needed), and the bit-banged SPI3 framing from Novatek's source is right.
+Android's touch works normally after restoring `boot_b` (`NVT-ts` interrupts
+counting, `boot_b` `851a5435…`). Next: firmware download over the same
+transport, then read back the FW version (`0x29` expected).

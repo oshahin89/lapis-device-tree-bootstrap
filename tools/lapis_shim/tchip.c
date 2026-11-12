@@ -13,14 +13,13 @@
  *    write, no firmware.
  * 4. Shows every received byte and whether rx[5..7] (driver buf[4..6]) are
  *    72|71, 87, 03.
- * 5. After 30 s returns to fastboot (reboot mode 3 + PSCI SYSTEM_RESET).
+ * 5. Keeps the result on screen (no automatic reboot; Power + Vol-down).
  *
  * MMIO writes: GPIO base 0x10005000 (+0x380 mode, +0x20 dir, +0x120 do) for
  * pins 68-71 only, and TOPRGU (watchdog off in start.S, reboot path).
  */
 #include <stdint.h>
 #include "console.h"
-#include "reboot.h"
 
 #define rsr(r) ({ uint64_t _v; __asm__ volatile("mrs %0, " r : "=r"(_v)); _v; })
 
@@ -44,11 +43,6 @@ static void tick_wait(uint64_t n)
 	uint64_t t0 = rsr("cntvct_el0");
 	while (rsr("cntvct_el0") - t0 < n)
 		;
-}
-
-static void wait_seconds(unsigned s)
-{
-	tick_wait(rsr("cntfrq_el0") * s);
 }
 
 static void do_set(uint32_t set, uint32_t clr)
@@ -119,17 +113,17 @@ void shim_main(uint64_t dtb)
 		uint8_t rx[8] = { 0 };
 		message(page, 0, 3);
 		message(tx, rx, 8);
-		con_hex2("RX0-7", "", word(rx), "", word(rx + 4));
+		con_hex2("RX0-3", "", word(rx), 0, 0);
+		con_hex2("RX4-7", "", word(rx + 4), 0, 0);
 		/* driver buf[1..6] = rx[2..7]; ID bytes buf[4..6] = rx[5..7] */
+		con_hex2("ID5-7", "", (uint32_t)rx[5] << 16 | (uint32_t)rx[6] << 8 | rx[7], 0, 0);
 		int nt = rx[6] == 0x87 && rx[7] == 0x03 && (rx[5] == 0x72 || rx[5] == 0x71);
-		con_str("ID", nt ? "NT38771 found (bytes 4-6 match)" : "no NT38771 ID");
+		con_str("ID", nt ? "YES NT38771" : "NO MATCH");
+		con_skip();
 	}
 
-	con_skip();
-	con_str("REBOOT", "to fastboot in 30 s (PSCI)");
-	wait_seconds(30);
-	int64_t rc = lapis_reboot_bootloader_psci();
-	con_hex("PSCI rc", (uint64_t)rc);
+	con_str("DONE", "screen stays; Power+Vol-down");
+	/* No automatic reboot: the result stays on screen until the user resets. */
 	for (;;)
 		__asm__ volatile("wfe");
 }
