@@ -238,6 +238,13 @@ string and `lapis: reset to fastboot (PSCI SYSTEM_RESET)`. Phone test image
 `build/xnu_panicreboot_boot.img` `04f5aae0…d153` — expected: xnu console,
 panic text, then back to fastboot alone about 15 s later.
 
+**On the phone (2026-11-12 10:15):** flashed, rebooted, and the phone was back
+in LK fastboot **by itself after ~59 s** (xnu boot to the root search, panic,
+15 s wait, PSCI reset, LK); the LK log shows `starting app fastboot` with no
+key-detect line. `boot_b` restored (`851a5435…`). From now on an xnu test
+image with `--debug` and `lapispanicreboot=N` recovers itself if the kernel
+panics; a hang without a panic still needs Power + Vol-down.
+
 **CI run `43037314359` (`9bf5bec`, 83 patches):** green, kernel
 `a4374bc0…6ed9`. QEMU with `--debug` and the phone console geometry:
 normal HFS boot → the pstore zone decodes (Linux's algorithm, 129 lines) to

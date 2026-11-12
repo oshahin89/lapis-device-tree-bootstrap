@@ -22,6 +22,8 @@ be rebuilt with the tools below from the CI kernel.
   (study in [lapis_ufs_bringup.md](lapis_ufs_bringup.md)). Not written.
 - **pstore across Power + Vol-down**: lost (LK reinitialises it). It survives
   a warm reset (a stock Linux panic log was read from it).
+- **xnu panic → automatic return to fastboot: works on the phone** (patch 0083,
+  `lapispanicreboot=N`, 2026-11-12).
 - **Return to fastboot without keys: works** (2026-11-12, `pstest` v4:
   reboot mode 3 + PSCI `SYSTEM_RESET`). The PSCI reset is cold, so pstore
   does not survive it.
