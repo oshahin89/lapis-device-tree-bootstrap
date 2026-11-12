@@ -27,8 +27,9 @@ be rebuilt with the tools below from the CI kernel.
 - **Return to fastboot without keys: works** (2026-11-12, `pstest` v4:
   reboot mode 3 + PSCI `SYSTEM_RESET`). The PSCI reset is cold, so pstore
   does not survive it.
-- Touch (NT38771 on SPI3, reset GPIO 90 shared with the panel), keys, USB,
-  display power, AMP scheduling: not started.
+- Touch: studied ([lapis_touch_bringup.md](lapis_touch_bringup.md)) — the
+  NT38771 is flashless, xnu must download its 192 KiB firmware over SPI3
+  first. Keys, USB, display power, AMP scheduling: not started.
 
 ## First things next session
 

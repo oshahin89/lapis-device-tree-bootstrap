@@ -20,6 +20,7 @@ This workspace contains offline hardware captures and a prototype XNU profile fo
 - [Live SPI runtime snapshot](device/spi3_runtime_snapshot.md)
 - [XNU profile and build notes](device/xnu-lapis/README.md)
 - [UFS host bring-up study and pstore log channel](device/lapis_ufs_bringup.md)
+- [Touch bring-up study (NT38771 is flashless)](device/lapis_touch_bringup.md)
 
 Read-only inspection helpers:
 
