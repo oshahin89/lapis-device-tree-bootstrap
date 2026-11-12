@@ -69,3 +69,14 @@ takes about 6–7 s, acceptable for a first test.
    back (`0x29` expected).
 4. Device: report reading → `SweetHID`, then a touch test under the RAM-disk
    init.
+
+## Chip-ID probe (built 2026-11-12, not yet run)
+
+`tools/lapis_shim/tchip.c` (`build.sh OUT tchip`): shows GPIO 68–71
+mux/dir/do, switches only those pins to GPIO (CSB high, CLK low, MOSI out,
+MISO in), sends `FF 07 E0` (page `0x3F004`) and a 6-byte read
+(`04` + 7 bytes), twice, shows the eight received bytes and whether
+`rx[5..7]` (driver `buf[4..6]`) are `72|71 87 03`, then returns to fastboot
+after 30 s via PSCI. The page select is its only write to the chip; GPIO 90
+is not touched. QEMU: runs to the countdown (pins read `FFFFFFFF` there).
+Image `build/tchip_boot.img`.

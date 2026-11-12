@@ -1,18 +1,19 @@
 #!/bin/bash
 # Build the lapis XNU boot shim (default) or the register-dump probe as a raw
 # arm64 Image (no payload).
-#   tools/lapis_shim/build.sh OUTDIR [shim|regdump|pstest]
+#   tools/lapis_shim/build.sh OUTDIR [shim|regdump|pstest|tchip]
 # Pack the shim with a SWEETXNU payload into a boot_b copy with
 #   tools/lapis_boot_pack.py STOCK OUT.img --image OUTDIR/Image --append PAYLOAD
 # and the probe with
 #   tools/lapis_boot_pack.py STOCK OUT.img --image OUTDIR/Image
 set -euo pipefail
 cd "$(dirname "$0")"
-OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|regdump|pstest]}")
+OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|regdump|pstest|tchip]}")
 WHAT=${2:-shim}
 case "$WHAT" in
 	shim)    MAIN=shim.c; EXTRA="loader.c" ;;
 	regdump) MAIN=regdump.c; EXTRA="pstore.c" ;;
+	tchip)   MAIN=tchip.c; EXTRA="reboot.c" ;;
 	pstest)  MAIN=pstest.c; EXTRA="pstore.c reboot.c" ;;
 	*) echo "unknown target $WHAT" >&2; exit 2 ;;
 esac
