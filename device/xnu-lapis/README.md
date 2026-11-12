@@ -226,9 +226,8 @@ fbcon also writes every console byte into that zone as a ring in Linux's
 `lapis_panic_reboot()`: with boot-arg `lapispanicreboot=N` it waits N s and
 resets into LK fastboot (reboot mode 3 + PSCI `SYSTEM_RESET`, as Linux on
 arm64; proven on the phone with `pstest` v4). The PSCI reset is cold, so the
-pstore copy is lost on the phone; it is useful in QEMU and for warm resets. Without the node or the boot-arg nothing changes. On
-the phone this depends on the warm-reset probe (`pstest`), which has not
-run yet.
+pstore copy is lost on the phone; it is useful in QEMU and for warm resets.
+Without the node or the boot-arg nothing changes.
 
 **CI run `43037314359` (`9bf5bec`, 83 patches):** green, kernel
 `a4374bc0…6ed9`. QEMU with `--debug` and the phone console geometry:
