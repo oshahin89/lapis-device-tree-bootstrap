@@ -25,7 +25,7 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	ps_init();
-	ps_puts("LAPIS-PSTEST v2: pstore written by the lapis shim before a warm reset\n");
+	ps_puts("LAPIS-PSTEST v3: pstore written by the lapis shim before a warm reset\n");
 	ps_puts("CNTVCT=");
 	ps_hex(rsr("cntvct_el0"), 16);
 	ps_puts("\nMIDR=");
@@ -33,10 +33,27 @@ void shim_main(uint64_t dtb)
 	ps_puts("\nLAPIS-PSTEST end\n");
 
 	con_clear(BLUE);
-	con_str("LAPIS", "pstore + warm reset probe");
+	con_str("LAPIS", "pstore + warm reset probe v3");
 	con_str("PSTORE", "marker written at 0x480af000");
-	con_str("REBOOT", "to fastboot in 10 s, no keys");
-	wait_seconds(10);
+	/*
+	 * v3 diagnostic: v1/v2 reset the SoC but the preloader still saw
+	 * NONRST_REG2 = 0x2C002820. Show the register before and after our
+	 * store, and WDT_MODE, so the screen tells whether the store sticks.
+	 */
+	volatile uint32_t *rgu = (volatile uint32_t *)0x1c00a000UL;
+	uint32_t before = rgu[0x24 / 4];
+	rgu[0x24 / 4] = (before & ~0x82fU) | 0x3U;
+	__asm__ volatile("dsb sy" ::: "memory");
+	uint32_t after = rgu[0x24 / 4];
+	con_hex2("NONRST2", "before=", before, "after=", after);
+	con_hex2("RGU", "mode=", rgu[0x00 / 4], "+20=", rgu[0x20 / 4]);
+	ps_puts("NONRST2 before=");
+	ps_hex(before, 8);
+	ps_puts(" after=");
+	ps_hex(after, 8);
+	ps_puts("\n");
+	con_str("REBOOT", "to fastboot in 20 s, no keys");
+	wait_seconds(20);
 	con_str("REBOOT", "now");
 	lapis_reboot_bootloader();
 }

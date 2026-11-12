@@ -198,3 +198,14 @@ Unrelated: the stock Android kernel's known oops
 `/data/vendor/aee_exp/db_history`) hit again a few minutes after the restore
 boot (09:17). AEE lists the same crash on 2026-10-27 (×3) and 10-29, before
 any experiment, so it is a pre-existing stock-kernel bug.
+
+### Second attempt (`pstest` v2 `b07735a7…`, 2026-11-12 09:31)
+
+Same result: software reset (`rst from: kernel`, `STA 0x40000000`), black
+screen, no fastboot, no pstore marker — and the preloader again read
+`NONRST_REG2 = 0x2C002820`, although v2 writes `0x2C002003`. So our store to
+TOPRGU `+0x24` does not take effect, while stores to `WDT_MODE` (watchdog
+off) and `WDT_SWRST` (reset) do. Either the hypervisor filters that register
+for EL1, or MediaTek's vendor WDT driver writes it differently (key/sequence).
+`pstest` v3 (`build/pstest3_boot.img`, `3e99f5df…`) shows the register before
+and after the store on screen for 20 s before resetting.
