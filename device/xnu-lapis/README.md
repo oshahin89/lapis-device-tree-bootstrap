@@ -43,7 +43,7 @@ upstream authors' permission, before publishing anything derived from them.
   `reference/xnu-topaz-baseline`, runs the libpthread/BearSSL/HFS stage
   scripts (network) and applies all **83 patches strictly** to a clean export
   of `xnu-8796.141.3`. Patchset hash
-  `809464e03704bfde1ddeeb6a5d9289f84da899ae41e51f8447c6204600010b9c`
+  `ed67418cb2fbfd856f7604097b5cd583e3d6ee948c79e255cf2fc0233701ee46`
   (86 files). This checks patch order only; it does not compile.
 - `.github/workflows/xnu-lapis.yml` builds the queue on `macos-15` / Xcode
   16.0 (macos-14 and Xcode 15 were retired from GitHub-hosted runners on
@@ -224,8 +224,9 @@ ramoops console zone `0x480af000`+`0x40000`, `rgu-reg` = TOPRGU), the sweet
 fbcon also writes every console byte into that zone as a ring in Linux's
 `persistent_ram_buffer` format, and `panic_spin_forever()` calls
 `lapis_panic_reboot()`: with boot-arg `lapispanicreboot=N` it waits N s and
-warm-resets into LK fastboot (reboot mode 3 + `WDT_SWRST`, as Linux's
-`reboot bootloader`). Without the node or the boot-arg nothing changes. On
+resets into LK fastboot (reboot mode 3 + PSCI `SYSTEM_RESET`, as Linux on
+arm64; proven on the phone with `pstest` v4). The PSCI reset is cold, so the
+pstore copy is lost on the phone; it is useful in QEMU and for warm resets. Without the node or the boot-arg nothing changes. On
 the phone this depends on the warm-reset probe (`pstest`), which has not
 run yet.
 

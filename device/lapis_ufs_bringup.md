@@ -219,3 +219,22 @@ arm64 resets through PSCI `SYSTEM_RESET` after writing the mode, letting the
 firmware handle it. `pstest` v4 (`build/pstest4_boot.img`, `2b06b551…`) writes
 the mode the same way and then calls PSCI `SYSTEM_RESET` (`0x84000009`); in
 QEMU (smc conduit) the call resets the machine after the 20 s countdown.
+
+### Fourth attempt (`pstest` v4 `2b06b551…`, 09:52) — keyless return works
+
+Flashed, rebooted, and the phone **came back to LK fastboot by itself after
+~32 s** (20 s countdown + boot), no keys. The LK log for that boot has
+`starting app fastboot` without the `Detect … KEY_VOLUMEDOWN` line that a
+key entry prints, so LK followed the reboot mode. The preloader dump reads
+`rst from: ?`, `STA 0x0`, `NONRST_REG2 0x20000000`: PSCI `SYSTEM_RESET` is a
+cold reset, and the pstore marker did not survive. Summary:
+
+| Reset | Back to fastboot alone | pstore kept |
+|---|---|---|
+| `WDT_SWRST` from our code (v1–v3) | no (black screen) | no |
+| PSCI `SYSTEM_RESET` (v4) | **yes** | no (cold) |
+| stock Linux panic (WDT + DDR reserve mode) | — | yes |
+
+Patch 0083's `lapis_panic_reboot()` now uses PSCI `SYSTEM_RESET` (watchdog
+only as a fallback), so a panicking xnu returns to fastboot on its own; its
+log still has to be read from the screen.

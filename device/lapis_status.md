@@ -22,9 +22,9 @@ be rebuilt with the tools below from the CI kernel.
   (study in [lapis_ufs_bringup.md](lapis_ufs_bringup.md)). Not written.
 - **pstore across Power + Vol-down**: lost (LK reinitialises it). It survives
   a warm reset (a stock Linux panic log was read from it).
-- **Warm reset into fastboot without keys** (`tools/lapis_shim/pstest.c`,
-  image `727eb96d…`): flash was interrupted on 2026-11-11 before the result
-  was seen. Phone state after that was unknown when the user left.
+- **Return to fastboot without keys: works** (2026-11-12, `pstest` v4:
+  reboot mode 3 + PSCI `SYSTEM_RESET`). The PSCI reset is cold, so pstore
+  does not survive it.
 - Touch (NT38771 on SPI3, reset GPIO 90 shared with the panel), keys, USB,
   display power, AMP scheduling: not started.
 
