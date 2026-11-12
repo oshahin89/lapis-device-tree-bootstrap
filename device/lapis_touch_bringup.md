@@ -49,8 +49,10 @@ takes about 6–7 s, acceptable for a first test.
 
 ## What is missing before code
 
-1. The exact download sequence (`nvt_download_init`, SRAM write chunking,
-   HW-CRC enable/check, boot-ready poll) and register addresses. Novatek's
+1. ~~The exact download sequence and register addresses.~~ Recovered from
+   Novatek's GPL NT38771 source: [nt38771_host_download.md](nt38771_host_download.md);
+   the lapis firmware image parses with the same partition logic
+   (`tools/nt38771_fw_map.py`). Novatek's
    public NT36xxx SPI host-download driver (GPL, carried in many Android
    kernel trees as `nt36xxx_fw_update.c`) implements the same function names;
    compare it with the stock `nt38771.ko` disassembly for MT6878 addresses
