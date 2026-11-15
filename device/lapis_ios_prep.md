@@ -29,6 +29,18 @@ X canvas 1125×2436, the security tuple for an unactivated dev board, and the
 only piece that comes from Apple is the **`/product` node**, which
 MobileGestalt reads for product type, artwork, feature flags, etc.
 
+## Step 0 — unpack the IPSW
+
+`tools/lapis_ipsw_extract.py` reads the IPSW's `BuildManifest.plist`, picks the
+D22AP restore identity, and extracts the four parts it needs (stdlib only):
+
+```sh
+python3 tools/lapis_ipsw_extract.py iPhone10,3_16.7.x_*.ipsw build/ipsw
+# -> build/ipsw/{DeviceTree.im4p, OS.dmg, SystemOS.dmg, AppOS.dmg}
+```
+
+It then prints the exact `--product` and `mkiosroot.sh` commands below.
+
 ## Step 1 — the `/product` node from the IPSW DeviceTree
 
 Extract `DeviceTree.d22ap*.im4p` from the IPSW (it is under
