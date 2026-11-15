@@ -107,6 +107,19 @@ MT6989-only `VS_DEBUGOMC` and MT6899+ PA_INIT fix do not apply.
 
 ### Minimal first bring-up attempt (proposal)
 
+### Link-up probe (`tools/lapis_shim/tufs.c`, built 2026-11-15)
+
+`build.sh OUT tufs` builds the minimal bring-up above: reads the UFSHCI and
+MTK registers, asserts/deasserts the hci/crypto/unipro resets
+(`ufscfg_pdn +0x48/+0x4c` bits 0-2), sets `XOUFS_CTRL |= 0x80`, enables
+`HCE` and polls it, does the three MT6878 pre-link DME sets, runs
+`DME_LINKSTARTUP` via `UICCMD`, and shows `HCS` (DP/UTRLRDY) and the command
+result. It builds no UTRL list, rings no doorbell, and sends no SCSI/UPIU
+command, so it never touches stored data. After 40 s it returns to fastboot
+via PSCI. QEMU reaches the countdown (no real UFS there). Device image
+`build/tufs_boot.img` (`ffaf5832...`). Not yet run on the phone.
+
+
 Since the reference clock is already on, the first device attempt can skip
 the clock/MTCMOS SMCs and only do what the HCE pre-notify does, then link up:
 
