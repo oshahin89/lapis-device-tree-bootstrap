@@ -26,9 +26,13 @@
 /* standard UFSHCI 3.1 registers */
 #define REG_CAP		0x00
 #define REG_VER		0x08
-#define REG_IS		0x20	/* interrupt status; bit 10 = UCCS */
-#define REG_HCS		0x30	/* bit 0 DP, bit 3 UTRLRDY, bits 11:8 UPMCRS */
+#define REG_IS		0x20	/* interrupt status; bit 10 (0x400) = UCCS */
+#define REG_HCS		0x30	/* bit0 DP, bit1 UTRLRDY, bit2 UTMRLRDY, bit3 UCRDY */
 #define REG_HCE		0x34	/* bit 0 enable */
+#define HCS_DP		(1U << 0)
+#define HCS_UTRLRDY	(1U << 1)
+#define HCS_UCRDY	(1U << 3)
+#define IS_UCCS		(1U << 10)
 #define REG_UECPA	0x38
 #define REG_UECDL	0x3C
 #define REG_UICCMD	0x90
@@ -47,8 +51,9 @@
 #define RST_CRYPTO	(1U << 1)
 #define RST_HCI		(1U << 2)
 
-/* UIC command opcodes */
-#define UIC_DME_SET		0x12
+/* UIC command opcodes (include/ufs/ufshci.h) */
+#define UIC_DME_GET		0x01
+#define UIC_DME_SET		0x02
 #define UIC_DME_LINKSTARTUP	0x16
 
 /* UniPro / MediaTek vendor attributes (device/lapis_ufs_bringup.md) */
@@ -73,19 +78,28 @@ static void wait_s(unsigned s)
 		;
 }
 
-/* Run one UIC command; returns IS.UCCS seen (1) or timeout (0). */
-static int uic(uint32_t cmd, uint32_t a1, uint32_t a3)
+/* Run one UIC command; returns 1 if it completed (IS.UCCS), 0 on timeout.
+ * Waits for HCS.UCRDY first, as ufshcd_dme_cmd does before every UIC command. */
+static int uic(uint32_t cmd, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t *arg2_out)
 {
-	/* wait for the command-ready bit (HCS bit 3 region not needed; poll IS) */
-	wr(UFSHCI + REG_IS, 1U << 10);		/* clear UCCS */
+	int i;
+	for (i = 0; i < 1000; i++) {		/* host ready to take a UIC command */
+		if (rd(UFSHCI + REG_HCS) & HCS_UCRDY)
+			break;
+		udelay(100);
+	}
+	wr(UFSHCI + REG_IS, IS_UCCS);		/* clear UCCS */
 	wr(UFSHCI + REG_UCMDARG1, a1);
-	wr(UFSHCI + REG_UCMDARG2, 0);
+	wr(UFSHCI + REG_UCMDARG2, a2);
 	wr(UFSHCI + REG_UCMDARG3, a3);
 	__asm__ volatile("dsb sy" ::: "memory");
 	wr(UFSHCI + REG_UICCMD, cmd);
-	for (int i = 0; i < 2000; i++) {	/* up to ~200 ms */
-		if (rd(UFSHCI + REG_IS) & (1U << 10))
+	for (i = 0; i < 2000; i++) {		/* up to ~200 ms */
+		if (rd(UFSHCI + REG_IS) & IS_UCCS) {
+			if (arg2_out)
+				*arg2_out = rd(UFSHCI + REG_UCMDARG2);
 			return 1;
+		}
 		udelay(100);
 	}
 	return 0;
@@ -93,7 +107,8 @@ static int uic(uint32_t cmd, uint32_t a1, uint32_t a3)
 
 static void dme_set(uint16_t attr, uint32_t val)
 {
-	uic(UIC_DME_SET, (uint32_t)attr << 16, val);
+	/* ARG1 = attr << 16 | gen_sel_index(0); ARG2 = set_type NORMAL(0) */
+	uic(UIC_DME_SET, (uint32_t)attr << 16, 0, val, 0);
 }
 
 void shim_main(uint64_t dtb)
@@ -133,25 +148,20 @@ void shim_main(uint64_t dtb)
 	dme_set(VS_UNIPROPOWERDOWNCTRL, 0);
 	dme_set(PA_LOCAL_TX_LCC_ENABLE, 0);
 	{
-		/* clear bit 6 of VS_SAVEPOWERCONTROL: read with DME_GET, then set */
-		wr(UFSHCI + REG_IS, 1U << 10);
-		wr(UFSHCI + REG_UCMDARG1, (uint32_t)VS_SAVEPOWERCONTROL << 16);
-		wr(UFSHCI + REG_UCMDARG3, 0);
-		wr(UFSHCI + REG_UICCMD, 0x11);	/* DME_GET */
-		uint32_t spc = 0;
-		for (int i = 0; i < 2000; i++) {
-			if (rd(UFSHCI + REG_IS) & (1U << 10)) { spc = rd(UFSHCI + REG_UCMDARG3); break; }
-			udelay(100);
+		/* clear bit 6 ("deep stall") of VS_SAVEPOWERCONTROL: DME_GET then DME_SET.
+		 * DME_GET returns the value in ARG3. */
+		if (uic(UIC_DME_GET, (uint32_t)VS_SAVEPOWERCONTROL << 16, 0, 0, 0)) {
+			uint32_t spc = rd(UFSHCI + REG_UCMDARG3);
+			dme_set(VS_SAVEPOWERCONTROL, spc & ~(1U << 6));
 		}
-		dme_set(VS_SAVEPOWERCONTROL, spc & ~(1U << 6));
 	}
 
-	int ls = uic(UIC_DME_LINKSTARTUP, 0, 0);
-	uint32_t res = rd(UFSHCI + REG_UCMDARG2);
+	uint32_t res = 0;
+	int ls = uic(UIC_DME_LINKSTARTUP, 0, 0, 0, &res);
 	uint32_t hcs = rd(UFSHCI + REG_HCS);
 	con_hex2("LINK", "done=", (uint32_t)ls, "result=", res);
 	con_hex2("LINK", "hcs=", hcs, "uecdl=", rd(UFSHCI + REG_UECDL));
-	int dp = (hcs & 1), rdy = (hcs & (1U << 3)) ? 1 : 0;
+	int dp = (hcs & HCS_DP) ? 1 : 0, rdy = (hcs & HCS_UTRLRDY) ? 1 : 0;
 	con_str("RESULT", (ls && res == 0 && dp) ? "LINK UP, device present"
 	        : dp ? "device present, check result"
 	        : "no device present yet");
