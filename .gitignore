@@ -15,3 +15,9 @@ __pycache__/
 
 # Local build outputs (images, payloads).
 build/
+
+# Apple material (IPSW, extracted DeviceTree/dmgs): never commit.
+*.ipsw
+*.dmg
+*.im4p
+build/ipsw/
