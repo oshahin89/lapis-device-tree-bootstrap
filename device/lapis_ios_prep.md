@@ -82,7 +82,10 @@ mounts and runs PID 1 on the phone — only full-size.
 The ~16 GB root cannot be a RAM disk. It must live on a UFS partition the
 kernel reads as the root device (`rd=ufsroot0 ufsroot=<name>`). Two options:
 
-- **Dual boot**: carve an `iosroot` partition (GPT edit; slot a/b keeps
+- **Dual boot**: carve an `iosroot` partition. Capture the GPT read-only
+  (`dd if=/dev/block/sdc bs=4096 count=64 of=gpt.bin`), then
+  `python3 tools/lapis_gpt_plan.py gpt.bin` prints a reviewed carve plan
+  (free space, or shrinking `userdata`). GPT edit keeps
   Android on b). See ruby's `appendix-dualboot.md` and
   [ios_experiment_readiness.md](ios_experiment_readiness.md).
 - **Overwrite `userdata`** (erases Android data) as sweet does.
