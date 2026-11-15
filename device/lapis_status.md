@@ -51,6 +51,9 @@ everything gathered for them.
 | `tools/lapis_boot_pack.py` | pack into a boot_b copy (`--probe` / `--image --append`) |
 | `tools/lapis_lz4.py` | LZ4 legacy codec for the stock kernel format |
 | `tools/nt38771_fw_map.py` | parse the NT38771 firmware partition table |
+| `tools/lapis_ipsw_extract.py` | pull DeviceTree + 3 dmgs from an iPhone X IPSW |
+| `tools/lapis_gpt_plan.py` | plan an `iosroot` partition from a GPT dump (dry run) |
+| `tools/lapis_qemu_regress.sh` | boot the kernel to PID 1 in QEMU and check milestones |
 | `tools/lapis_payload/` | first-stage framebuffer probe and its QEMU check |
 
 See [HANDOFF.md](../HANDOFF.md) for how to continue.
