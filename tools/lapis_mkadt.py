@@ -112,11 +112,37 @@ def dump(n, depth=0):
         print(f"{pad}}}")
 
 
+def _load_adt(path):
+    """Raw ADT bytes from a .adt file or an IM4P-wrapped DeviceTree (.im4p).
+    An IM4P payload may be lzfse-compressed (bvx2); decode it with `lzfse`."""
+    buf = open(path, "rb").read()
+    if buf[:1] == b"\x30" and b"IM4P" in buf[:16]:
+        # DER SEQUENCE; the 4th element is the payload
+        import subprocess
+        def der(b, o):
+            tag, ln = b[o], b[o + 1]; o += 2
+            if ln & 0x80:
+                n = ln & 0x7f; ln = int.from_bytes(b[o:o + n], "big"); o += n
+            return tag, o, o + ln
+        _, s, e = der(buf, 0)
+        items, o = [], s
+        while o < e:
+            t, vs, ve = der(buf, o); items.append((t, buf[vs:ve])); o = ve
+        if any(t == 0x04 for t, _ in items[4:]):
+            sys.exit(f"{path}: IM4P payload is encrypted (KBAG present)")
+        payload = items[3][1]
+        if payload[:4] == b"bvx2":
+            payload = subprocess.run(["lzfse", "-decode"], input=payload,
+                                     capture_output=True, check=True).stdout
+        return payload
+    return buf
+
+
 def product_props(path):
-    """/product of a user-supplied D22AP ADT (Apple material, never in git)."""
+    """/product of a user-supplied D22AP DeviceTree (Apple material, never in git)."""
     if not path:
         return None
-    root, _ = parse(open(path, "rb").read())
+    root, _ = parse(_load_adt(path))
     for c in root.children:
         if dict((k, v) for k, _, v in c.props).get("name") == b"product\0":
             return [(k, v) for k, f, v in c.props if not f and k not in ("name", "AAPL,phandle")]

@@ -45,7 +45,7 @@ everything gathered for them.
 | `tools/lapis_xnu_patch_preflight.py` | strict patch-queue check (83 patches) |
 | `.github/workflows/xnu-lapis.yml` | CI kernel build (macos-15, Xcode 16.0) |
 | `tools/lapis_mkadt.py` | ADT (`--no-ufs`, `--with-a78`, `--debug`, `--qemu`, `--qemu-lapis-fb`, `--qemu-smp`) |
-| `tools/ios-sweet/` | vendored MIT `mkpayload`, `mkinit`, `sweet-init.S` |
+| `tools/ios-sweet/` | vendored MIT `mkpayload`, `mkinit`, `sweet-init.S`, `mkiosroot.sh`, `sweet-root-tweaks.py` |
 | `tools/lapis_mkroot_hfs.sh` | HFS+ root image (sudo, hfsprogs) |
 | `tools/lapis_shim/` | LK boot shim + probes (`build.sh OUT shim\|regdump\|pstest\|tchip`), `qemu_shim.py` |
 | `tools/lapis_boot_pack.py` | pack into a boot_b copy (`--probe` / `--image --append`) |
