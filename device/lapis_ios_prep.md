@@ -58,6 +58,15 @@ and SpringBoard's device class is wrong.
 
 ## Step 2 — the iOS root filesystem
 
+> **APFS reader note (tested 2026-11-15):** the iOS 16 volumes are *sealed*
+> (`APFS_INCOMPAT_SEALED_VOLUME`). Ubuntu's `libfsapfs`/`python3-fsapfs`
+> (20240429) opens the container and reads the volume name but returns an
+> empty root for a sealed volume, so it cannot extract the files. Use
+> **`apfs-fuse`** (from source: github.com/sgan81/apfs-fuse, cmake), which
+> handles sealed volumes, for `mkiosroot.sh`.
+
+
+
 From the IPSW's three dmgs (the OS root, the SystemOS cryptex, the AppOS
 cryptex — their names are in the IPSW's `BuildManifest.plist`):
 
