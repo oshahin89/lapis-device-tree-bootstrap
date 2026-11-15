@@ -31,6 +31,7 @@ root `sha256sum /dev/block/by-name/boot_b` = `851a5435…ae4f5`.
 | pstore log channel | partial | survives warm resets, lost on PSCI cold reset and on Power + Vol-down |
 | USB, audio, Wi-Fi/BT, modem, camera, sensors, GPU | not started | none of ios-sweet/topaz/ruby has GPU, Wi-Fi, modem or camera either |
 | AMP scheduling (A78 as P cluster) | not started | all eight cores run as one SMP cluster |
+| iOS root (iPhone X 16.7.16) | **built** | 16 GiB HFS+ from the IPSW: launchd, dyld, SpringBoard, the 3.2 GiB dyld shared cache. `build/iosroot.img`, gitignored. Needs the UFS partition to deploy. |
 | iOS userland | blocked on storage | needs the UFS root and a user-supplied IPSW (see ruby's `LEGAL.md`) |
 
 Pieces the assistant could not write in this project: the UFS host bring-up
