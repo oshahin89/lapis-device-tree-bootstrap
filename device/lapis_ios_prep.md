@@ -63,7 +63,10 @@ and SpringBoard's device class is wrong.
 > (20240429) opens the container and reads the volume name but returns an
 > empty root for a sealed volume, so it cannot extract the files. Use
 > **`apfs-fuse`** (from source: github.com/sgan81/apfs-fuse, cmake), which
-> handles sealed volumes, for `mkiosroot.sh`.
+> handles sealed volumes, for `mkiosroot.sh`. Build it with
+> `tools/build-apfs-fuse.sh` (clones the repo, patches two modern-toolchain
+> nits, builds). Verified reading and decompressing the iPhone X 16.7.16
+> dmgs (the dyld shared cache reads back its `dyld_v1 arm64` header).
 
 
 
