@@ -199,92 +199,47 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "UFS clock+MPHY link probe");
+	con_str("LAPIS", "GenieZone / MPHY access probe");
 
-	/* capture everything into variables; print a compact block at the END so
-	 * the fbcon wrap cannot overwrite the values that matter. */
-	uint32_t ao_sta0 = rd(UFSCFG_AO + UFSAO_CG_STA);	/* gate state as LK left */
-	uint32_t mphy_b4 = rd(MPHY + MP_GLB_DIG_8C);	/* MPHY before anything */
+	/* keep the UFS-bring-up helpers in the build (referenced for later probes) */
+	(void)mphy_power_on; (void)ref_clk_on; (void)uic; (void)dme_set;
 
-	/* 0z. enable the ufscfg_pdn UFSHCI clock gates (bit1 UFSHCI_AES's parent is
-	 * ufs_fde, the clock that also feeds the MPHY). Never tried before -- only
-	 * ufscfg_ao was ungated. U-Boot ufs_mtk_init clk_enable_bulk's all of these. */
-	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
+	/* 1. which EL are we at? EL1 under GenieZone (stage 2) is expected. */
+	uint64_t el;
+	__asm__ volatile("mrs %0, CurrentEL" : "=r"(el));
+
+	/* 2. baseline: a scratch RAM word must round-trip (our rd/wr work). */
+	static volatile uint32_t scratch;
+	scratch = 0xA5A5A5A5;
 	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(10);
-	uint32_t mphy_rst = rd(MPHY + MP_GLB_DIG_8C);	/* MPHY after pdn-clk enable */
+	uint32_t ram_rb = scratch;
 
-	/* 0a. ACCESSIBILITY TEST: can we write ufscfg_ao at all? Gate SAP_CFG via
-	 * the SET register, read STA (bit 8 should appear if accessible), then
-	 * ungate everything via CLR. If ao_staset stays == ao_sta0, the whole
-	 * 0x112b8000 block is powered/clocked off (a layer below these gates). */
-	wr(UFSCFG_AO + UFSAO_CG_SET, UFSAO_SAP_CFG);
+	/* 3. UFSHCI (0x112b0000) is known-accessible. */
+	uint32_t hci_cap = rd(UFSHCI + REG_CAP);
+	/* another known-good MMIO as control: TOPRGU */
+	uint32_t toprgu = rd(0x1c00a000UL);
+
+	/* 4. MPHY direct (0x112a0000) write-readback: RAZ/WI or writable? */
+	uint32_t mphy_r0 = rd(MPHY + MP_GLB_DIG_8C);
+	wr(MPHY + MP_GLB_DIG_8C, 0xA5A5A5A5);
 	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(10);
-	uint32_t ao_staset = rd(UFSCFG_AO + UFSAO_CG_STA);
+	uint32_t mphy_wb = rd(MPHY + MP_GLB_DIG_8C);	/* 0 => RAZ/WI */
+	uint32_t mphy_hi = rd(MPHY + 0x8000);
 
-	/* 0b. ungate all the ufscfg_ao unipro clocks (bit 8 unipro_phy_sap feeds
-	 * the MPHY register bank). After this 0x112a0000 should read non-zero. */
-	wr(UFSCFG_AO + UFSAO_CG_CLR, UFSAO_ALL);
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(10);
-	uint32_t ao_sta1 = rd(UFSCFG_AO + UFSAO_CG_STA);
-	uint32_t mphy_clk = rd(MPHY + MP_GLB_DIG_8C);	/* MPHY after clock enable */
+	/* 5. UFSHCI's own MPHY-control window (accessible; possible indirect path) */
+	uint32_t mphyctl = rd(UFSHCI + 0x2200);		/* REG_UFS_MPHYCTRL */
+	uint32_t extreg = rd(UFSHCI + 0x2100);		/* REG_UFS_EXTREG */
+	uint32_t probe_r = rd(UFSHCI + 0x22c8);		/* REG_UFS_PROBE */
 
-	/* 1. MPHY power-on (wake from deep hibernate) */
-	mphy_power_on();
-	uint32_t mphy_on = rd(MPHY + MP_GLB_DIG_8C);
-
-	/* 2. reference-clock handshake */
-	int rc = ref_clk_on();
-
-	/* 3. host reset: assert then deassert hci/crypto/unipro */
-	wr(UFSCFG_PDN + RST_SET, RST_UNIPRO | RST_CRYPTO | RST_HCI);
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(110);
-	wr(UFSCFG_PDN + RST_CLR, RST_UNIPRO);
-	wr(UFSCFG_PDN + RST_CLR, RST_CRYPTO);
-	wr(UFSCFG_PDN + RST_CLR, RST_HCI);
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(110);
-
-	/* 4. CLK_CG early (ERR_CHK workaround) */
-	wr(UFSHCI + REG_XOUFS_CTRL, rd(UFSHCI + REG_XOUFS_CTRL) | 0x80);
-	__asm__ volatile("dsb sy" ::: "memory");
-
-	/* 5. HCE = 1, wait for read-back */
-	wr(UFSHCI + REG_HCE, 1);
-	__asm__ volatile("dsb sy" ::: "memory");
-	int hce_ok = 0;
-	for (int i = 0; i < 1000; i++) {
-		if (rd(UFSHCI + REG_HCE) & 1) { hce_ok = 1; break; }
-		udelay(600);
-	}
-
-	/* 6. MT6878 pre-link DME sets */
-	dme_set(VS_UNIPROPOWERDOWNCTRL, 0);
-	dme_set(PA_LOCAL_TX_LCC_ENABLE, 0);
-	if (uic(UIC_DME_GET, (uint32_t)VS_SAVEPOWERCONTROL << 16, 0, 0, 0)) {
-		uint32_t spc = rd(UFSHCI + REG_UCMDARG3);
-		dme_set(VS_SAVEPOWERCONTROL, spc & ~(1U << 6));
-	}
-
-	/* 7. DME_LINKSTARTUP */
-	uint32_t res = 0;
-	int ls = uic(UIC_DME_LINKSTARTUP, 0, 0, 0, &res);
-	uint32_t hcs = rd(UFSHCI + REG_HCS);
-	int dp = (hcs & HCS_DP) ? 1 : 0;
-
-	/* compact summary -- the last lines on screen (wrap-safe) */
+	/* compact summary (wrap-safe, at the end) */
 	con_skip();
-	con_hex2("AO ", "sta0=", ao_sta0, "set=", ao_staset);
-	con_hex2("AO ", "sta1=", ao_sta1, 0, 0);
-	con_hex2("MPHY", "b4=", mphy_b4, "pdn=", mphy_rst);
-	con_hex2("MPHY", "clk=", mphy_clk, "on=", mphy_on);
-	con_hex2("REF ", "rc=", (uint32_t)rc, 0, 0);
-	con_hex2("HCE ", "ok=", (uint32_t)hce_ok, "hcs=", hcs);
-	con_hex2("LINK", "res=", res, "dp=", (uint32_t)dp);
-	con_str("RESULT", (ls && res == 0 && dp) ? "*** LINK UP ***" : "no device yet");
+	con_hex2("EL  ", "cur=", (uint32_t)((el >> 2) & 3), "ram=", ram_rb);
+	con_hex2("HCI ", "cap=", hci_cap, "toprgu=", toprgu);
+	con_hex2("MPHY", "r0=", mphy_r0, "wb=", mphy_wb);
+	con_hex2("MPHY", "hi=", mphy_hi, 0, 0);
+	con_hex2("HCIX", "mphyctl=", mphyctl, "extreg=", extreg);
+	con_hex2("HCIX", "probe=", probe_r, 0, 0);
+	con_str("KEY", mphy_wb ? "MPHY WRITABLE" : "MPHY RAZ/WI (blocked or off)");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
