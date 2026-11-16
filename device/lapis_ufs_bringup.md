@@ -361,3 +361,35 @@ Paths from here: (a) RE the UFS/MPHY power-up out of lk.img; (b) obtain a
 MediaTek preloader/LK UFS source for MT6878/MT6877; (c) a boot approach that
 does not need the big UFS root (the iOS kernel + a RAM-disk root already boot on
 the device).
+
+## Update 4: lk.img reverse-engineering, first pass (2026-11-16)
+
+Disassembled lk.img (aarch64, `objdump -D -b binary`). The UFS bases are built
+with movz/movk (not literals): 0x112b0000 (UFSHCI), 0x112a0000 (MPHY),
+0x112b8000 (ufscfg_ao), all with a 0xFFFF.. prefix -> LK runs with the MMU on
+and a high identity map; the physical bases match ours. Rich UFS strings present
+(`ufs_init_mphy`, `platform/mediatek/common/ufs/ufs_hcd.c`, `ufs_get_device_info`,
+`[UFS] info: TX HS-G%d`, ...).
+
+Located:
+- **ufs_init_mphy at file offset 0x57d48.** It is a full **analog MPHY PLL
+  calibration**: reads a config word at 0x11f10260, then at MPHY+0x803c /+0x8138
+  /+0x1004 computes frequency dividers (umull/lsr/bfi math) and writes dozens of
+  tuned values. This is far more than phy-mtk-ufs.c's set_active -- it is the
+  real cold PHY tune. Porting it means transcribing the whole routine.
+- **Its caller (the UFS init) at ~0x3a700..0x3b160**, bl ufs_init_mphy at
+  0x3a900. It builds a host struct holding the bases (x10=0x112b0000 UFSHCI,
+  x11=0x112a0000 MPHY from x9=0x112bd000 minus offsets), allocates buffers, and
+  calls helpers 0x3b714 / 0x36c6c / 0x7204c before the MPHY call. 0x3b714 pokes
+  UFSHCI fields (+0x24, +0x90, +0x24 region) with delays -- host enable / UIC.
+
+Not yet found: the **power-domain / clock enable** that makes 0x112a0000
+accessible in the first place. It is probably in LK's earlier platform/power
+init (SPM/scpsys), not in this UFS function -- by the time ufs_hcd runs the
+domain is already powered. That early power-on is the specific piece our shim
+needs, and finding it is the next RE step.
+
+Assessment: a full cold UFS bring-up ported from lk.img is a multi-session RE
+effort (power-domain enable + the PLL-calibration ufs_init_mphy + link/PMC). The
+groundwork (tools, function map, base addresses) is done. Disassembly cached at
+build time; re-run `objdump -D -b binary -m aarch64 device/hyperos4_readback/lk.img`.
