@@ -253,3 +253,39 @@ is not sufficient. Next (secure-world territory, pause for user direction):
 enumerate the UFS_CONTROL sub-ops/return values, and check whether the stock
 kernel does something between the SMC and touching 0x112a0000 (a GZ mapping
 request, an SMC that returns the real base, or iommu/stage-2 setup).
+
+## 13. The real frame: GenieZone type-1 hypervisor + LK runs above it (2026-11-16)
+
+Two decisive facts settle the shape of the problem:
+
+1. **LK powers the MPHY with DIRECT register writes, no SMC.** lk.img has only 5
+   `smc #0` in the whole image, none in the UFS path; ufs_init_mphy (0x57d48)
+   does the PLL calibration straight to 0x112a0000. So the secure-world SMC
+   UFS_CONTROL path (which we reached and which returned 0) is NOT how the MPHY
+   is powered -- it is a red herring for the wake. LK can write 0x112a0000 because
+   it runs above GenieZone.
+
+2. **GenieZone is a type-1 hypervisor; "direct use of physical memory from VMs is
+   forbidden"** (Documentation/virt/geniezone/introduction.rst). Our shim and the
+   stock Android kernel both run as the normal-world VM under GenieZone stage-2.
+   The gzvm HVC ABI (arch/arm64/geniezone/gzvm_arch_common.h: GZVM_FUNC_* via
+   SMC_ENTITY_MTK, FUNCID base 0x1000) is for the host managing *guest* VMs, not
+   for the host to map its own MMIO.
+
+So 0x112a0000 reads 0 for one of exactly two reasons, still not distinguished:
+  (A) it is NOT in our VM's stage-2 map (GenieZone did not map the ufsphy for us),
+      so GenieZone RAZ/WIs it; Android would then obtain it via a GZ path we skip; or
+  (B) it IS mapped but the MPHY is unpowered, and LK's power-up (direct 0x112a0000
+      writes) can't take because the register block is unclocked in a way no
+      ufscfg gate covers.
+
+### Decisive next probe (ready to flash next session)
+Discriminate (A) vs (B) without guessing: read a definitely-unmapped high IPA
+(e.g. 0x9_0000_0000) and the MPHY, with the exc handler armed.
+  - unmapped IPA FAULTS (EXC fires) but MPHY reads 0 silently  => MPHY is MAPPED
+    => reason (B), power/clock; pursue LK's exact MPHY clock-enable (trace the UFS
+    init callers 0x3b600 -> 0x3a5a4 and helpers 0x20a48/0x147f0/0x134ec/0x13880).
+  - both RAZ/WI (no fault)  => GenieZone RAZ/WIs unmapped MMIO => MPHY likely
+    UNMAPPED, reason (A); then the path is a GZ stage-2/mapping mechanism (how the
+    stock kernel gets the ufsphy into the host VM) -- gz.img / gzvm RE.
+This single read-only probe collapses the remaining uncertainty to one branch.

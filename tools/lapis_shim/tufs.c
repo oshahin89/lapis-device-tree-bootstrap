@@ -229,76 +229,43 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "SIP SMC UFS host-power probe");
+	con_str("LAPIS", "stage-2 map vs power discriminator");
 
-	uint32_t mphy_b4 = rd(MPHY + MP_GLB_DIG_8C);	/* dark (0) as LK left it */
+	/* keep the helpers + SMC wrapper in the build for later probes */
+	(void)smc_ufs; (void)mphy_power_on; (void)ref_clk_on; (void)uic; (void)dme_set;
 
-	/* 1. what the stock kernel does in ufs_mtk_resume(): ask secure world to
-	 * power the UFS host, then the MPHY option of the same call. */
-	int64_t r_hci = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_HCI, 1);
-	int64_t r_mphy = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_MPHY, 1);
-	udelay(200);
-	uint32_t mphy_smc = rd(MPHY + MP_GLB_DIG_8C);	/* alive now? */
-	wr(MPHY + MP_GLB_DIG_8C, 0xA5A5A5A5);
+	uint64_t el;
+	__asm__ volatile("mrs %0, CurrentEL" : "=r"(el));
+
+	/* baselines: RAM round-trip + the UFSHCI (both known to work for us). */
+	static volatile uint32_t scratch;
+	scratch = 0xA5A5A5A5;
 	__asm__ volatile("dsb sy" ::: "memory");
-	uint32_t mphy_wb = rd(MPHY + MP_GLB_DIG_8C);	/* A5A5A5A5 => writable */
-	if (mphy_wb == 0xA5A5A5A5)
-		wr(MPHY + MP_GLB_DIG_8C, mphy_smc);	/* undo the test pattern */
+	uint32_t ram_rb = scratch;
+	uint32_t hci_cap = rd(UFSHCI + REG_CAP);
 
-	/* 2. ref-clk: the SMC notifications around the register handshake, as
-	 * ufs_mtk_setup_ref_clk() does. */
-	int64_t r_pre = smc_ufs(SIP_UFS_REF_CLK_NOTIFY, 1, PRE_CHANGE);
-	int rc = ref_clk_on();
-	int64_t r_post = smc_ufs(SIP_UFS_REF_CLK_NOTIFY, 1, POST_CHANGE);
-	uint32_t mphy_rc = rd(MPHY + MP_GLB_DIG_8C);
+	/* the MPHY window as LK left it (reads 0 for us), across its 64 KiB. */
+	uint32_t mphy_0 = rd(MPHY + 0x0);
+	uint32_t mphy_8c = rd(MPHY + MP_GLB_DIG_8C);
+	uint32_t mphy_hi = rd(MPHY + 0xFFFC);
 
-	/* 3. only if the MPHY window is alive: the full warm path. */
-	int hce_ok = 0, ls = 0, dp = 0;
-	uint32_t res = 0, hcs = 0, mphy_on = 0;
-	if (mphy_wb == 0xA5A5A5A5 || mphy_rc) {
-		mphy_power_on();
-		mphy_on = rd(MPHY + MP_GLB_DIG_8C);
-
-		wr(UFSCFG_PDN + RST_SET, RST_UNIPRO | RST_CRYPTO | RST_HCI);
-		__asm__ volatile("dsb sy" ::: "memory");
-		udelay(110);
-		wr(UFSCFG_PDN + RST_CLR, RST_UNIPRO);
-		wr(UFSCFG_PDN + RST_CLR, RST_CRYPTO);
-		wr(UFSCFG_PDN + RST_CLR, RST_HCI);
-		__asm__ volatile("dsb sy" ::: "memory");
-		udelay(110);
-		wr(UFSHCI + REG_XOUFS_CTRL, rd(UFSHCI + REG_XOUFS_CTRL) | 0x80);
-		__asm__ volatile("dsb sy" ::: "memory");
-		wr(UFSHCI + REG_HCE, 1);
-		__asm__ volatile("dsb sy" ::: "memory");
-		for (int i = 0; i < 1000; i++) {
-			if (rd(UFSHCI + REG_HCE) & 1) { hce_ok = 1; break; }
-			udelay(600);
-		}
-		dme_set(VS_UNIPROPOWERDOWNCTRL, 0);
-		dme_set(PA_LOCAL_TX_LCC_ENABLE, 0);
-		if (uic(UIC_DME_GET, (uint32_t)VS_SAVEPOWERCONTROL << 16, 0, 0, 0)) {
-			uint32_t spc = rd(UFSHCI + REG_UCMDARG3);
-			dme_set(VS_SAVEPOWERCONTROL, spc & ~(1U << 6));
-		}
-		ls = uic(UIC_DME_LINKSTARTUP, 0, 0, 0, &res);
-		hcs = rd(UFSHCI + REG_HCS);
-		dp = (hcs & HCS_DP) ? 1 : 0;
-	}
-
-	/* compact summary (wrap-safe, at the end). SMC a0: 0 = OK,
-	 * ffffffff = NOT_SUPPORTED / refused. */
+	/* print BEFORE the fault test, so this survives even if the next read aborts */
 	con_skip();
-	con_hex2("SMC ", "hci=", (uint32_t)r_hci, "mphy=", (uint32_t)r_mphy);
-	con_hex2("SMC ", "pre=", (uint32_t)r_pre, "post=", (uint32_t)r_post);
-	con_hex2("MPHY", "b4=", mphy_b4, "smc=", mphy_smc);
-	con_hex2("MPHY", "wb=", mphy_wb, "rc=", mphy_rc);
-	con_hex2("MPHY", "on=", mphy_on, "refclk=", (uint32_t)rc);
-	con_hex2("HCE ", "ok=", (uint32_t)hce_ok, "hcs=", hcs);
-	con_hex2("LINK", "res=", res, "dp=", (uint32_t)dp);
-	con_str("KEY", (ls && res == 0 && dp) ? "*** LINK UP ***"
-	        : (mphy_wb == 0xA5A5A5A5 || mphy_rc) ? "MPHY ALIVE via SMC"
-	        : "MPHY still dark");
+	con_hex2("EL  ", "cur=", (uint32_t)((el >> 2) & 3), "ram=", ram_rb);
+	con_hex2("HCI ", "cap=", hci_cap, 0, 0);
+	con_hex2("MPHY", "0=", mphy_0, "8c=", mphy_8c);
+	con_hex2("MPHY", "hi=", mphy_hi, 0, 0);
+	con_str("TEST", "reading an unmapped IPA (0x40_0000_0000)");
+
+	/* DISCRIMINATOR: a definitely-unmapped IPA (256 GiB, above all RAM/MMIO).
+	 * If GenieZone aborts on unmapped MMIO, exc_report fires (FAR = this addr)
+	 * while the MPHY read 0 WITHOUT a fault => MPHY is MAPPED => power issue.
+	 * If this read is also silent RAZ, GenieZone RAZ/WIs unmapped => MPHY may
+	 * itself be unmapped and the path is a GZ stage-2 mapping. */
+	uint32_t unmapped = rd(0x4000000000UL);
+	__asm__ volatile("dsb sy" ::: "memory");
+	con_hex2("TEST", "no fault; RAZ val=", unmapped, 0, 0);
+	con_str("KEY", "unmapped RAZ too => MPHY likely UNMAPPED (needs GZ map)");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
