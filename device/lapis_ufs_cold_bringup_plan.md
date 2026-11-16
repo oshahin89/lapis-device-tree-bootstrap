@@ -356,3 +356,18 @@ before and after HCE=1, and an unmapped-IPA control (`0x40_0000_0000`) to
 calibrate how GenieZone treats unmapped MMIO. One flash now returns the full
 reachability map of every window branch (B) needs, and the A-vs-B verdict.
 Read-only except enabling HCE; recover with Power+Vol-down.
+
+### Branch-(B) transcription start point (if the oracle says B)
+Call chain for the cold MPHY init, for when it is needed:
+`ufs_aio_init_mphy` (0x207e140) -> 0x207e424 -> tail-call **0x20778d4** (the
+worker). The sequence is **table-driven**: a step table at **0x20c11e8** (18
+entries x 0x38 bytes; each entry has a name/format pointer at +0x28 and flag
+words like 0x02030001), dispatched through **0x207e754**. The per-step register
+writes are not inline data — they live in the step functions and are each logged
+as **`"[write addr 0x%x=0x%x]"`**. Implication: rather than statically transcribe
+every step (large, error-prone), the cleaner path is to **capture the preloader's
+own runtime log over UART** on a cold boot — it prints the exact addr=value cold
+sequence. So the branch-(B) plan is: (1) oracle flash confirms B; (2) get the
+preloader/LK UART log of the cold UFS bring-up (exact writes); (3) replay those
+writes (MPHY 0x112a + UFSPLL 0x10351 + efuse-trim reads) from the shim, with the
+PMIC(VUFS12/18) half done via an SMC or by ensuring LK hands off with the rail on.
