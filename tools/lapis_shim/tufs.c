@@ -1,21 +1,24 @@
 /*
- * UFS host + MPHY link-up probe for lapis (alternative shim main; build.sh OUT
- * tufs). device/lapis_ufs_bringup.md has the register evidence.
+ * UFS cold-path window map for lapis (alternative shim main; build.sh OUT tufs).
+ * device/lapis_ufs_cold_bringup_plan.md has the full RE; register evidence in
+ * device/lapis_ufs_bringup.md.
  *
- * The MT6878 LK leaves the UFSHCI (0x112b0000) disabled (HCE=0) and the MPHY
- * (0x112a0000, "mediatek,mt8183-ufsphy") in deep hibernate after it has read
- * boot. Earlier probes enabled HCE and issued DME_LINKSTARTUP but skipped the
- * MediaTek MPHY power-on, so LINKSTARTUP always returned FAILURE (result=1)
- * with DP=0. This probe adds the MPHY power-on from the lapis kernel driver
- * (drivers/phy/mediatek/phy-mtk-ufs.c ufs_mtk_phy_set_active) and the proper
- * ref-clk handshake (drivers/ufs/host/ufs-mediatek.c ufs_mtk_setup_ref_clk),
- * then brings the link up. It STILL stops before any command: no UTRL is set
- * up, no doorbell is rung, no SCSI/UPIU is built, so it never reads or writes
- * a single byte of storage data. Single boot: it hangs with the values on
- * screen; recover with Power + Vol-down.
+ * Prior device tests established: our EL1 shim can read/write RAM and the whole
+ * UFSHCI (0x112b0000), but the MPHY window (0x112a0000) is RAZ/WI -- reads 0,
+ * swallows writes, no fault -- so DME_LINKSTARTUP can never succeed. The
+ * remaining question is WHY 0x112a0000 is dark, with two branches:
+ *   (A) it is not in our VM's GenieZone stage-2 map, or
+ *   (B) it is mapped but the MPHY is powered off (the preloader does the cold
+ *       power-up: PMIC rails VUFS12/VUFS18 -> UFSPLL -> ufs_aio_init_mphy).
  *
- * MMIO writes: UFSHCI (0x112b0000), MPHY (0x112a0000) and the reset controller
- * ufscfg_pdn (0x112bb000 +0x48/+0x4c) only, plus TOPRGU (watchdog off).
+ * This probe is READ-ONLY (except enabling HCE on the UFSHCI, as before) and
+ * resolves A vs B with the efuse oracle found in the preloader RE: the efuse
+ * block at 0x11f10000 is always-on and read-only, so a nonzero read proves our
+ * VM can see peripheral MMIO (=> MPHY 0 means branch B), while 0/fault means
+ * branch A. It also samples the other cold-path windows (UFSPLL 0x10351000,
+ * PMIF 0x11a00000) so one flash maps the full reachability needed for branch B.
+ * It builds no UTRL, rings no doorbell, touches no storage byte. Single boot:
+ * it hangs with the values on screen; recover with Power + Vol-down.
  */
 #include <stdint.h>
 #include "console.h"
@@ -27,6 +30,24 @@
 #define MPHY		0x112a0000UL	/* ufsphy@112a0000, mt8183-ufsphy */
 #define UFSCFG_AO	0x112b8000UL	/* ufscfg_ao: unipro clock gates */
 #define UFSCFG_PDN	0x112bb000UL
+
+/* Cold-bring-up windows the preloader touches (reference/preloader-mt6878 RE,
+ * 2026-11-16). The preloader's ufs_aio_init_mphy writes the SAME MPHY base we
+ * do (0x112a1004/208c/803c/aa020), and the cold path additionally uses:
+ *   - UFSPLL  0x10351000  (ufspll_ctrl; reg = <0 0x10351000 0 0x1000>)
+ *   - efuse   0x11f10000  (mediatek,devinfo; MPHY cal trims, incl. 0x260 that
+ *                          LK's ufs_init_mphy reads; cpu_version @ 0x234)
+ *   - PMIF    0x11a00000  (PMIC/SPMI master: VUFS12/VUFS18 rails are PMIC gates)
+ * efuse is the A/B ORACLE: it is read-only and ALWAYS powered (never gated), and
+ * returns nonzero fuse data on real silicon. If efuse reads nonzero, peripheral
+ * MMIO is mapped into our VM => MPHY reading 0 means it is POWERED OFF (branch
+ * B). If efuse reads 0 / faults, peripheral MMIO is not in our stage-2 (branch
+ * A, a GenieZone mapping problem). */
+#define UFSPLL		0x10351000UL
+#define EFUSE		0x11f10000UL
+#define EFUSE_CPUVER	0x234		/* cpu_version fuse: nonzero on silicon */
+#define EFUSE_UFSCAL	0x260		/* UFS MPHY cal word LK/preloader read */
+#define PMIF		0x11a00000UL
 
 /* ufscfg_ao clock gates (clk-mt6878-peri.c ufsao_cg_regs / ufsao_clks).
  * mtk_clk_gate_ops_setclr: write BIT(shift) to CLR to ENABLE, to SET to gate;
@@ -229,7 +250,7 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "stage-2 map vs power discriminator");
+	con_str("LAPIS", "cold-path window map: efuse A/B oracle");
 
 	/* keep the helpers + SMC wrapper in the build for later probes */
 	(void)smc_ufs; (void)mphy_power_on; (void)ref_clk_on; (void)uic; (void)dme_set;
@@ -244,11 +265,25 @@ void shim_main(uint64_t dtb)
 	uint32_t ram_rb = scratch;
 	uint32_t hci_cap = rd(UFSHCI + REG_CAP);
 
-	/* the MPHY window as LK left it (HCE=0 state; reads 0 for us). */
-	uint32_t mphy_8c = rd(MPHY + MP_GLB_DIG_8C);
+	con_skip();
+	con_hex2("EL  ", "cur=", (uint32_t)((el >> 2) & 3), "ram=", ram_rb);
+	con_hex2("HCI ", "cap=", hci_cap, "ver=", rd(UFSHCI + REG_VER));
 
-	/* HYPOTHESIS: the MPHY bank may be accessible only once the host is enabled.
-	 * LK leaves HCE=0; enable it (+CLK_CG) and re-read the MPHY. */
+	/* THE A/B ORACLE, read FIRST (exc_report armed). efuse is always-on and
+	 * read-only: nonzero here => peripheral MMIO is mapped for our VM => any UFS
+	 * block reading 0 is POWERED OFF (branch B); zero/fault here => not mapped
+	 * (branch A). Each read is printed immediately, so a fault localizes by FAR. */
+	uint32_t ef_cpu = rd(EFUSE + EFUSE_CPUVER);
+	con_hex2("EFUS", "cpuver=", ef_cpu, "ufscal=", rd(EFUSE + EFUSE_UFSCAL));
+
+	/* the other cold-path windows (UFSPLL analog, PMIF/PMIC master). */
+	uint32_t pll0 = rd(UFSPLL);
+	con_hex2("PLL ", "ufspll0=", pll0, "+4=", rd(UFSPLL + 4));
+	uint32_t pmif0 = rd(PMIF);
+	con_hex2("PMIF", "p0=", pmif0, "p4=", rd(PMIF + 4));
+
+	/* the MPHY window as LK left it, then after enabling the host (HCE=1). */
+	uint32_t mphy_8c = rd(MPHY + MP_GLB_DIG_8C);
 	wr(UFSHCI + REG_XOUFS_CTRL, rd(UFSHCI + REG_XOUFS_CTRL) | 0x80);
 	__asm__ volatile("dsb sy" ::: "memory");
 	wr(UFSHCI + REG_HCE, 1);
@@ -258,24 +293,19 @@ void shim_main(uint64_t dtb)
 		if (rd(UFSHCI + REG_HCE) & 1) { hce_ok = 1; break; }
 		udelay(600);
 	}
-	uint32_t mphy_hce = rd(MPHY + MP_GLB_DIG_8C);	/* live after HCE=1? */
+	con_hex2("MPHY", "pre=", mphy_8c, "postHCE=", rd(MPHY + MP_GLB_DIG_8C));
+	con_hex2("MPHY", "803c=", rd(MPHY + 0x803c), "hce_ok=", (uint32_t)hce_ok);
 
-	/* print BEFORE the fault test, so this survives even if the next read aborts */
-	con_skip();
-	con_hex2("EL  ", "cur=", (uint32_t)((el >> 2) & 3), "ram=", ram_rb);
-	con_hex2("HCI ", "cap=", hci_cap, "hce_ok=", (uint32_t)hce_ok);
-	con_hex2("MPHY", "pre=", mphy_8c, "postHCE=", mphy_hce);
-	con_str("TEST", "reading an unmapped IPA (0x40_0000_0000)");
-
-	/* DISCRIMINATOR: a definitely-unmapped IPA (256 GiB, above all RAM/MMIO).
-	 * If GenieZone aborts on unmapped MMIO, exc_report fires (FAR = this addr)
-	 * while the MPHY read 0 WITHOUT a fault => MPHY is MAPPED => power issue.
-	 * If this read is also silent RAZ, GenieZone RAZ/WIs unmapped => MPHY may
-	 * itself be unmapped and the path is a GZ stage-2 mapping. */
+	/* CONTROL: a definitely-unmapped IPA (256 GiB). Tells us how GenieZone
+	 * treats unmapped MMIO (fault vs silent RAZ), which calibrates the oracle. */
+	con_str("CTRL", "reading unmapped IPA 0x40_0000_0000");
 	uint32_t unmapped = rd(0x4000000000UL);
 	__asm__ volatile("dsb sy" ::: "memory");
-	con_hex2("TEST", "no fault; RAZ val=", unmapped, 0, 0);
-	con_str("KEY", "unmapped RAZ too => MPHY likely UNMAPPED (needs GZ map)");
+	con_hex2("CTRL", "no fault; RAZ=", unmapped, 0, 0);
+
+	/* verdict hints */
+	con_str("KEY ", "efuse nonzero => mapped; MPHY 0 => branch B (powered off)");
+	con_str("KEY ", "efuse 0/fault => branch A (GZ stage-2 unmapped)");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");

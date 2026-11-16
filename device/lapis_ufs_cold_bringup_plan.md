@@ -308,7 +308,51 @@ if it shows branch (A) unmapped, the preloader does not help and the work is on
 the GenieZone side (gz.img / how the host VM gets the ufsphy mapped).
 
 ### State of the offline prep (ready for the next on-device session)
-- `build/tufs_hyperos4.img` = the stage-2 discriminator probe (flash first).
+- `build/tufs_hyperos4.img` = the cold-path window map probe (flash first; see §15).
 - Branch (B) source ready: reference/preloader-mt6878/preloader_raw.img
   (ufs_aio_init_mphy + PMIC/PLL), lk.img ufs_init_mphy (0x57d48).
 - Branch (A) source ready: arch/arm64/geniezone/ (gzvm HVC ABI), gz.img.
+
+## 15. Preloader disassembled — the four cold-path windows + a better A/B oracle (2026-11-16, offline)
+
+Disassembled preloader_raw as **AArch64** (GFH `m_load_addr=0x02000f10`,
+`m_content_offset=0xf0`, so `vaddr = file_off + 0x02000e20`; entry is a clean
+reset stub). Located the cold-UFS functions by xref of their `__func__`/format
+strings (ADRP+ADD): `ufspll_ctrl` @ 0x2074dd8, `ufs_aio_init_mphy` @ 0x207e140,
+UFS power/dump @ 0x20771b0.
+
+**Key facts recovered:**
+1. **Same MPHY base as us.** `ufs_aio_init_mphy` writes `0x112a1004`, `0x112a208c`,
+   `0x112a803c`, `0x112aa020` (and reads cal at `0x112a...`) — the exact
+   `0x112a0000` bank our shim writes. The "wrong address" theory is dead: our
+   address is right, the block is genuinely dark (mapping or power).
+2. **Cold bring-up spans FOUR windows, not one** (all confirmed in the
+   nothing-mt6878 DTS):
+   - MPHY   `0x112a0000` — analog PHY writes (ufs_aio_init_mphy).
+   - UFSPLL `0x10351000` (reg `<0 0x10351000 0 0x1000>`) — ufspll_ctrl.
+   - efuse  `0x11f10000` (`mediatek,devinfo`) — MPHY cal trims; LK/preloader read
+     the word at `+0x260`; `cpu_version` fuse at `+0x234`.
+   - PMIF   `0x11a00000` (not in DT = PMIC/SPMI master) — **VUFS12_PG/VUFS18_PG
+     are PMIC register fields** (the 0x20771b0 routine only *prints* them via a
+     printf jump-table), so the UFS 1.2V/1.8V rails are **PMIC rails over SPMI**,
+     not a plain MMIO power gate. That is the hard part of branch (B): a VM may
+     not be allowed PMIF/SPMI writes.
+3. **The efuse is a clean A/B oracle.** It is read-only and always powered (never
+   gated), returning nonzero fuse data on silicon. So reading `0x11f10234` from
+   our EL1 shim distinguishes the branches **without guessing**:
+   - efuse **nonzero** => peripheral MMIO *is* in our VM's stage-2 => MPHY
+     reading 0 means it is **powered off = branch (B)**; the fix is the
+     preloader's PMIC(VUFS12)->UFSPLL->ufs_aio_init_mphy cold sequence (and the
+     PMIC half likely needs a secure SMC or an LK/handoff that leaves it on).
+   - efuse **0 / faults** => peripheral MMIO is **not mapped** for us =>
+     **branch (A)**, a GenieZone stage-2 problem (gz.img / how the host VM gets
+     the ufsphy window); the preloader sequence is then moot for us.
+
+**Probe upgraded accordingly.** `tools/lapis_shim/tufs.c` (-> `build/tufs_hyperos4.img`)
+now reads, with exc_report armed and each value printed immediately (so any fault
+localises by FAR): the controls (RAM, UFSHCI cap/ver), **efuse `0x11f10234`/`+0x260`
+(the oracle)**, UFSPLL `0x10351000`, PMIF `0x11a00000`, the MPHY `+0x8c`/`+0x803c`
+before and after HCE=1, and an unmapped-IPA control (`0x40_0000_0000`) to
+calibrate how GenieZone treats unmapped MMIO. One flash now returns the full
+reachability map of every window branch (B) needs, and the A-vs-B verdict.
+Read-only except enabling HCE; recover with Power+Vol-down.
