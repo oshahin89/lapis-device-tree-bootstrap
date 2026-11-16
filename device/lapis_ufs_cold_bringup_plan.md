@@ -230,3 +230,26 @@ the MPHY window to EL1 (inspect the GZ SMC range / how the stock kernel obtains
 it); (b) wake the MPHY from secure world via an SMC the monitor handles; (c) a
 boot path where LK/preloader leaves the MPHY powered and mapped. The RAM-disk
 iOS boot (no UFS) remains fully working meanwhile.
+
+## 12. SIP UFS_CONTROL SMC is reachable but does not unblock the MPHY (2026-11-16)
+
+Probe `a9133fd`: issued MTK_SIP_UFS_CONTROL (0xC2000276) from the EL1 shim for
+HOST_PWR_CTRL(HCI, on) and (MPHY, on), plus REF_CLK_NOTIFICATION pre/post.
+Result on device:
+```
+SMC  hci=0  mphy=0  pre=0  post=0    <- all return a0=0 (OK), NOT 0xffffffff
+MPHY b4=0  smc=0  wb=0  rc=0         <- MPHY window still reads 0 / swallows writes
+HCE ok=0  LINK res=0 dp=0  KEY: still dark
+```
+So the SMC interface IS reachable from our EL1 shim through GenieZone and returns
+success (0), but HOST_PWR_CTRL did not make 0x112a0000 accessible. Either the
+sub-op/arg encoding differs in this firmware (a0=0 may be a default OK for an
+unimplemented op), or the host-power SMC only toggles a power rail while the
+register-window RAZ/WI is a separate GenieZone stage-2 restriction, or a
+different op/args are needed (DEVICE_PWR_CTRL, VA09, more args).
+
+Net new fact: the secure-world SMC path is open to us (big) but the one we tried
+is not sufficient. Next (secure-world territory, pause for user direction):
+enumerate the UFS_CONTROL sub-ops/return values, and check whether the stock
+kernel does something between the SMC and touching 0x112a0000 (a GZ mapping
+request, an SMC that returns the real base, or iommu/stage-2 setup).
