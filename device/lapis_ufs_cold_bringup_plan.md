@@ -197,3 +197,36 @@ Next investigations (in priority order):
    stage-2 or a GZ service — a different class of problem from clock bring-up.
 4. Fallback remains the lk.img RE of ufs_init_mphy (0x57d48) for the full cold
    sequence, but that only matters once EL1 can actually write 0x112a0000.
+
+## 11. GenieZone/MPHY characterization result (2026-11-16) — DEFINITIVE
+
+Probe `ac811d7` on device:
+```
+EL   cur=1          ram=a5a5a5a5     <- we are EL1; our rd/wr work (RAM round-trips)
+HCI  cap=3587071f   toprgu=0         <- UFSHCI accessible
+MPHY r0=0  wb=0  hi=0                 <- wrote 0xA5A5A5A5 to 0x112a0000+0x8C, read 0
+HCIX mphyctl=0x7  extreg=0  probe=0   <- REG_UFS_MPHYCTRL (0x112b2200) reads 0x7
+```
+
+Definitive: our writes work (RAM round-trips 0xA5A5A5A5) and the UFSHCI is fully
+accessible, but the **MPHY window at 0x112a0000 is RAZ/WI** — reads 0, swallows
+writes, no fault, at every offset tried. Since we are EL1 under GenieZone and all
+other MMIO we touch works, the MPHY region is either (a) mapped RAZ/WI by the
+GenieZone stage-2 for our context, or (b) fully unpowered — indistinguishable
+from EL1. REG_UFS_MPHYCTRL (0x112b2200) reads 0x7 and is accessible, but in
+ufs-mediatek.c it is only a debug *dump* window (0x2200..0x22AC), not a control
+path, so it is not a way to wake the MPHY.
+
+Conclusion: the MPHY cannot be reached or woken from our EL1 shim. Because the
+Linux/U-Boot *warm* link-up is pure DME over the UFSHCI (never touches
+0x112a0000) and only the one-time MPHY *wake* (phy set_active) needs the direct
+window, the whole UFS path is gated on reaching 0x112a0000 — which our context
+cannot. Android's kernel (also EL1 under GenieZone) reaches it, so GenieZone
+grants it through the normal boot, or the MPHY is powered for the normal kernel
+and not for us.
+
+Remaining options, all hard: (a) find a GenieZone SMC/hypercall that maps/grants
+the MPHY window to EL1 (inspect the GZ SMC range / how the stock kernel obtains
+it); (b) wake the MPHY from secure world via an SMC the monitor handles; (c) a
+boot path where LK/preloader leaves the MPHY powered and mapped. The RAM-disk
+iOS boot (no UFS) remains fully working meanwhile.
