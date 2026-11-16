@@ -195,51 +195,110 @@ static void dme_set(uint16_t attr, uint32_t val)
 	uic(UIC_DME_SET, (uint32_t)attr << 16, 0, val, 0);
 }
 
+/* MediaTek SIP "UFS control" SMC (ufs-mediatek.h): x0 = MTK_SIP_SMC_CMD(0x276) =
+ * FAST_CALL | SMC64 | OWNER_SIP | 0x276 = 0xC2000276; x1 = sub-op; x2.. = args;
+ * result in x0 (0 = OK). The stock kernel's ufs_mtk_resume() issues
+ * host_pwr_ctrl(HOST_PWR_HCI, true) right before mphy_power_on(): the UFS
+ * host/MPHY power lives in secure world, which is why 0x112a0000 is dark for
+ * us -- we never asked ATF to power it. Our PSCI SMC already proved SMCs from
+ * this shim reach EL3 through GenieZone. */
+#define MTK_SIP_UFS_CONTROL	0xC2000276ULL
+#define SIP_UFS_DEVICE_RESET	(1U << 1)
+#define SIP_UFS_REF_CLK_NOTIFY	(1U << 3)
+#define SIP_UFS_HOST_PWR_CTRL	(1U << 5)
+#define SIP_UFS_DEVICE_PWR_CTRL	(1U << 7)
+#define HOST_PWR_HCI		0
+#define HOST_PWR_MPHY		1
+#define PRE_CHANGE		0
+#define POST_CHANGE		1
+
+static int64_t smc_ufs(uint64_t sub, uint64_t v1, uint64_t v2)
+{
+	register uint64_t x0 __asm__("x0") = MTK_SIP_UFS_CONTROL;
+	register uint64_t x1 __asm__("x1") = sub;
+	register uint64_t x2 __asm__("x2") = v1;
+	register uint64_t x3 __asm__("x3") = v2;
+	__asm__ volatile("smc #0"
+			 : "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3)
+			 : : "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11",
+			     "x12", "x13", "x14", "x15", "x16", "x17", "memory");
+	return (int64_t)x0;
+}
+
 void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "GenieZone / MPHY access probe");
+	con_str("LAPIS", "SIP SMC UFS host-power probe");
 
-	/* keep the UFS-bring-up helpers in the build (referenced for later probes) */
-	(void)mphy_power_on; (void)ref_clk_on; (void)uic; (void)dme_set;
+	uint32_t mphy_b4 = rd(MPHY + MP_GLB_DIG_8C);	/* dark (0) as LK left it */
 
-	/* 1. which EL are we at? EL1 under GenieZone (stage 2) is expected. */
-	uint64_t el;
-	__asm__ volatile("mrs %0, CurrentEL" : "=r"(el));
-
-	/* 2. baseline: a scratch RAM word must round-trip (our rd/wr work). */
-	static volatile uint32_t scratch;
-	scratch = 0xA5A5A5A5;
-	__asm__ volatile("dsb sy" ::: "memory");
-	uint32_t ram_rb = scratch;
-
-	/* 3. UFSHCI (0x112b0000) is known-accessible. */
-	uint32_t hci_cap = rd(UFSHCI + REG_CAP);
-	/* another known-good MMIO as control: TOPRGU */
-	uint32_t toprgu = rd(0x1c00a000UL);
-
-	/* 4. MPHY direct (0x112a0000) write-readback: RAZ/WI or writable? */
-	uint32_t mphy_r0 = rd(MPHY + MP_GLB_DIG_8C);
+	/* 1. what the stock kernel does in ufs_mtk_resume(): ask secure world to
+	 * power the UFS host, then the MPHY option of the same call. */
+	int64_t r_hci = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_HCI, 1);
+	int64_t r_mphy = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_MPHY, 1);
+	udelay(200);
+	uint32_t mphy_smc = rd(MPHY + MP_GLB_DIG_8C);	/* alive now? */
 	wr(MPHY + MP_GLB_DIG_8C, 0xA5A5A5A5);
 	__asm__ volatile("dsb sy" ::: "memory");
-	uint32_t mphy_wb = rd(MPHY + MP_GLB_DIG_8C);	/* 0 => RAZ/WI */
-	uint32_t mphy_hi = rd(MPHY + 0x8000);
+	uint32_t mphy_wb = rd(MPHY + MP_GLB_DIG_8C);	/* A5A5A5A5 => writable */
+	if (mphy_wb == 0xA5A5A5A5)
+		wr(MPHY + MP_GLB_DIG_8C, mphy_smc);	/* undo the test pattern */
 
-	/* 5. UFSHCI's own MPHY-control window (accessible; possible indirect path) */
-	uint32_t mphyctl = rd(UFSHCI + 0x2200);		/* REG_UFS_MPHYCTRL */
-	uint32_t extreg = rd(UFSHCI + 0x2100);		/* REG_UFS_EXTREG */
-	uint32_t probe_r = rd(UFSHCI + 0x22c8);		/* REG_UFS_PROBE */
+	/* 2. ref-clk: the SMC notifications around the register handshake, as
+	 * ufs_mtk_setup_ref_clk() does. */
+	int64_t r_pre = smc_ufs(SIP_UFS_REF_CLK_NOTIFY, 1, PRE_CHANGE);
+	int rc = ref_clk_on();
+	int64_t r_post = smc_ufs(SIP_UFS_REF_CLK_NOTIFY, 1, POST_CHANGE);
+	uint32_t mphy_rc = rd(MPHY + MP_GLB_DIG_8C);
 
-	/* compact summary (wrap-safe, at the end) */
+	/* 3. only if the MPHY window is alive: the full warm path. */
+	int hce_ok = 0, ls = 0, dp = 0;
+	uint32_t res = 0, hcs = 0, mphy_on = 0;
+	if (mphy_wb == 0xA5A5A5A5 || mphy_rc) {
+		mphy_power_on();
+		mphy_on = rd(MPHY + MP_GLB_DIG_8C);
+
+		wr(UFSCFG_PDN + RST_SET, RST_UNIPRO | RST_CRYPTO | RST_HCI);
+		__asm__ volatile("dsb sy" ::: "memory");
+		udelay(110);
+		wr(UFSCFG_PDN + RST_CLR, RST_UNIPRO);
+		wr(UFSCFG_PDN + RST_CLR, RST_CRYPTO);
+		wr(UFSCFG_PDN + RST_CLR, RST_HCI);
+		__asm__ volatile("dsb sy" ::: "memory");
+		udelay(110);
+		wr(UFSHCI + REG_XOUFS_CTRL, rd(UFSHCI + REG_XOUFS_CTRL) | 0x80);
+		__asm__ volatile("dsb sy" ::: "memory");
+		wr(UFSHCI + REG_HCE, 1);
+		__asm__ volatile("dsb sy" ::: "memory");
+		for (int i = 0; i < 1000; i++) {
+			if (rd(UFSHCI + REG_HCE) & 1) { hce_ok = 1; break; }
+			udelay(600);
+		}
+		dme_set(VS_UNIPROPOWERDOWNCTRL, 0);
+		dme_set(PA_LOCAL_TX_LCC_ENABLE, 0);
+		if (uic(UIC_DME_GET, (uint32_t)VS_SAVEPOWERCONTROL << 16, 0, 0, 0)) {
+			uint32_t spc = rd(UFSHCI + REG_UCMDARG3);
+			dme_set(VS_SAVEPOWERCONTROL, spc & ~(1U << 6));
+		}
+		ls = uic(UIC_DME_LINKSTARTUP, 0, 0, 0, &res);
+		hcs = rd(UFSHCI + REG_HCS);
+		dp = (hcs & HCS_DP) ? 1 : 0;
+	}
+
+	/* compact summary (wrap-safe, at the end). SMC a0: 0 = OK,
+	 * ffffffff = NOT_SUPPORTED / refused. */
 	con_skip();
-	con_hex2("EL  ", "cur=", (uint32_t)((el >> 2) & 3), "ram=", ram_rb);
-	con_hex2("HCI ", "cap=", hci_cap, "toprgu=", toprgu);
-	con_hex2("MPHY", "r0=", mphy_r0, "wb=", mphy_wb);
-	con_hex2("MPHY", "hi=", mphy_hi, 0, 0);
-	con_hex2("HCIX", "mphyctl=", mphyctl, "extreg=", extreg);
-	con_hex2("HCIX", "probe=", probe_r, 0, 0);
-	con_str("KEY", mphy_wb ? "MPHY WRITABLE" : "MPHY RAZ/WI (blocked or off)");
+	con_hex2("SMC ", "hci=", (uint32_t)r_hci, "mphy=", (uint32_t)r_mphy);
+	con_hex2("SMC ", "pre=", (uint32_t)r_pre, "post=", (uint32_t)r_post);
+	con_hex2("MPHY", "b4=", mphy_b4, "smc=", mphy_smc);
+	con_hex2("MPHY", "wb=", mphy_wb, "rc=", mphy_rc);
+	con_hex2("MPHY", "on=", mphy_on, "refclk=", (uint32_t)rc);
+	con_hex2("HCE ", "ok=", (uint32_t)hce_ok, "hcs=", hcs);
+	con_hex2("LINK", "res=", res, "dp=", (uint32_t)dp);
+	con_str("KEY", (ls && res == 0 && dp) ? "*** LINK UP ***"
+	        : (mphy_wb == 0xA5A5A5A5 || mphy_rc) ? "MPHY ALIVE via SMC"
+	        : "MPHY still dark");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
