@@ -15,6 +15,7 @@
 | Return to fastboot without keys (reboot mode 3 + PSCI `SYSTEM_RESET`) | probe `2b06b551…` | back in fastboot after ~32 s |
 | xnu panic → automatic return to fastboot (patch 0083, `lapispanicreboot=N`) | `04f5aae0…` | back in fastboot after ~59 s |
 | NT38771 touch controller answers over bit-banged SPI3 | probe `b864fef0…` | chip ID `71 87 03` |
+| iOS XNU kernel boots on HyperOS 4 (Android 17), RAM-disk root, PID 1 + heartbeat | `7a9b66be…` | `init running as PID 1`, `still alive` repeating (2026-11-16) |
 
 Images live in `build/` or the session scratchpad (gitignored); each can be
 rebuilt from the CI kernel with the tools below. Recovery after every run:

@@ -251,3 +251,113 @@ cold reset, and the pstore marker did not survive. Summary:
 Patch 0083's `lapis_panic_reboot()` now uses PSCI `SYSTEM_RESET` (watchdog
 only as a fallback), so a panicking xnu returns to fastboot on its own; its
 log still has to be read from the screen.
+
+## MPHY finding (2026-11-16, on HyperOS 4)
+
+The link bring-up was tested on the device in stages. Confirmed facts:
+
+- UFSHCI 0x112b0000 is alive at the shim: cap=0x3587071f, ver=0x0310 (UFSHCI
+  3.1), ipver=0x10420200 (MT6878). HCE reads back 1 after we set it; HCS then
+  reads 0x08 (UCRDY set, DP=0).
+- Reference clock: REG_UFS_REFCLK_CTRL (0x144) reads 0x3 at entry; the
+  ufs_mtk_setup_ref_clk request/ack handshake acks (ack=1, ctrl=0x3). OK.
+- `DME_LINKSTARTUP` always returns result=1 (FAILURE) with DP=0, whether the
+  controller is reset first or not, and with or without the pre-link DME sets.
+- The MPHY lives at **0x112a0000** (`ufsphy@112a0000`, compatible
+  "mediatek,mt8183-ufsphy", mphy-ver 1, reg size 0x10000 -- from the device's
+  runtime FDT). The phy-mtk-ufs.c `ufs_mtk_phy_set_active` sequence (release
+  PLL/CDR/RX-SQ force bits at MP_GLB_DIG_8C 0x8C, MP_LN_RX_44 0xB044,
+  MP_LN_DIG_RX_AC 0xA0AC, MP_LN_DIG_RX_9C 0xA09C) was added to tufs.c.
+- **The MPHY register bank at 0x112a0000 reads back 0x00000000** (both before
+  and after the set_active writes), while the adjacent UFSHCI at 0x112b0000
+  reads fine. So the MPHY block is unclocked/unpowered when the shim runs: LK
+  gates it after reading boot. Adding the MPHY set_active therefore had no
+  effect and LINKSTARTUP still fails.
+- lapis does **not** use VA09 (no `mediatek,ufs-support-va09` in the DT), so
+  that analog supply is not the blocker. The DT has `mediatek,ufs-rtff-mtcmos`
+  and the ufshci clock list includes `unipro_sys`, `unipro_phy_sap`,
+  `unipro_tx_sym`, `unipro_rx_sym0/1` -- the MPHY access clock is most likely
+  `unipro_phy_sap` (phy system access port), gated by LK.
+
+Next: enable the UFS/MPHY clocks (clock-controller phandles 0x42, 0x3d, 0x3c in
+the ufshci node) before the MPHY set_active, so 0x112a0000 becomes accessible,
+then re-run link-up. Source: reference/lapis-v-oss drivers/ufs/host/ufs-mediatek.c
+and drivers/phy/mediatek/phy-mtk-ufs.c (fetched from MiCode lapis-v-oss).
+
+## Update: MPHY + ufscfg_ao read all-zero (2026-11-16, later)
+
+On the device, the MPHY bank (0x112a0000) and the ufscfg_ao clock controller
+(0x112b8000) both read 0x00000000 and do not accept writes (the set_active
+writes and the clock-gate CLR writes have no effect). Only the UFSHCI core at
+0x112b0000 is accessible. So the whole UFS config/MPHY region is clocked off a
+level below the ufscfg_ao gates -- most likely the TOP clock `ufs_sel`/`ufs_fde`
+(topckgen syscon@10000000, phandle 0x42, ufshci clock-names ufs_sel/ufs_fde/
+ufs_mbist) that LK gates when it finishes. The ufshci node has NO `power-domains`
+property, so this is a clock dependency, not a scpsys MTCMOS domain.
+
+Source now on disk: reference/mtk-mods-mt6878 (LieppOS mirror of the MediaTek
+mt6878 kernel modules) -- has drivers/clk/mediatek/clk-mt6878-*.c. The ufscfg_ao
+gates are in clk-mt6878-peri.c (ufsao_cg_regs: set 0x8 / clr 0xC / sta 0x4;
+unipro_phy_sap = bit 8; enable = write bit to CLR). Next: trace the topckgen
+ufs_sel/ufs_fde top clock (clk-mt6878.c) and enable it before the ufscfg_ao
+gates, so 0x112b8000 / 0x112a0000 become accessible.
+
+Dependency chain for a cold UFS bring-up on lapis (what LK tears down):
+  topckgen ufs_sel/ufs_fde (top)  ->  ufscfg_ao unipro gates  ->  MPHY set_active
+  ->  ref clk  ->  HCE  ->  DME_LINKSTARTUP  ->  power-mode change  ->  SCSI.
+Each layer confirmed/traced from the vendor source; tested bottom-up on device.
+
+## Update 2: ufscfg_ao is accessible, clocks ON -- MPHY still dark (2026-11-16)
+
+Compact wrap-safe probe, confirmed readings (blanks = 0x00000000):
+  AO   sta0=0  set=0x100   -> writing SAP_CFG (bit 8) to ufscfg_ao SET (0x8)
+                              made STA read 0x100: **0x112b8000 is accessible and
+                              write-responsive**; sta0=0 means the unipro gates
+                              were already UNGATED (clocks on) when we ran.
+  AO   sta1=0               -> after writing all to CLR, back to ungated.
+  MPHY b4=0 clk=0 on=0      -> 0x112a0000 reads 0 before clock-enable, after
+                              clock-enable, and after set_active. Writes do not
+                              stick. HCE ok=1, hcs=0x08, LINK res=1, dp=0.
+
+Conclusion: the ufscfg_ao unipro clocks are NOT the blocker (already on). The
+MPHY register bank at 0x112a0000 is dark for a different reason. In
+ufs_mtk_mphy_power_on -> phy_power_on (phy-mtk-ufs.c) the phy enables TWO clocks,
+"unipro" and **"mp"**, before ufs_mtk_phy_set_active. "unipro" is on; the likely
+missing one is **"mp"** -- a separate MPHY clock, probably the topckgen
+`ufs_fde`/AES_UFSFDE mux (CLK_TOP_AES_UFSFDE_SEL, CLK_CFG_10 lsb 8 width 3) or a
+dedicated mphy clock, that LK gates. The lapis runtime ufsphy@112a0000 node has
+NO `clocks` property, so the phy driver's clock wiring is not visible in the FDT;
+the mt6878 phy clock source needs confirming from the build-time DT or the LK
+preloader UFS init. Candidate next step: enable the topckgen ufs_fde/mp clock (a
+MUX_CLR_SET_UPD: write to CLK_CFG_10 SET/CLR + CLK_CFG_UPDATE1) before set_active.
+This is the topckgen-mux layer and needs the UFSPLL running.
+
+## Update 3: the cold power-up is in the closed preloader, not Linux (2026-11-16)
+
+Tried, all ruled out, MPHY (0x112a0000) stays 0x0 and ignores writes:
+  - host reset via ufscfg_pdn (0x112bb000) -- correct target, no effect on MPHY.
+  - no-reset relink.
+  - ufscfg_ao unipro clock ungate (clocks were already on; ufscfg_ao writable).
+  - ufscfg_ao reset bit 8 deassert (phandle 0x164) -- MPHY still 0, and it left
+    HCS=0 (UCRDY lost), so that write disturbs the UIC; do NOT keep it.
+
+KEY REFRAME: the Linux ufs-mediatek.c / phy-mtk-ufs.c only do the *warm* MPHY
+setup (set_active + link startup). They assume the bootloader already did the
+*cold* power-up: the UFS power domain (MTCMOS) and the top clocks (topckgen
+ufs_sel/ufs_fde mux + UFSPLL). On lapis, LK powers the MPHY to read boot, then
+powers it back down before jumping, so when the shim runs 0x112a0000 is in a
+powered-down domain -- reads 0, writes dropped -- and no amount of Linux-driver
+register writes reaches it, because the Linux driver never had to power the
+domain itself.
+
+The cold power-up sequence lives in the MediaTek **preloader / LK** UFS driver,
+which is closed (not in the GPL kernel or the vendor kernel-modules repo). We do
+have lk.img (device/hyperos4_readback/lk.img, 8d774899e_202611111716); the
+sequence could in principle be reverse-engineered from that binary, but that is
+a bootloader RE effort, not a register poke. This is the real wall for a cold
+UFS bring-up on lapis.
+
+Paths from here: (a) RE the UFS/MPHY power-up out of lk.img; (b) obtain a
+MediaTek preloader/LK UFS source for MT6878/MT6877; (c) a boot approach that
+does not need the big UFS root (the iOS kernel + a RAM-disk root already boot on
+the device).
