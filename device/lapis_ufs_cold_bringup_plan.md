@@ -169,3 +169,31 @@ Confirmed by three independent sources (Linux, U-Boot, ruby/topaz): no open
 driver does the full *cold* power-up — all reuse the bootloader's. lapis is the
 odd case where LK tears the MPHY clocks down; re-enabling the full ufshci clock
 set (esp. ufscfg_pdn/ufs_fde) is the open lead before falling back to lk.img RE.
+
+## 10. ufscfg_pdn clocks also ruled out — GenieZone stage-2 hypothesis (2026-11-16)
+
+Device test with ufscfg_pdn clock gates enabled (0x2B -> 0x112bb000+0xC) in
+addition to ufscfg_ao: `MPHY b4=0 pdn=0 clk=0 on=0`. The MPHY bank at 0x112a0000
+still reads 0 and ignores writes. So **every UFS clock we can reach is on, and
+the MPHY is still dark** — the clock theory is exhausted.
+
+New leading hypothesis: our shim runs at **EL1 under GenieZone (MediaTek's
+hypervisor, stage-2 translation)**. GenieZone may map the MPHY MMIO
+(0x112a0000) as **RAZ/WI** (read-as-zero, write-ignored) for EL1 while allowing
+the UFSHCI (0x112b0000). That exactly matches "reads 0, writes don't stick, no
+fault" and would mean no EL1 clock/PHY poke can ever reach the MPHY — the block
+is the hypervisor, not a clock. Android's kernel reaches the MPHY, so either it
+runs without this stage-2 restriction or GenieZone grants it via a handshake our
+shim does not do.
+
+Next investigations (in priority order):
+1. **Confirm the stage-2 RAZ/WI**: a probe that reads a scratch RAM address, the
+   UFSHCI, and several MPHY offsets, and also tries a write+readback to a known-
+   writable MMIO vs the MPHY — characterise whether 0x112a is specifically
+   RAZ/WI vs other restricted ranges. Consider reading ID_AA64MMFR/stage-2 hints.
+2. **GenieZone interface**: look for an SMC/hypercall that grants EL1 the MPHY
+   window (GenieZone SMC range), and whether XNU/the shim can request it.
+3. If the hypervisor truly gates it, UFS under GenieZone needs either escaping
+   stage-2 or a GZ service — a different class of problem from clock bring-up.
+4. Fallback remains the lk.img RE of ufs_init_mphy (0x57d48) for the full cold
+   sequence, but that only matters once EL1 can actually write 0x112a0000.
