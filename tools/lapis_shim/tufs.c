@@ -244,17 +244,27 @@ void shim_main(uint64_t dtb)
 	uint32_t ram_rb = scratch;
 	uint32_t hci_cap = rd(UFSHCI + REG_CAP);
 
-	/* the MPHY window as LK left it (reads 0 for us), across its 64 KiB. */
-	uint32_t mphy_0 = rd(MPHY + 0x0);
+	/* the MPHY window as LK left it (HCE=0 state; reads 0 for us). */
 	uint32_t mphy_8c = rd(MPHY + MP_GLB_DIG_8C);
-	uint32_t mphy_hi = rd(MPHY + 0xFFFC);
+
+	/* HYPOTHESIS: the MPHY bank may be accessible only once the host is enabled.
+	 * LK leaves HCE=0; enable it (+CLK_CG) and re-read the MPHY. */
+	wr(UFSHCI + REG_XOUFS_CTRL, rd(UFSHCI + REG_XOUFS_CTRL) | 0x80);
+	__asm__ volatile("dsb sy" ::: "memory");
+	wr(UFSHCI + REG_HCE, 1);
+	__asm__ volatile("dsb sy" ::: "memory");
+	int hce_ok = 0;
+	for (int i = 0; i < 1000; i++) {
+		if (rd(UFSHCI + REG_HCE) & 1) { hce_ok = 1; break; }
+		udelay(600);
+	}
+	uint32_t mphy_hce = rd(MPHY + MP_GLB_DIG_8C);	/* live after HCE=1? */
 
 	/* print BEFORE the fault test, so this survives even if the next read aborts */
 	con_skip();
 	con_hex2("EL  ", "cur=", (uint32_t)((el >> 2) & 3), "ram=", ram_rb);
-	con_hex2("HCI ", "cap=", hci_cap, 0, 0);
-	con_hex2("MPHY", "0=", mphy_0, "8c=", mphy_8c);
-	con_hex2("MPHY", "hi=", mphy_hi, 0, 0);
+	con_hex2("HCI ", "cap=", hci_cap, "hce_ok=", (uint32_t)hce_ok);
+	con_hex2("MPHY", "pre=", mphy_8c, "postHCE=", mphy_hce);
 	con_str("TEST", "reading an unmapped IPA (0x40_0000_0000)");
 
 	/* DISCRIMINATOR: a definitely-unmapped IPA (256 GiB, above all RAM/MMIO).

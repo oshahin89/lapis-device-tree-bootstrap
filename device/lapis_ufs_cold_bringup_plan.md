@@ -289,3 +289,26 @@ Discriminate (A) vs (B) without guessing: read a definitely-unmapped high IPA
     UNMAPPED, reason (A); then the path is a GZ stage-2/mapping mechanism (how the
     stock kernel gets the ufsphy into the host VM) -- gz.img / gzvm RE.
 This single read-only probe collapses the remaining uncertainty to one branch.
+
+## 14. The preloader holds the true cold power-up (2026-11-16, offline)
+
+Extracted preloader_raw from payload.bin (868 KiB; reference/preloader-mt6878/).
+Its strings show the authoritative cold UFS bring-up that runs BEFORE LK, from a
+fully powered-down state: `ufs_aio_init_mphy`, `ufspll_ctrl`, `mainpll_ctrl`,
+`VUFS12_PG` (UFS 1.2V power gate), PMIF/PMIC regulator control, `[UFS] notify
+power-off success`. So the real cold sequence is: PMIC regulators (VUFS12/VUFS18)
+on -> UFS PLL -> ufs_aio_init_mphy -> link. LK inherits this; if LK (or the
+kernel-handoff) powers UFS off, our shim starts from the powered-down state the
+preloader had to solve, and re-powering may need PMIC/SPMI (secure) access.
+
+This is the reference for branch (B) "mapped but unpowered": ufs_aio_init_mphy +
+the PMIC/PLL writes in preloader_raw are exactly the cold power-up to port. It is
+only worth RE-ing once the discriminator probe (section 13) confirms branch (B);
+if it shows branch (A) unmapped, the preloader does not help and the work is on
+the GenieZone side (gz.img / how the host VM gets the ufsphy mapped).
+
+### State of the offline prep (ready for the next on-device session)
+- `build/tufs_hyperos4.img` = the stage-2 discriminator probe (flash first).
+- Branch (B) source ready: reference/preloader-mt6878/preloader_raw.img
+  (ufs_aio_init_mphy + PMIC/PLL), lk.img ufs_init_mphy (0x57d48).
+- Branch (A) source ready: arch/arm64/geniezone/ (gzvm HVC ABI), gz.img.
