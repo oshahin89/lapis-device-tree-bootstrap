@@ -134,3 +134,38 @@ concrete session starts at step [A].
   from the *build-time* lapis DTS (the runtime FDT stripped them), or (2) grep
   the lk.dis generic-init helpers for the topckgen (0x10000000) CLK_CFG writes
   that ungate ufs_fde. Then add that one enable before ufs_init_mphy.
+
+## 9. U-Boot MT6878 UFS driver — the clean bare-metal reference (2026-11-16)
+
+Igor Belwon's U-Boot MediaTek UFS driver (merged mainline ~2026-03) works
+bare-metal on MT6878 "as lk or as kernel" and gets link + R/W. Saved at
+`reference/uboot-mt6878-ufs/` (ufs-mediatek.c, ufs-mediatek.h, phy-mtk-ufs.c).
+Its `phy-mtk-ufs.c` is byte-identical to Linux (our MPHY set_active is correct).
+
+Key insight from its `ufs_mtk_init` order:
+```
+bind_mphy -> init_reset -> clk_get_bulk(ALL ufshci clocks)
+  -> clk_enable_bulk(ALL)        <-- enables the WHOLE ufshci clock list
+  -> generic_phy_power_on(mphy)  <-- MPHY set_active
+  -> setup_ref_clk
+```
+It enables **every** clock in the ufshci node (topckgen ufs_sel/ufs_fde/ufs_mbist
++ ufscfg_ao unipro + ufscfg_pdn ufshci) **before** the MPHY set_active. We had
+only ungated ufscfg_ao. The confirmed-untried, source-backed candidate for why
+0x112a0000 is dark:
+
+- **ufscfg_pdn clock gates (0x112bb000, set 0x8 / clr 0xC / sta 0x4)** —
+  clk-mt6878-peri.c `ufspdn_clks`: bit0 UFSHCI, **bit1 UFSHCI_AES (parent
+  top_aes_ufsfde_ck = ufs_fde, the clock that also feeds the MPHY)**, bit3 AHB,
+  bit5 AXI. We only ever wrote ufscfg_pdn's *reset* regs (0x48/0x4c), never its
+  *clock* gates (0x8/0xC). Enabling bit1 (and the rest) is the next test.
+
+`build/tufs_hyperos4.img` now enables UFSAO_ALL (0x30F to 0x112b8000+0xC) **and**
+UFSPDN_ALL (0x2B to 0x112bb000+0xC) before set_active, and reports
+`MPHY pdn=` (the MPHY readback after). If `pdn=` is non-zero, the ufs_fde/AES
+clock was the gate; proceed to link-up. Ready to flash on the next device session.
+
+Confirmed by three independent sources (Linux, U-Boot, ruby/topaz): no open
+driver does the full *cold* power-up — all reuse the bootloader's. lapis is the
+odd case where LK tears the MPHY clocks down; re-enabling the full ufshci clock
+set (esp. ufscfg_pdn/ufs_fde) is the open lead before falling back to lk.img RE.

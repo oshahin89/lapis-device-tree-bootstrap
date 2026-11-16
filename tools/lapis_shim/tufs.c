@@ -44,13 +44,18 @@
 #define UFSAO_ALL	(UFSAO_TX_SYM | UFSAO_RX_SYM0 | UFSAO_RX_SYM1 | \
 			 UFSAO_UNIPRO_SYS | UFSAO_SAP_CFG | UFSAO_PHY_AHB)
 
-/* ufscfg_ao reset-controller (phandle 0x164, ti,reset-bits <0x48 8 0x4c 8 ..>):
- * a single reset at bit 8, assert via SET 0x48, deassert via CLR 0x4c. This is
- * separate from the hci/unipro/crypto resets in ufscfg_pdn and is never touched
- * elsewhere -- a candidate MPHY / unipro-phy reset LK may leave asserted. */
-#define UFSAO_RST_SET	0x48
-#define UFSAO_RST_CLR	0x4c
-#define UFSAO_RST_BIT8	(1U << 8)
+/* ufscfg_pdn clock gates (clk-mt6878-peri.c ufspdn_cg_regs / ufspdn_clks):
+ * same set 0x8 / clr 0xC / sta 0x4 layout. bit0 UFSHCI, bit1 UFSHCI_AES
+ * (parent top_aes_ufsfde_ck = ufs_fde -- the clock that also feeds the MPHY),
+ * bit3 UFSHCI_AHB, bit5 UFSHCI_AXI. U-Boot's ufs_mtk_init clk_enable_bulk's the
+ * whole UFSHCI clock list; we only ever ungated ufscfg_ao, never these. */
+#define UFSPDN_CG_STA	0x04
+#define UFSPDN_CG_CLR	0x0C
+#define UFSPDN_UFSHCI	(1U << 0)
+#define UFSPDN_AES	(1U << 1)	/* parent ufs_fde */
+#define UFSPDN_AHB	(1U << 3)
+#define UFSPDN_AXI	(1U << 5)
+#define UFSPDN_ALL	(UFSPDN_UFSHCI | UFSPDN_AES | UFSPDN_AHB | UFSPDN_AXI)
 
 /* standard UFSHCI 3.1 registers */
 #define REG_CAP		0x00
@@ -201,12 +206,13 @@ void shim_main(uint64_t dtb)
 	uint32_t ao_sta0 = rd(UFSCFG_AO + UFSAO_CG_STA);	/* gate state as LK left */
 	uint32_t mphy_b4 = rd(MPHY + MP_GLB_DIG_8C);	/* MPHY before anything */
 
-	/* 0z. deassert the ufscfg_ao reset (bit 8) -- the untouched reset that may
-	 * hold the MPHY/unipro-phy in reset (so 0x112a0000 reads 0). */
-	wr(UFSCFG_AO + UFSAO_RST_CLR, UFSAO_RST_BIT8);
+	/* 0z. enable the ufscfg_pdn UFSHCI clock gates (bit1 UFSHCI_AES's parent is
+	 * ufs_fde, the clock that also feeds the MPHY). Never tried before -- only
+	 * ufscfg_ao was ungated. U-Boot ufs_mtk_init clk_enable_bulk's all of these. */
+	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
 	__asm__ volatile("dsb sy" ::: "memory");
 	udelay(10);
-	uint32_t mphy_rst = rd(MPHY + MP_GLB_DIG_8C);	/* MPHY after reset deassert */
+	uint32_t mphy_rst = rd(MPHY + MP_GLB_DIG_8C);	/* MPHY after pdn-clk enable */
 
 	/* 0a. ACCESSIBILITY TEST: can we write ufscfg_ao at all? Gate SAP_CFG via
 	 * the SET register, read STA (bit 8 should appear if accessible), then
@@ -273,7 +279,7 @@ void shim_main(uint64_t dtb)
 	con_skip();
 	con_hex2("AO ", "sta0=", ao_sta0, "set=", ao_staset);
 	con_hex2("AO ", "sta1=", ao_sta1, 0, 0);
-	con_hex2("MPHY", "b4=", mphy_b4, "rst=", mphy_rst);
+	con_hex2("MPHY", "b4=", mphy_b4, "pdn=", mphy_rst);
 	con_hex2("MPHY", "clk=", mphy_clk, "on=", mphy_on);
 	con_hex2("REF ", "rc=", (uint32_t)rc, 0, 0);
 	con_hex2("HCE ", "ok=", (uint32_t)hce_ok, "hcs=", hcs);
