@@ -585,3 +585,35 @@ ATF and the PHY is alive -- then on to DME_LINKSTARTUP. If va09 SMC returns an
 error or the MPHY stays 0, the regulator_enable(va09) half may also be required
 (then do the VA09 LDO via the proper keyed MT6363 sequence, reg per §20, with a
 read-verify first). SMCs are safe (they return), unlike the raw PMIC write.
+
+## 22. v10 result + VA09 does not apply to lapis (2026-11-17)
+
+v10 (SMC-only, safe) ran clean (no reboot): `SMC hci=0 va09=0` (both accepted,
+not 0xffffffff) but the MPHY stayed 0 after the VA09 SMC + clocks + reset +
+set_active. Then two facts killed the VA09 theory:
+- The **MT6363 header has no VA09 LDO** (only VRF09, VUFS12, ...). "va09" is the
+  UFS driver's *supply name*, mapped via DT to some MT6363 LDO -- not a fixed rail.
+- The **lapis/nothing-mt6878 DT has no `va09-supply`** on ufshci/ufsphy; it only
+  has vcc=mt6363_vemc and vccq=mt6363_vufs12, and no `mediatek,ufs-support-va09`.
+  So `ufs_mtk_is_va09_supported()` is FALSE and the kernel SKIPS the whole VA09
+  block. That is why the VA09 SMC was a no-op for us.
+
+So the preloader enum "0xa09" is NOT VA09; it is some other MT6363 register, and
+the raw 0xa09 write in v9 hit the wrong register (reset). We must not guess PMIC
+registers again.
+
+### Authoritative next step (offline, careful)
+Resolve what the preloader's ufs_aio_init_mphy actually writes, end to end:
+- 0x20798fc does set_field(reg=0xa09, val=1, w=1, s=0) through a handle
+  [x24+2376] (= *0x20f1948); the write goes via 0x207fe88 -> a runtime fn-ptr
+  [handle+40]+72. Find where that handle/regmap is initialised in the preloader
+  (the PMIC/SPMI init) to recover the enum->address table, i.e. the REAL MT6363
+  register 0xa09 maps to, and whether a TMA key unlock precedes the write.
+- Cross-check that register against the MT6363 header (reg + EN_BIT + SET alias +
+  OP_EN + VOCAL/VOSEL) so any future write is the exact, keyed, sequenced form.
+- Only then, a read-verify-then-write probe. Until the real register is proven,
+  NO PMIC write (v9 showed a wrong one resets the SoC instantly).
+
+Known-good MT6363 registers for reference (header): VUFS12 ADDR 0x1c01 (EN_BIT 0,
+SET +1, OP_EN0 0x1c06), VRF09 ADDR 0x1b65. TMA key regs: TMA_KEY_L 0x36e,
+BUCK_TOP_KEY_PROT_LO 0x13fa (key values not public -- find in preloader).
