@@ -806,3 +806,30 @@ rail without the firmware's key. Guess-and-check is exhausted safely without a
 break; the remaining unblocks are unchanged: the preloader UART log, or RE of the
 preloader's protection-unlock + PMIC regmap. Do NOT keep guessing key values into
 0x36e (a wrong key write to a protection register is high-risk).
+
+## 29. v15: 0xa09 resets even with the real TMA key — it is not the rail (2026-11-17)
+
+Found the real MT6363 protection key (Linux mt6363-regulator.c): **TMA unlock =
+0x9c9c** bulk-written to TMA_KEY_L 0x36e (2 bytes), re-lock with 0; BUCK_TOP unlock
+= 0x5543 to 0x13fa. v15 replicated the preloader exactly: unlock TMA (0x9c->0x36e,
+0x9c->0x36f) -> write 0xa09=1 -> re-lock. Result: **reboot-loop again** (recovered
+via Power+Vol-down + restore). So 0xa09 resets even with TMA unlocked => it is not
+TMA-protected, and writing it is destructive regardless — confirming 0xa09 is the
+**preloader's internal enum, NOT the real MT6363 SPMI rail address**. Dead end.
+
+Also established (v13/v14): the real LDO enable registers (e.g. VRF09 0x1b65) are
+written by the kernel with a plain regmap_update_bits (no TMA, no OP_EN) yet our
+identical write is silently ignored — so those rails are hardware-controlled from
+our context, not SW-flippable.
+
+### Net state after the full day (probes v1-v15)
+Everything reachable has been tried: all MMIO levers, all UFS SMC sub-ops (stubs),
+clocks/reset/set_active, the PMIC rail guess-and-check (ignored), and the preloader's
+0xa09 with the real TMA key (resets). We now HAVE the TMA/BUCK keys (0x9c9c/0x5543)
+and the full MT6363 rail map, but the **real MPHY rail register is still unknown**
+(0xa09 is an enum; the SW-writable rails we can see don't flip). Identifying it needs
+the preloader UART log or RE of the preloader's PMIC regmap enum->address table +
+protection domain for that register. No further safe on-device move remains.
+
+The iOS RAM-disk boot (PID 1 + heartbeat) remains the working milestone; the full
+UFS-root iOS boot stays blocked on this one firmware-held register.
