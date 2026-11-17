@@ -760,3 +760,24 @@ exact UFS register remains firmware-held. The realistic unblocks are unchanged:
 the preloader UART log (cleanest) or a focused SSPM/preloader firmware RE. The
 avenues are now fully mapped (PMIC rail / SPM domain / bus protection), each with a
 hakios reference implementation to copy once the UFS-specific number is known.
+
+## 27. Preloader refutes SPM/bus-protection for the cold path — it's PMIC-only (2026-11-17)
+
+Scanned the preloader for the hakios-style wakeup mechanisms: it writes **no SPM**
+registers (0x10006xxx — none) and **no infracfg bus-protection** (0x100012a0..b0 —
+none). The infracfg addresses it touches are elsewhere (0x1000106c/70, 0x10001600,
+0x10001bd4, 0x10001c14..8c, 0x10001ee0), not the bus-protection block. So the UFS
+MTCMOS (ufs-rtff-mtcmos) and bus protection are **runtime/SSPM features, not part
+of the cold power-up** — the preloader's cold MPHY bring-up is PMIC (the obfuscated
+0xa09 write) + direct MPHY-register writes, nothing more.
+
+This finally narrows it with no remaining ambiguity about the mechanism: **the MPHY
+cold power-up is a single MT6363 PMIC rail enable** (plus the MPHY analog init we
+can do once the rail is up). The blocker is purely identifying that one PMIC
+register, which is not statically recoverable here (PMIC access is a runtime
+vtable; the rail-state reads are ambiguous between off and HW-mode). The only ways
+left to get that one number: the preloader UART log, RE of the preloader's SPMI
+transfer fn + regmap init, or a careful guess-and-check of the MT6363 analog rails
+(VA12_1 0x1c65 / VA12_2 0x1c73 / VA15 0x1c81) via the safe OP_EN+CON0 method —
+these are normal LDO enables (unlike the 0xa09 TOP register that reset the SoC), so
+the proper keyed-free method is low risk, but it is still a guess at which rail.
