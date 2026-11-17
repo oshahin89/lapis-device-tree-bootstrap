@@ -518,3 +518,41 @@ drivers/spmi/spmi-mtk-pmif.c + coreboot mt6363:
   0x112a0000 -- the MPHY should finally come alive.
 PMIC writes carry real risk (wrong sid/addr could hit another rail), so v9 only
 after v8 proves the path and we have read 0xa09's real value/layout first.
+
+## 20. v9 SPMI-write REBOOT-LOOPED — the 0xa09 write was wrong (2026-11-17)
+
+v8 read-only validated the SPMI path perfectly (MT6363 HWCID=0x40, SWCID0=0x30,
+rc=0, via PMIF 0x1cc04000 sid 4; reg 0xa09 read back 0x00). But v9, which
+SPMI-WROTE reg 0xa09 bit0, made the device **reset immediately** (blue screen
+then reboot, looping) -- it reset at the write, before printing POST. Recovered
+by forcing fastboot (Power+Vol-down) and restoring stock boot_b + --set-active=b;
+slot-retry dropped to 1 but stayed bootable, Android boots fine.
+
+**Why it was wrong (two bugs, from the mainline mt6363 regulator driver):**
+1. **0xa09 is not the real SPMI register.** It was the *preloader's internal
+   enum/index* passed to its PMIC regmap (0x20798fc set_field), NOT a raw MT6363
+   SPMI address. Writing raw 0xa09 hit the wrong MT6363 register -> reset.
+2. **MT6363 LDO enable is not a direct write.** drivers/regulator/mt6363-regulator.c:
+   enable = write BIT(EN_BIT) to **enable_reg + 0x1 (SET)**, disable = +0x2 (CLR);
+   there is also an OP_EN / operating-mode config (op_en_reg+0x5, NORMAL_OP_CFG
+   0x10, NORMAL_OP_EN 0x800000) and a protection key (TMA_KEY 0x36E,
+   BUCK_TOP_KEY_PROT_LO 0x13FA). A single raw bit-write is both wrong-target and
+   wrong-method.
+
+**Corrected facts (mainline, patch v11 -- verify before use):**
+- The UFS rail LDO is **VUFS12**, MT6363 reg **MT6363_RG_LDO_VUFS12_ADDR = 0x1c01**
+  (MT6363_LDO_VT -> LINEAR_CAL_OPS). Enable = BIT(VUFS12_EN_BIT) to **0x1c02**
+  (0x1c01+SET). EN_BIT value + whether 0x1c01 needs the TMA key: still to pin down.
+
+**Open questions before any further PMIC write (do offline, carefully):**
+- Is VUFS12 even the MPHY's analog rail, or does the host PHY use a different LDO?
+  (vufs12 is the UFS *vccq*/device rail; the MPHY analog may differ.) The preloader
+  enum 0xa09 must be mapped to its real target to be sure.
+- Does enabling need the OP_EN/mode write and/or the TMA protection-key unlock?
+- **Safer alternative: the SMC/ATF path.** ATF knows the correct keyed, sequenced
+  PMIC enable. Re-examine whether the stock kernel powers this rail via the
+  regulator (SPMI, what we must fully replicate) or via an SMC we can call. Given a
+  wrong raw PMIC write resets the SoC instantly, an ATF SMC is the lower-risk route.
+
+**Rule going forward: no PMIC write until the exact register + method (SET alias,
+EN_BIT, OP_EN, key) is confirmed, and read-verified on-device first.**
