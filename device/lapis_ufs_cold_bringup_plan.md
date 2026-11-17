@@ -857,3 +857,31 @@ register. Both the preloader (runtime vtable) and lk.img (runtime-computed PMIF
 cmd) build the UFS PMIC write at runtime, so it is not a static constant we can
 read off. 17 probes done. The MPHY rail register is genuinely runtime-firmware-held;
 pinning it needs either the UART log or dynamic tracing (not static RE).
+
+## 31. BREAKTHROUGH: three SPMI PMIC dies; 0xa09 on sid 4 was the wrong die (2026-11-17)
+
+Fixed spmi_read channel recovery and scanned the SPMI bus from sid 4 up (v20). The
+bus has THREE PMIC dies (explains why 0xa09 on sid 4 reset -- it was the wrong die):
+- **sid 4 = MT6363** (chip-id 0x40): main PMIC, the UFS device rails (VUFS12 0x1c01=on,
+  VEMC). reg 0xa09 = 0x00 and destructive to write (resets).
+- **sid 5 (chip-id 0x21)**: a second die, not clearly named in the DT (MT6363 companion
+  die or MT6373). reg 0xa09 = 0x00.
+- **sid 6 = MT6319** (chip-id 0x11; DT mt6319@6, mt6315-class): buck-only sub-PMIC
+  (vbuck1/2/4 for CPU/GPU/cam). reg 0xa09 = 0x05 (a buck register, harmless).
+
+So the preloader's enum/reg 0xa09 is NOT the MPHY rail on any die we can see: sid 4
+0xa09 is a destructive TOP reg, sid 6 0xa09 is an MT6319 buck reg, sid 5 0xa09 = 0.
+The UFS *device* rails are on MT6363 (sid 4); MT6319 (sid 6) feeds CPU/GPU, not UFS.
+The host-PHY analog rail is not declared in the DT ufsphy node and is not an
+obvious LDO on these dies -- consistent with the MPHY being gated by the SSPM-managed
+UFS MTCMOS (mediatek,ufs-rtff-mtcmos; ufs_vcore/ufs_vlp) rather than a flippable PMIC
+rail. Multi-die map is now known (sids 4/5/6), but the real MPHY power lever remains
+firmware/SSPM-held.
+
+### 20 probes summary
+Fully characterized: MPHY mapped+off; all MMIO levers, all UFS SMC stubs, PMIC rail
+guesses, 0xa09 on every die/key — none wakes it. Assets: SPMI read/write path +
+3-die map, the real protection key (0x9c9c->0x39e/0x3a7), hakios reference, full
+register maps. The remaining lever (SSPM UFS MTCMOS / the runtime-computed PMIC
+write) is firmware-held; dynamic tracing (UART) is the clean way to capture it.
+iOS-from-RAM remains the working milestone.
