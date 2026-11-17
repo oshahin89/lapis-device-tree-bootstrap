@@ -885,3 +885,29 @@ guesses, 0xa09 on every die/key — none wakes it. Assets: SPMI read/write path 
 register maps. The remaining lever (SSPM UFS MTCMOS / the runtime-computed PMIC
 write) is firmware-held; dynamic tracing (UART) is the clean way to capture it.
 iOS-from-RAM remains the working milestone.
+
+## 32. SPMI record is off; safe avenues exhausted (2026-11-17, v21, 21 probes)
+
+Read the spmimst SPMI arbiter record regs (0x1cc01000 +0x40..0x5c). REC_CTRL(0x40)=0
+=> recording disabled, so REC0..REC4 are all 0 and LK's past PMIC transactions are
+not retrievable. SPMI_MST_DBG(0xfc)=0x00100018 confirms spmimst is mapped. The
+dynamic-trace-via-record idea is dead (recording off, past writes gone; enabling it
+only records future writes we'd have to originate).
+
+**All safe on-device avenues are now exhausted (21 probes).** Direct MPHY access
+(dark), every clock/reset lever, every UFS SMC (stubs), PMIC rails on all 3 dies
+(sid4 destructive/HW-controlled, sid5/6 not the rail), the real protection key, and
+the SPMI record — none wakes the MPHY, and the real power lever is firmware-held and
+runtime-computed (not a static constant). No UART is available for a clean dynamic
+trace.
+
+The ONLY remaining path to the exact sequence is to **patch lk.img to log its UFS
+PMIC writes to the framebuffer** — but that is high-risk: a broken LK removes
+fastboot (fastboot lives in LK), so recovery would need MT6878 BROM/download mode,
+which is not assured on a secured part and risks a hard brick of the daily-use
+phone. NOT recommended. The sensible conclusion is to preserve what we have:
+- Working milestone: iOS boots from a RAM disk (PID 1 + heartbeat).
+- Assets for any future attempt: validated SPMI read/write path, 3-die PMIC map
+  (sid4 MT6363 / sid5 0x21 / sid6 MT6319), the real protection key (0x9c9c ->
+  0x39e/0x39f,0x3a7/0x3a8), the hakios reference, and the full register/RE maps in
+  sections 1-31.
