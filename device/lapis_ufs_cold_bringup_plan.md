@@ -833,3 +833,27 @@ protection domain for that register. No further safe on-device move remains.
 
 The iOS RAM-disk boot (PID 1 + heartbeat) remains the working milestone; the full
 UFS-root iOS boot stays blocked on this one firmware-held register.
+
+## 30. lk.img RE: found the REAL protection key; 0xa09 is a dead end (2026-11-17)
+
+Disassembled lk.img (load base 0x50700000) and found its PMIC init data: protection
+is unlocked by writing **0x9c9c to MT6363 regs 0x39e/0x39f and 0x3a7/0x3a8** (the
+0x9c9c value matches the Linux driver; the 0x39E/0x39F regs match coreboot's
+MT6363 key_protect) — NOT the 0x36e that v15 used, which is why v15 reset.
+
+With the real key:
+- **v16 (safe):** unlock (0x9c9c->0x39e/0x3a7) then enable VRF09 (0x1b65). Still
+  read back 0 (no reset) => VRF09's enable is HW-controlled, not key-gated. So VRF09
+  is not an SW-flippable rail (and not our target).
+- **v17 (gamble):** unlock (real key) then write 0xa09=1. **Reboot-looped again.**
+  So 0xa09 resets with the correct key too. Across v9/v15/v17 (raw, 0x36e key, real
+  0x39e key) 0xa09 ALWAYS reboot-loops => **0xa09 is a destructive register on sid 4,
+  definitively NOT the MPHY rail** (it is the preloader's internal enum landing on a
+  reset-causing TOP register when taken as a literal sid-4 address).
+
+Assets confirmed: the real MT6363 TOP protection key (0x9c9c -> 0x39e/0x39f,
+0x3a7/0x3a8) and the SPMI read/write path. Still unknown: the real MPHY rail
+register. Both the preloader (runtime vtable) and lk.img (runtime-computed PMIF
+cmd) build the UFS PMIC write at runtime, so it is not a static constant we can
+read off. 17 probes done. The MPHY rail register is genuinely runtime-firmware-held;
+pinning it needs either the UART log or dynamic tracing (not static RE).
