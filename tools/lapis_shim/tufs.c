@@ -355,7 +355,7 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v13: enable VRF09 (0.9V) via SET alias, then wake MPHY");
+	con_str("LAPIS", "v14: enable VRF09 via direct CON0 RMW + OP_EN, then wake");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
@@ -375,8 +375,12 @@ void shim_main(uint64_t dtb)
 	 * Read before, write SET=1, read back (verify bit0=1 and that we did not reset),
 	 * then clocks + MPHY reset + set_active, and read the MPHY. */
 	uint32_t st = 0;
-	con_hex2("PRE ", "vrf09_1b65=", rail(0x1b65), "vufs12=", rail(0x1c01));
-	spmi_write(SID_MT6363, 0x1b66, 0x01, &st);		/* VRF09 SET: enable bit0 */
+	uint32_t pre = rail(0x1b65);
+	con_hex2("PRE ", "vrf09_1b65=", pre, "vufs12=", rail(0x1c01));
+	/* regulator_enable method: direct read-modify-write of CON0 (0x1b65), set bit0.
+	 * Also set OP_EN0 (CON0+5 = 0x1b6a) to SW mode first, as the hakios flow does. */
+	spmi_write(SID_MT6363, 0x1b6a, 0x01, &st);		/* OP_EN0: SW mode */
+	spmi_write(SID_MT6363, 0x1b65, (pre | 0x01) & 0xff, &st);	/* CON0 |= EN */
 	udelay(3000);						/* rail ramp */
 	con_hex2("POST", "vrf09_1b65=", rail(0x1b65), "wr_sta=", st);
 
