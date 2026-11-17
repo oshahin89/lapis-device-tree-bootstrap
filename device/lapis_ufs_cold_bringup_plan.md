@@ -371,3 +371,51 @@ sequence. So the branch-(B) plan is: (1) oracle flash confirms B; (2) get the
 preloader/LK UART log of the cold UFS bring-up (exact writes); (3) replay those
 writes (MPHY 0x112a + UFSPLL 0x10351 + efuse-trim reads) from the shim, with the
 PMIC(VUFS12/18) half done via an SMC or by ensuring LK hands off with the rail on.
+
+## 16. ON-DEVICE VERDICT: branch (B) CONFIRMED — MPHY is mapped but powered off (2026-11-17)
+
+Flashed the window-map probe through four iterations (v2-v5) on the device and
+read the framebuffer. The efuse turned out to be a *poor* oracle (it is
+security-firewalled and SEA-faults), but a cleaner discriminator settled it: an
+**empty in-range MMIO hole** read with the exc handler armed.
+
+Final, self-consistent measurement (MMU is OFF: SCTLR_EL1=0x30d00800, bit0 M=0;
+TCR_EL1=0, MAIR=0 -- so we run flat and the only translation is GenieZone's
+stage-2):
+
+| Address | Block | Result | Meaning |
+|---|---|---|---|
+| ~0x40000000 | RAM | round-trips 0xA5A5A5A5 | mapped |
+| 0x112b0000 | UFSHCI | cap=0x3587071f | mapped + live |
+| 0x1cc10000 | systimer | 0x4490d, 0x048d828c | mapped + live |
+| 0xc000000 | GICD | TYPER=0x0079041b IIDR=0x0201743b | mapped + live |
+| 0x10000010 | topckgen CLK_CFG_0 | 0x02020202 (CLK_CFG_1 0x01060106) | **mapped + live** |
+| 0x112a0000 | **MPHY** | **0, no fault** | **mapped, POWERED OFF** |
+| 0x10351000 | UFSPLL | 0, no fault | mapped (off / zero regs) |
+| 0x10001000 | infracfg_ao | 0, no fault | mapped (zero regs) |
+| 0x09000000 | empty hole | **SEA fault** (ESR 0x96000010, FAR 0x09000000) | unmapped -> GZ faults |
+| 0x11f10000 | efuse | SEA fault (ESR 0x96000010, FAR 0x11f10234) | not mapped to us (TZ-firewalled) |
+
+**The decisive logic:** GenieZone **faults (SEA)** on anything not in our stage-2
+(proved by the 0x09000000 hole). The MPHY reads 0 **without** faulting, so the
+MPHY *is* in our stage-2 -- it is mapped and we can write it; it reads 0 because it
+is **powered off**. topckgen being mapped+live (CLK_CFG_0=0x02020202) confirms the
+clock controller is reachable; earlier "topckgen=0" was just a zero register at +0,
+not an unmapped block. So:
+
+> **Branch (B). The UFS MPHY is reachable from our EL1 shim and merely needs the
+> cold power-up. This is NOT a GenieZone mapping problem.** No gz.img / stage-2
+> work is needed. The preloader cold sequence (sections 14-15) is exactly the fix,
+> and the windows it needs -- MPHY 0x112a0000, UFSPLL 0x10351000, topckgen
+> 0x10000000 -- are all mapped and writable for us. The only cold-path window NOT
+> reachable is the **efuse (0x11f10000, SEA)**, so the MPHY calibration *trims* must
+> come from elsewhere (preloader defaults, or values LK leaves in a mapped scratch)
+> -- a second-order issue; a link may come up on untrimmed/default values first.
+
+### Next concrete step (on-device)
+Build a power-up probe: enable the MPHY power/clock (topckgen ufs_sel/ufs_fde +
+UFSPLL + the ufscfg gates we already drive), then **re-read 0x112a0000** -- if it
+starts reading nonzero, the power-up worked and we proceed to phy set_active +
+DME_LINKSTARTUP. The exact enable sequence is the preloader worker 0x20778d4
+(section 15); the first cheap attempt is topckgen ufs_fde/ufs_sel + UFSPLL enable
+before the existing mphy_power_on() in tufs.c.

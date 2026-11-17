@@ -48,6 +48,7 @@
 #define EFUSE_CPUVER	0x234		/* cpu_version fuse: nonzero on silicon */
 #define EFUSE_UFSCAL	0x260		/* UFS MPHY cal word LK/preloader read */
 #define PMIF		0x11a00000UL
+#define TOPCK		0x10000000UL	/* topckgen: always-on clock ctrl, never gated */
 
 /* ufscfg_ao clock gates (clk-mt6878-peri.c ufsao_cg_regs / ufsao_clks).
  * mtk_clk_gate_ops_setclr: write BIT(shift) to CLR to ENABLE, to SET to gate;
@@ -250,62 +251,50 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "cold-path window map: efuse A/B oracle");
+	con_str("LAPIS", "v5: topck CLK_CFG + empty-hole fault calibrator");
 
 	/* keep the helpers + SMC wrapper in the build for later probes */
 	(void)smc_ufs; (void)mphy_power_on; (void)ref_clk_on; (void)uic; (void)dme_set;
+	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL;
 
-	uint64_t el;
-	__asm__ volatile("mrs %0, CurrentEL" : "=r"(el));
+	uint64_t el, sctlr, tcr, mmfr0, mair;
+	__asm__ volatile("mrs %0, CurrentEL"      : "=r"(el));
+	__asm__ volatile("mrs %0, sctlr_el1"      : "=r"(sctlr));
+	__asm__ volatile("mrs %0, tcr_el1"        : "=r"(tcr));
+	__asm__ volatile("mrs %0, id_aa64mmfr0_el1" : "=r"(mmfr0));
+	__asm__ volatile("mrs %0, mair_el1"       : "=r"(mair));
 
-	/* baselines: RAM round-trip + the UFSHCI (both known to work for us). */
 	static volatile uint32_t scratch;
 	scratch = 0xA5A5A5A5;
 	__asm__ volatile("dsb sy" ::: "memory");
 	uint32_t ram_rb = scratch;
-	uint32_t hci_cap = rd(UFSHCI + REG_CAP);
 
 	con_skip();
+	/* SCTLR_EL1 bit0 M = our stage-1 MMU on/off. If M=0 we run flat (VA=PA) and
+	 * every silent-0 / fault is GenieZone's stage-2 => a GZ device-grant problem.
+	 * If M=1, the sparse view is OUR page tables and we could map more ourselves.
+	 * TCR_EL1 T0SZ (bits[5:0]) gives the IA size; MMFR0 PARange the PA size. */
 	con_hex2("EL  ", "cur=", (uint32_t)((el >> 2) & 3), "ram=", ram_rb);
-	con_hex2("HCI ", "cap=", hci_cap, "ver=", rd(UFSHCI + REG_VER));
+	con_hex("SCTLR_EL1", sctlr);		/* bit0=M=0 => MMU OFF, flat, GZ stage-2 only */
+	(void)tcr; (void)mmfr0; (void)mair;
 
-	/* THE A/B ORACLE, read FIRST (exc_report armed). efuse is always-on and
-	 * read-only: nonzero here => peripheral MMIO is mapped for our VM => any UFS
-	 * block reading 0 is POWERED OFF (branch B); zero/fault here => not mapped
-	 * (branch A). Each read is printed immediately, so a fault localizes by FAR. */
-	uint32_t ef_cpu = rd(EFUSE + EFUSE_CPUVER);
-	con_hex2("EFUS", "cpuver=", ef_cpu, "ufscal=", rd(EFUSE + EFUSE_UFSCAL));
+	/* v4 established: GIC+systimer+UFSHCI map (real values); topck/infra/MPHY/PLL
+	 * read 0; efuse SEAs. v5 closes the last doubt two ways:
+	 * (1) topckgen CLK_CFG_0 (0x10000010) holds mux selections and is NONZERO
+	 *     after boot IF topckgen is really mapped -- so 0 here means topckgen is
+	 *     genuinely not mapped (not just a zero register at +0).
+	 * (2) HOLE: read empty, in-range, non-secure MMIO with exc_report armed.
+	 *     If the holes FAULT (SEA, FAR=the hole) => GZ faults anything unmapped =>
+	 *     MPHY reading 0 WITHOUT a fault means MPHY IS mapped => powered off (B).
+	 *     If the holes read 0 silently => GZ RAZ/WIs unmapped => MPHY 0 = unmapped
+	 *     (branch A). This is the definitive A-vs-B discriminator. */
+	con_hex2("CTRL", "hci=", rd(UFSHCI + REG_CAP), "topck0=", rd(TOPCK));
+	con_hex2("TOPK", "clkcfg0=", rd(TOPCK + 0x10), "clkcfg1=", rd(TOPCK + 0x20));
+	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	con_str("HOLE", "reading empty 0x09000000 / 0x0f000000 (exc armed)");
+	uint32_t h9 = rd(0x09000000UL);
+	con_hex2("HOLE", "h9=", h9, "hf=", rd(0x0f000000UL));
 
-	/* the other cold-path windows (UFSPLL analog, PMIF/PMIC master). */
-	uint32_t pll0 = rd(UFSPLL);
-	con_hex2("PLL ", "ufspll0=", pll0, "+4=", rd(UFSPLL + 4));
-	uint32_t pmif0 = rd(PMIF);
-	con_hex2("PMIF", "p0=", pmif0, "p4=", rd(PMIF + 4));
-
-	/* the MPHY window as LK left it, then after enabling the host (HCE=1). */
-	uint32_t mphy_8c = rd(MPHY + MP_GLB_DIG_8C);
-	wr(UFSHCI + REG_XOUFS_CTRL, rd(UFSHCI + REG_XOUFS_CTRL) | 0x80);
-	__asm__ volatile("dsb sy" ::: "memory");
-	wr(UFSHCI + REG_HCE, 1);
-	__asm__ volatile("dsb sy" ::: "memory");
-	int hce_ok = 0;
-	for (int i = 0; i < 1000; i++) {
-		if (rd(UFSHCI + REG_HCE) & 1) { hce_ok = 1; break; }
-		udelay(600);
-	}
-	con_hex2("MPHY", "pre=", mphy_8c, "postHCE=", rd(MPHY + MP_GLB_DIG_8C));
-	con_hex2("MPHY", "803c=", rd(MPHY + 0x803c), "hce_ok=", (uint32_t)hce_ok);
-
-	/* CONTROL: a definitely-unmapped IPA (256 GiB). Tells us how GenieZone
-	 * treats unmapped MMIO (fault vs silent RAZ), which calibrates the oracle. */
-	con_str("CTRL", "reading unmapped IPA 0x40_0000_0000");
-	uint32_t unmapped = rd(0x4000000000UL);
-	__asm__ volatile("dsb sy" ::: "memory");
-	con_hex2("CTRL", "no fault; RAZ=", unmapped, 0, 0);
-
-	/* verdict hints */
-	con_str("KEY ", "efuse nonzero => mapped; MPHY 0 => branch B (powered off)");
-	con_str("KEY ", "efuse 0/fault => branch A (GZ stage-2 unmapped)");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
