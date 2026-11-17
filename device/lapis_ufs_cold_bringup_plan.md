@@ -695,3 +695,32 @@ remains.
 The full (UFS-root) iOS boot stays blocked on this one cold MPHY-rail power-up. The
 **RAM-disk iOS boot already works** (PID 1 + heartbeat on the device) and remains
 the usable milestone. Cleanest unblock if hardware allows: the UART log (§23).
+
+## 25. hakios sibling project + v12 rail scan (2026-11-17)
+
+User pointed us at **hakios** (github.com/oosexgang) -- the XNU-on-Android project
+that inspired lapis. Its `hakios-mt6768` is a complete MediaTek bare-metal XNU
+loader (cloned, gitignored, at reference/hakios-mt6768; see memory
+hakios-sibling-project). Decisive reusable finding (kernel/bsd/dev/redwood_connsys.c):
+the correct MTK PMIC rail-enable is **two writes, no key** -- `pmic_write(OP_EN,1)`
+(SW mode) then `pmic_update(CON0, 1, 1)` (EN bit0, read-modify-write). This
+confirms v9 reset from writing the WRONG register (0xa09) raw, not a missing key.
+MT6768 uses MT6358 over PWRAP (mtkpwrap.h, 0x1000d000); lapis uses MT6363 over SPMI
+(same channel-FSM shape). MT6768 is eMMC (no UFS/MPHY), so the *method* transfers,
+not a UFS driver.
+
+**v12 (READ-ONLY MT6363 rail scan) on device:** VUFS12 (0x1c01) = **0xe1** (bit0=1,
+SW-enabled -- and a sanity check that the SPMI read path gives real values). VEMC
+0x1bf3, VUFS18 0x1c0f, VIO18 0x1c1d, VA12_1 0x1c65, VA12_2 0x1c73, VA15 0x1c81,
+VM18 0x1c8f, VRF09 0x1b65, VRF12 0x1b73 all read **0**. Ambiguous: rails that must
+be up for the running AP (VM18/VIO18) reading 0 means CON0 bit0 reflects only
+SW-mode enable; HW-controlled rails read 0 here while actually on. So the scan did
+NOT cleanly isolate the MPHY rail. VUFS12 (vccq) is on.
+
+### Next session plan (hakios-driven)
+Study hakios's mtkloader power/clock bring-up systematically: (1) how it decides a
+block is unpowered vs just unclocked; (2) its MTCMOS/SPM power-domain handling (we
+may have wrongly ruled out an AP power domain for the MPHY); (3) read OP_EN as well
+as CON0 to disambiguate HW-mode-on from off; (4) apply the OP_EN+CON0 method to the
+right MT6363 rail once identified. The MPHY may need an AP-side MTCMOS/SPM domain,
+not (only) a PMIC rail -- reconsider with hakios's approach.
