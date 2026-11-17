@@ -484,3 +484,37 @@ Power the MPHY rail by driving PMIC reg 0xa09. Options, best first:
    notify sequence, or find a dedicated PMIC/regulator SMC the stock kernel uses.
 3. **Keep the rail on across handoff.** If LK/preloader powers UFS down right before
    our shim, find that power-off call and a boot path that skips it (harder).
+
+## 19. SPMI/PMIC write recipe for reg 0xa09 (offline RE, 2026-11-17)
+
+Goal: power the MPHY rail by setting PMIC reg 0xa09 (what preloader
+ufs_aio_init_mphy does). Nailed the full recipe from the DTS + mainline
+drivers/spmi/spmi-mtk-pmif.c + coreboot mt6363:
+
+- **PMIF master = 0x1cc04000** (DTS spmi@1cc04000, reg-names "pmif"); spmimst =
+  0x1cc01000. (0x1040d000 was a wrong guess -- that is security_ao.) It sits in
+  the 0x1cc0xxxx region where the systimer is mapped+live, so PMIF is very likely
+  mapped for us.
+- **PMIF size is 0x8ff => mt8195-style register layout** (not mt6873's 0x0Cxx).
+  SWINF channel 2 byte offsets: ch_send(ACC)=0x880, wdata=0x884, rdata=0x894,
+  ch_rdy(VLD_CLR)=0x8A4, ch_sta(STA)=0x8A8. ch_sta FSM = bits[3:1] (IDLE=0,
+  WFVLDCLR=6), error = bit18.
+- **MT6363 PMIC, SPMI slave id (sid) = 4** (coreboot MT8196 + Linux pmic@4). The
+  UFS rail is mt6363_vufs12 (DTS vccq-supply). Chip-id regs HWCID=0x0008,
+  SWCID0=0x000A (coreboot mt6363.h) -- used to validate the path read-only first.
+- **Command word** to ch_send (EXT_REG_LONG, 16-bit addr, 1 byte):
+  read  = (3<<30) | (sid<<24) | addr
+  write = (3<<30) | BIT(29) | (sid<<24) | addr   (wdata written to 0x884 first)
+- **Write sequence**: poll ch_sta IDLE -> write byte to wdata(0x884) -> write cmd
+  to ch_send(0x880). Read: poll IDLE -> write cmd -> poll WFVLDCLR -> read
+  rdata(0x894) -> write 1 to ch_rdy(0x8A4).
+
+### Probe plan (de-risked: read before write)
+- **v8 (built, READ-ONLY):** read MT6363 HWCID/SWCID0 (validate PMIF base + sid 4
+  + sequence) and read reg 0xa09 (current MPHY-rail state). If HWCID returns a
+  sane nonzero value with rc=0, the whole SPMI path is proven with zero risk.
+- **v9 (after v8 confirms):** SPMI-write reg 0xa09 (set the rail-enable bit the
+  preloader sets), then the clock/reset/set_active sequence, then re-read
+  0x112a0000 -- the MPHY should finally come alive.
+PMIC writes carry real risk (wrong sid/addr could hit another rail), so v9 only
+after v8 proves the path and we have read 0xa09's real value/layout first.

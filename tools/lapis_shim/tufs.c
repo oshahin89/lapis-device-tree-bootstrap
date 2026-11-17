@@ -47,7 +47,7 @@
 #define EFUSE		0x11f10000UL
 #define EFUSE_CPUVER	0x234		/* cpu_version fuse: nonzero on silicon */
 #define EFUSE_UFSCAL	0x260		/* UFS MPHY cal word LK/preloader read */
-#define PMIF		0x11a00000UL
+#define PMIF_OLD_GUESS	0x11a00000UL	/* earlier wrong guess; real PMIF below */
 #define TOPCK		0x10000000UL	/* topckgen: always-on clock ctrl, never gated */
 #define CLK_CFG_UPDATE1	0x08		/* topckgen: write BIT(shift) to latch a mux */
 #define TOP_UPD_AES_UFSFDE 10
@@ -59,7 +59,25 @@
  *  - ufs_aio_init_mphy is a PMIC field set (reg 0xa09) over SPMI (PMIF ~0x1040d000
  *    / 0x11a00000) -- the MPHY analog rail. That half likely needs SPMI/secure. */
 #define UFSPLL_CTRL	0x1c00f290UL	/* preloader ufspll_ctrl: OR 0x80000000 */
-#define SPMI_BASE	0x1040d000UL	/* preloader SPMI/PMIF command window */
+#define SPMI_BASE	0x1040d000UL	/* NOTE: 0x1040d000 is security_ao, NOT spmi */
+
+/* MT6878 PMIF / SPMI master (DTS spmi@1cc04000: pmif 0x1cc04000 size 0x8ff,
+ * spmimst 0x1cc01000). Size 0x8ff => mt8195-style offsets (SWINF channel 2 at
+ * 0x08xx). Linux drivers/spmi/spmi-mtk-pmif.c. The MPHY rail (mt6363_vufs12) is
+ * on the MT6363 PMIC at SPMI slave id 4. Register 0xa09 is what the preloader
+ * ufs_aio_init_mphy sets. Read-only validation first via the MT6363 chip-id. */
+#define PMIF		0x1cc04000UL
+#define PMIF_CH_SEND	0x880		/* SWINF_2 ACC (command) */
+#define PMIF_WDATA	0x884		/* SWINF_2 WDATA_31_0 */
+#define PMIF_RDATA	0x894		/* SWINF_2 RDATA_31_0 */
+#define PMIF_CH_RDY	0x8A4		/* SWINF_2 VLD_CLR */
+#define PMIF_CH_STA	0x8A8		/* SWINF_2 STA: bits[3:1]=FSM, bit18=err */
+#define SWINF_IDLE	0x0
+#define SWINF_WFVLDCLR	0x6
+#define SID_MT6363	4
+#define MT6363_HWCID	0x0008
+#define MT6363_SWCID0	0x000A
+#define MPHY_RAIL_REG	0x0a09		/* preloader PMIC reg for the MPHY rail */
 
 /* ufscfg_ao clock gates (clk-mt6878-peri.c ufsao_cg_regs / ufsao_clks).
  * mtk_clk_gate_ops_setclr: write BIT(shift) to CLR to ENABLE, to SET to gate;
@@ -258,15 +276,50 @@ static int64_t smc_ufs(uint64_t sub, uint64_t v1, uint64_t v2)
 	return (int64_t)x0;
 }
 
+/* SPMI register READ via the PMIF SWINF channel 2 (EXT_REG_LONG, 16-bit addr,
+ * 1 byte). spmi-mtk-pmif.c sequence. Returns 0 on success (*out = byte), or a
+ * negative code; *sta_out gets the last ch_sta for diagnosis. READ-ONLY. */
+static int spmi_read(uint32_t sid, uint32_t addr, uint32_t *out, uint32_t *sta_out)
+{
+	uint32_t s = 0;
+	int i;
+	for (i = 0; i < 5000; i++) {			/* wait FSM == IDLE */
+		s = rd(PMIF + PMIF_CH_STA);
+		if (((s >> 1) & 7) == SWINF_IDLE)
+			break;
+		udelay(2);
+	}
+	*sta_out = s;
+	if (((s >> 1) & 7) != SWINF_IDLE)
+		return -1;				/* not idle: PMIF not ready */
+	/* EXT_REG_LONG read: opc class 3, write bit clear, sid, len-1=0, addr */
+	wr(PMIF + PMIF_CH_SEND, (3u << 30) | (sid << 24) | (addr & 0xffff));
+	__asm__ volatile("dsb sy" ::: "memory");
+	for (i = 0; i < 5000; i++) {			/* wait WFVLDCLR or err */
+		s = rd(PMIF + PMIF_CH_STA);
+		if (((s >> 1) & 7) == SWINF_WFVLDCLR || ((s >> 18) & 1))
+			break;
+		udelay(1);
+	}
+	*sta_out = s;
+	if ((s >> 18) & 1) { wr(PMIF + PMIF_CH_RDY, 1); return -2; }	/* err */
+	if (((s >> 1) & 7) != SWINF_WFVLDCLR)
+		return -3;				/* timeout */
+	*out = rd(PMIF + PMIF_RDATA) & 0xff;
+	wr(PMIF + PMIF_CH_RDY, 1);			/* clear valid */
+	__asm__ volatile("dsb sy" ::: "memory");
+	return 0;
+}
+
 void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v7: release the ufscfg_ao MPHY reset (0x112b804c bit8)");
+	con_str("LAPIS", "v8: SPMI read-only validation (MT6363 via PMIF)");
 
-	(void)smc_ufs; (void)ref_clk_on; (void)uic; (void)dme_set;
-	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)PMIF;
-	(void)UFSPLL_CTRL; (void)SPMI_BASE;
+	(void)smc_ufs; (void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
+	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
+	(void)UFSPLL_CTRL; (void)UFSAO_ALL; (void)UFSPDN_ALL;
 
 	static volatile uint32_t scratch;
 	scratch = 0xA5A5A5A5;
@@ -274,39 +327,27 @@ void shim_main(uint64_t dtb)
 
 	con_skip();
 	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "ram=", scratch);
-	con_hex2("MPHY", "pre8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
 
-	/* STEP 1: enable the UFS clocks (ufscfg_ao/pdn gates + topckgen UFS muxes). */
-	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
-	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
-	wr(TOPCK + CLK_CFG_UPDATE1,
-	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(20);
-	con_hex2("CLK ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	/* Is PMIF (0x1cc04000) mapped, and what FSM state? (exc armed: a SEA here with
+	 * FAR=0x1cc048A8 means PMIF is not in our stage-2.) READ-ONLY throughout. */
+	con_str("PMIF", "reading ch_sta 0x1cc048A8 (exc armed)");
+	uint32_t sta0 = rd(PMIF + PMIF_CH_STA);
+	con_hex2("PMIF", "ch_sta=", sta0, "fsm=", (sta0 >> 1) & 7);
 
-	/* STEP 2: THE NEW LEVER -- release the dedicated MPHY reset.
-	 * nothing-mt6878 DTS ufscfgao_rst: "ufs mphy reset", bit 8:
-	 *   assert  = SET bit8 @ 0x112b8000+0x48
-	 *   deassert= SET bit8 @ 0x112b8000+0x4c
-	 * We have NEVER driven this (v1-v6 only touched ufscfg clock gates / the
-	 * ufscfg_pdn unipro/hci resets). A held MPHY reset reads 0 / ignores writes --
-	 * exactly our symptom. Do a clean pulse: assert then deassert. */
-	wr(UFSCFG_AO + RST_SET, 1U << 8);		/* assert  mphy reset */
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(10);
-	wr(UFSCFG_AO + RST_CLR, 1U << 8);		/* deassert mphy reset */
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(20);
-	con_hex2("RST ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	/* SPMI reads of the MT6363 (sid 4): chip-id (known-good path check) + the
+	 * MPHY rail register 0xa09 the preloader sets. All reads, no writes. */
+	uint32_t v = 0, st = 0;
+	int r = spmi_read(SID_MT6363, MT6363_HWCID, &v, &st);
+	con_hex2("HWID", "rc/val=", ((uint32_t)(r & 0xff) << 24) | (v & 0xff), "sta=", st);
+	v = 0; st = 0;
+	r = spmi_read(SID_MT6363, MT6363_SWCID0, &v, &st);
+	con_hex2("SWID", "rc/val=", ((uint32_t)(r & 0xff) << 24) | (v & 0xff), "sta=", st);
+	v = 0; st = 0;
+	r = spmi_read(SID_MT6363, MPHY_RAIL_REG, &v, &st);
+	con_hex2("RA09", "rc/val=", ((uint32_t)(r & 0xff) << 24) | (v & 0xff), "sta=", st);
 
-	/* STEP 3: phy set_active, then re-read. */
-	mphy_power_on();
-	udelay(10);
-	con_hex2("ACT ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
-	con_hex2("ACT ", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
-
-	con_str("DONE", "nonzero MPHY = WOKE UP. Power+Vol-down to recover");
+	con_str("KEY ", "HWID val nonzero+rc00 => SPMI path OK; RA09 = rail state");
+	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
 }
