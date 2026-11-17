@@ -49,6 +49,17 @@
 #define EFUSE_UFSCAL	0x260		/* UFS MPHY cal word LK/preloader read */
 #define PMIF		0x11a00000UL
 #define TOPCK		0x10000000UL	/* topckgen: always-on clock ctrl, never gated */
+#define CLK_CFG_UPDATE1	0x08		/* topckgen: write BIT(shift) to latch a mux */
+#define TOP_UPD_AES_UFSFDE 10
+#define TOP_UPD_UFS	11
+#define TOP_UPD_UFS_MBIST 12
+
+/* Cold power-up registers recovered from the preloader (2026-11-17):
+ *  - ufspll_ctrl sets bit31 of 0x1c00f290 (a UFS PLL / fhctl control).
+ *  - ufs_aio_init_mphy is a PMIC field set (reg 0xa09) over SPMI (PMIF ~0x1040d000
+ *    / 0x11a00000) -- the MPHY analog rail. That half likely needs SPMI/secure. */
+#define UFSPLL_CTRL	0x1c00f290UL	/* preloader ufspll_ctrl: OR 0x80000000 */
+#define SPMI_BASE	0x1040d000UL	/* preloader SPMI/PMIF command window */
 
 /* ufscfg_ao clock gates (clk-mt6878-peri.c ufsao_cg_regs / ufsao_clks).
  * mtk_clk_gate_ops_setclr: write BIT(shift) to CLR to ENABLE, to SET to gate;
@@ -251,49 +262,52 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v5: topck CLK_CFG + empty-hole fault calibrator");
+	con_str("LAPIS", "v6: MMIO power-up attempt + power-path mapping probe");
 
-	/* keep the helpers + SMC wrapper in the build for later probes */
-	(void)smc_ufs; (void)mphy_power_on; (void)ref_clk_on; (void)uic; (void)dme_set;
-	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL;
-
-	uint64_t el, sctlr, tcr, mmfr0, mair;
-	__asm__ volatile("mrs %0, CurrentEL"      : "=r"(el));
-	__asm__ volatile("mrs %0, sctlr_el1"      : "=r"(sctlr));
-	__asm__ volatile("mrs %0, tcr_el1"        : "=r"(tcr));
-	__asm__ volatile("mrs %0, id_aa64mmfr0_el1" : "=r"(mmfr0));
-	__asm__ volatile("mrs %0, mair_el1"       : "=r"(mair));
+	(void)smc_ufs; (void)ref_clk_on; (void)uic; (void)dme_set;
+	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)PMIF;
 
 	static volatile uint32_t scratch;
 	scratch = 0xA5A5A5A5;
 	__asm__ volatile("dsb sy" ::: "memory");
-	uint32_t ram_rb = scratch;
 
 	con_skip();
-	/* SCTLR_EL1 bit0 M = our stage-1 MMU on/off. If M=0 we run flat (VA=PA) and
-	 * every silent-0 / fault is GenieZone's stage-2 => a GZ device-grant problem.
-	 * If M=1, the sparse view is OUR page tables and we could map more ourselves.
-	 * TCR_EL1 T0SZ (bits[5:0]) gives the IA size; MMFR0 PARange the PA size. */
-	con_hex2("EL  ", "cur=", (uint32_t)((el >> 2) & 3), "ram=", ram_rb);
-	con_hex("SCTLR_EL1", sctlr);		/* bit0=M=0 => MMU OFF, flat, GZ stage-2 only */
-	(void)tcr; (void)mmfr0; (void)mair;
+	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "ram=", scratch);
+	con_hex2("MPHY", "pre8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
 
-	/* v4 established: GIC+systimer+UFSHCI map (real values); topck/infra/MPHY/PLL
-	 * read 0; efuse SEAs. v5 closes the last doubt two ways:
-	 * (1) topckgen CLK_CFG_0 (0x10000010) holds mux selections and is NONZERO
-	 *     after boot IF topckgen is really mapped -- so 0 here means topckgen is
-	 *     genuinely not mapped (not just a zero register at +0).
-	 * (2) HOLE: read empty, in-range, non-secure MMIO with exc_report armed.
-	 *     If the holes FAULT (SEA, FAR=the hole) => GZ faults anything unmapped =>
-	 *     MPHY reading 0 WITHOUT a fault means MPHY IS mapped => powered off (B).
-	 *     If the holes read 0 silently => GZ RAZ/WIs unmapped => MPHY 0 = unmapped
-	 *     (branch A). This is the definitive A-vs-B discriminator. */
-	con_hex2("CTRL", "hci=", rd(UFSHCI + REG_CAP), "topck0=", rd(TOPCK));
-	con_hex2("TOPK", "clkcfg0=", rd(TOPCK + 0x10), "clkcfg1=", rd(TOPCK + 0x20));
-	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
-	con_str("HOLE", "reading empty 0x09000000 / 0x0f000000 (exc armed)");
-	uint32_t h9 = rd(0x09000000UL);
-	con_hex2("HOLE", "h9=", h9, "hf=", rd(0x0f000000UL));
+	/* ---- PHASE 1: everything we CAN reach (all known-mapped MMIO) ----
+	 * ufscfg_ao + ufscfg_pdn clock gates, topckgen UFS mux re-latch, then the
+	 * MPHY set_active. Writes only to mapped blocks (0x112b8000/0x112bb000/
+	 * 0x10000000/0x112a0000), so this phase cannot fault. */
+	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);	/* ungate unipro/phy clocks */
+	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);	/* ungate ufshci/aes/ahb/axi */
+	__asm__ volatile("dsb sy" ::: "memory");
+	/* re-latch the UFS clock muxes (gateless MUX_CLR_SET_UPD) */
+	wr(TOPCK + CLK_CFG_UPDATE1,
+	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(20);
+	mphy_power_on();				/* phy set_active (writes MPHY regs) */
+	udelay(10);
+	con_hex2("P1  ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+
+	/* ---- PHASE 2: the preloader UFS PLL control (0x1c00f290 |= bit31) ----
+	 * Read it first with exc_report armed: if it FAULTS (FAR=0x1c00f290) the PLL
+	 * control is not mapped for us => the power-up needs secure/SPMI and this is
+	 * the wall. If it reads, apply the preloader's write and re-check the MPHY. */
+	con_str("P2  ", "reading UFS PLL ctrl 0x1c00f290 (exc armed)");
+	uint32_t pllc = rd(UFSPLL_CTRL);
+	con_hex2("P2  ", "pllctrl=", pllc, "spmi=", 0);
+	wr(UFSPLL_CTRL, pllc | 0x80000000U);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(50);
+	mphy_power_on();
+	udelay(10);
+	con_hex2("P2  ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+
+	/* ---- PHASE 3: is the SPMI/PMIF window mapped? (the PMIC rail path) ---- */
+	con_str("P3  ", "reading SPMI 0x1040d000 (exc armed)");
+	con_hex2("P3  ", "spmi=", rd(SPMI_BASE), "+8=", rd(SPMI_BASE + 8));
 
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)

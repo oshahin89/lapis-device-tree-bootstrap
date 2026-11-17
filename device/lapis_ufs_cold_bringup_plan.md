@@ -419,3 +419,35 @@ starts reading nonzero, the power-up worked and we proceed to phy set_active +
 DME_LINKSTARTUP. The exact enable sequence is the preloader worker 0x20778d4
 (section 15); the first cheap attempt is topckgen ufs_fde/ufs_sel + UFSPLL enable
 before the existing mphy_power_on() in tufs.c.
+
+## 17. Power-up attempt v6 (on device, 2026-11-17): MMIO not enough; PMIC rail is the wall
+
+Attempted the full MMIO-reachable power-up from the shim: ufscfg_ao + ufscfg_pdn
+gate ungate, topckgen UFS mux re-latch (CLK_CFG_UPDATE1 bits 10/11/12), UFS PLL
+control 0x1c00f290 |= bit31 (the preloader ufspll_ctrl action), and the MPHY
+set_active -- then re-read 0x112a0000. Result:
+- `P1 mphy=0` and `P2 mphy=0`: the MPHY stayed dark through clocks + PLL + set_active.
+- `P2 pllctrl=0x00100020`: the UFS PLL control **0x1c00f290 is mapped+readable**
+  (0x1c00xxxx region is reachable for us); setting bit31 did not wake the MPHY.
+- `P3 spmi=0` (no fault): the SPMI/PMIF window **0x1040d000 is mapped** too (reads
+  0 at +0, but does not SEA -- so it is in our stage-2).
+
+Conclusion: the MMIO we can reach is not sufficient; the MPHY analog rail is powered
+by the **PMIC** (preloader `ufs_aio_init_mphy` = a PMIC field set at reg **0xa09**
+over SPMI, via helpers 0x207ad08/0x207fe88 and the SPMI command worker 0x20778d4
+writing 0x1040d080/0x1040d100/0x1040d108). We have NOT driven that SPMI write.
+
+Reachability map is now: MPHY 0x112a0000, topckgen 0x10000000, UFSPLL 0x10351000,
+UFS PLL ctrl 0x1c00f290, SPMI 0x1040d000, ufscfg_ao/pdn -- all MAPPED and writable.
+Only the efuse 0x11f10000 SEA-faults. So the remaining work is entirely about
+**driving the PMIC write of reg 0xa09** to power the MPHY rail, by one of:
+1. RE + replicate the SPMI master command sequence (worker 0x20778d4 + the PMIC
+   read/write helpers 0x207ad08/0x207fe88) to set PMIC reg 0xa09 bit0 -- SPMI is
+   mapped for us, so this is feasible from the shim.
+2. An SMC to secure world that sets the PMIC regulator (MTK ATF usually has one;
+   our earlier UFS_CONTROL HOST_PWR_CTRL returned 0 but did not wake it -- revisit
+   args / try a dedicated PMIC/regulator SMC).
+3. Confirm whether LK leaves the rail on at handoff (LK read boot from UFS just
+   before us) -- if it powers UFS down, find and skip/undo that specific step.
+Next session: RE the SPMI/PMIC write path (offline) and build a probe that sets
+PMIC reg 0xa09, then re-reads 0x112a0000.
