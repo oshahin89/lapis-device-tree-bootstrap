@@ -355,62 +355,32 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v17: unlock real key (0x39e/0x3a7) then write 0xa09");
+	con_str("LAPIS", "v18: SAFE scan of all SPMI slave ids (find PMIC dies)");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
-	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID;
-	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL;
+	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
+	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL; (void)spmi_write;
 	(void)SIP_UFS_HOST_PWR_CTRL; (void)SIP_UFS_DEVICE_PWR_CTRL;
-	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY;
+	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY; (void)SID_MT6363;
+	(void)UFSAO_ALL; (void)UFSPDN_ALL; (void)rail;
 
 	con_skip();
 	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "mphy=", rd(MPHY + MP_GLB_DIG_8C));
 
-	/* The preloader's ufs_aio_init_mphy sets PMIC reg 0xa09 (MPHY_RAIL_REG). Writing
-	 * it raw in v9 RESET the SoC => 0xa09 is a protection-locked TOP register. The
-	 * MT6363 regulator driver unlocks protected writes with the TMA key: bulk-write
-	 * 0x9c9c to TMA_KEY_L (0x36e), do the protected write, then write 0 to re-lock.
-	 * v15 replicates the preloader WITH the real key: unlock TMA -> write 0xa09=1 ->
-	 * re-lock. If 0xa09 is TMA-protected this now takes without a reset; if it SEAs/
-	 * resets, 0xa09 is behind a different protection. */
-	uint32_t st = 0;
-	/* CORRECTED protection key: LK's PMIC table (lk.img) unlocks with 0x9c9c
-	 * written to regs 0x39e / 0x39f / 0x3a7 (matches coreboot MT6363 0x39E/0x39F) --
-	 * NOT 0x36e that v15 used. Safe test: unlock with the real key, then try to
-	 * enable VRF09 (0x1b65, a NORMAL LDO that only ignored our writes before, never
-	 * reset). If it NOW takes (readback bit0=1), the key works; a later probe can
-	 * then write 0xa09 with confidence. If still 0, VRF09 is HW-controlled. */
-	uint32_t pre = rail(MPHY_RAIL_REG);
-	con_hex2("PRE ", "a09=", pre, "vrf09=", rail(0x1b65));
-	con_str("UNLK", "0x9c9c -> 0x39e/f + 0x3a7/8, then write 0xa09=1 (real key)");
-	/* 0x9c9c is a 16-bit key spanning reg pairs: 0x39e/0x39f and 0x3a7/0x3a8 */
-	spmi_write(SID_MT6363, 0x39e, 0x9c, &st); spmi_write(SID_MT6363, 0x39f, 0x9c, &st);
-	spmi_write(SID_MT6363, 0x3a7, 0x9c, &st); spmi_write(SID_MT6363, 0x3a8, 0x9c, &st);
-	spmi_write(SID_MT6363, MPHY_RAIL_REG, (pre | 0x01) & 0xff, &st);	/* the preloader's write */
-	uint32_t post = rail(MPHY_RAIL_REG);		/* reached here => no reset */
-	spmi_write(SID_MT6363, 0x39e, 0x00, &st); spmi_write(SID_MT6363, 0x39f, 0x00, &st);
-	spmi_write(SID_MT6363, 0x3a7, 0x00, &st); spmi_write(SID_MT6363, 0x3a8, 0x00, &st);	/* re-lock */
-	udelay(3000);
-	con_hex2("POST", "a09=", post, "wr_sta=", st);
-
-	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
-	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
-	wr(TOPCK + CLK_CFG_UPDATE1,
-	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
-	__asm__ volatile("dsb sy" ::: "memory");
-	wr(UFSCFG_AO + RST_SET, 1U << 8);
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(10);
-	wr(UFSCFG_AO + RST_CLR, 1U << 8);
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(20);
-	mphy_power_on();
-	udelay(10);
-	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
-	con_hex2("MPHY", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
-
-	con_str("KEY ", "POST bit0=1 + nonzero MPHY = VRF09 was the MPHY rail!");
+	/* READ-ONLY SPMI bus scan: MT6363 is dual-die and may have companion PMICs
+	 * (MT6373/MT6316) at other slave ids. 0xa09 on sid 4 is destructive, but the
+	 * real MPHY-rail register may live on a DIFFERENT sid. Read each sid's chip-id
+	 * (HWCID 0x8, SWCID 0xa) + reg 0xa09: a sid that answers with a sane id is a
+	 * live PMIC die. No writes anywhere -> cannot reset. */
+	for (uint32_t sid = 0; sid < 16; sid++) {
+		uint32_t hw = 0xEE, a09 = 0xEE, s = 0;
+		spmi_read(sid, MT6363_HWCID, &hw, &s);
+		spmi_read(sid, 0xa09, &a09, &s);
+		/* value = sid in high nibble | hwid<<8 | a09: read sid from top */
+		con_hex2("SID ", "sid.hw=", (sid << 16) | (hw & 0xff), "a09=", a09 & 0xff);
+	}
+	con_str("KEY ", "sid.hw high=sid, low=chipid; nonzero on sid!=4 = another die");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
