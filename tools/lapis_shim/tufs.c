@@ -355,11 +355,11 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v14: enable VRF09 via direct CON0 RMW + OP_EN, then wake");
+	con_str("LAPIS", "v15: TMA-unlock (0x9c9c) then write 0xa09 like preloader");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
-	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
+	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID;
 	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL;
 	(void)SIP_UFS_HOST_PWR_CTRL; (void)SIP_UFS_DEVICE_PWR_CTRL;
 	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY;
@@ -367,22 +367,24 @@ void shim_main(uint64_t dtb)
 	con_skip();
 	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "mphy=", rd(MPHY + MP_GLB_DIG_8C));
 
-	/* GUESS-AND-CHECK, safest form: enable the 0.9V analog rail VRF09 (MT6363
-	 * 0x1b65, EN_BIT 0) via its SET alias (enable_reg + 1 = 0x1b66), the documented
-	 * mt6363 method -- a single-byte write to a NORMAL LDO's set register (unlike
-	 * v9's raw TOP reg 0xa09 that reset). The preloader enum "0xa09" hints 0.9V and
-	 * VUFS12(1.2V) is already on, so VRF09 is the top candidate for the MPHY analog.
-	 * Read before, write SET=1, read back (verify bit0=1 and that we did not reset),
-	 * then clocks + MPHY reset + set_active, and read the MPHY. */
+	/* The preloader's ufs_aio_init_mphy sets PMIC reg 0xa09 (MPHY_RAIL_REG). Writing
+	 * it raw in v9 RESET the SoC => 0xa09 is a protection-locked TOP register. The
+	 * MT6363 regulator driver unlocks protected writes with the TMA key: bulk-write
+	 * 0x9c9c to TMA_KEY_L (0x36e), do the protected write, then write 0 to re-lock.
+	 * v15 replicates the preloader WITH the real key: unlock TMA -> write 0xa09=1 ->
+	 * re-lock. If 0xa09 is TMA-protected this now takes without a reset; if it SEAs/
+	 * resets, 0xa09 is behind a different protection. */
 	uint32_t st = 0;
-	uint32_t pre = rail(0x1b65);
-	con_hex2("PRE ", "vrf09_1b65=", pre, "vufs12=", rail(0x1c01));
-	/* regulator_enable method: direct read-modify-write of CON0 (0x1b65), set bit0.
-	 * Also set OP_EN0 (CON0+5 = 0x1b6a) to SW mode first, as the hakios flow does. */
-	spmi_write(SID_MT6363, 0x1b6a, 0x01, &st);		/* OP_EN0: SW mode */
-	spmi_write(SID_MT6363, 0x1b65, (pre | 0x01) & 0xff, &st);	/* CON0 |= EN */
+	con_hex2("PRE ", "a09=", rail(MPHY_RAIL_REG), "tma36e=", rail(0x36e));
+	con_str("TMA ", "unlock 0x9c9c -> 0x36e/0x36f, then write 0xa09=1");
+	spmi_write(SID_MT6363, 0x36e, 0x9c, &st);		/* TMA_KEY_L */
+	spmi_write(SID_MT6363, 0x36f, 0x9c, &st);		/* TMA_KEY_H */
+	spmi_write(SID_MT6363, MPHY_RAIL_REG, 0x01, &st);	/* the preloader's write */
+	uint32_t a09_post = rail(MPHY_RAIL_REG);		/* if we reach here: no reset */
+	spmi_write(SID_MT6363, 0x36e, 0x00, &st);		/* re-lock TMA */
+	spmi_write(SID_MT6363, 0x36f, 0x00, &st);
 	udelay(3000);						/* rail ramp */
-	con_hex2("POST", "vrf09_1b65=", rail(0x1b65), "wr_sta=", st);
+	con_hex2("POST", "a09=", a09_post, "wr_sta=", st);
 
 	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
 	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
