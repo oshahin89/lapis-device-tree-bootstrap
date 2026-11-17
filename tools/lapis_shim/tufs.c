@@ -362,7 +362,26 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v20: SID scan from sid4 up (confirm channel first)");
+	con_str("LAPIS", "v21: read SPMI arbiter record regs (last PMIC transactions)");
+
+	/* spmimst block @0x1cc01000 (DT spmi@1cc04000 reg-names pmif,spmimst). The SPMI
+	 * arbiter records recent bus transactions in SPMI_REC0..REC4 (0x44..0x54), decoded
+	 * at REC_CMD_DEC (0x5c), with REC_CTRL at 0x40. If LK's last UFS PMIC writes (the
+	 * power-down before handoff) are still in the record, we recover the real sid/addr
+	 * without UART. READ-ONLY. exc armed: a SEA here means spmimst isn't mapped. */
+	{
+	const uint64_t SPMIMST = 0x1cc01000UL;
+	con_skip();
+	con_hex2("REC ", "ctrl40=", rd(SPMIMST + 0x40), "dec5c=", rd(SPMIMST + 0x5c));
+	con_hex2("REC ", "r0_44=", rd(SPMIMST + 0x44), "r1_48=", rd(SPMIMST + 0x48));
+	con_hex2("REC ", "r2_4c=", rd(SPMIMST + 0x4c), "r3_50=", rd(SPMIMST + 0x50));
+	con_hex2("REC ", "r4_54=", rd(SPMIMST + 0x54), "dbgfc=", rd(SPMIMST + 0xfc));
+	con_str("KEY ", "REC words encode recent {opc,sid,addr,data}; find UFS writes");
+	con_str("DONE", "Power+Vol-down to recover");
+	for (;;) __asm__ volatile("wfe");
+	}
+
+	con_str("OLD ", "v20 scan below (unreached)");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
