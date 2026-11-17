@@ -355,7 +355,7 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v16: unlock 0x9c9c->0x39e/0x3a7 (real key), enable VRF09");
+	con_str("LAPIS", "v17: unlock real key (0x39e/0x3a7) then write 0xa09");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
@@ -381,19 +381,18 @@ void shim_main(uint64_t dtb)
 	 * enable VRF09 (0x1b65, a NORMAL LDO that only ignored our writes before, never
 	 * reset). If it NOW takes (readback bit0=1), the key works; a later probe can
 	 * then write 0xa09 with confidence. If still 0, VRF09 is HW-controlled. */
-	uint32_t pre = rail(0x1b65);
-	con_hex2("PRE ", "vrf09=", pre, "key39e=", rail(0x39e));
-	con_str("UNLK", "0x9c9c -> 0x39e/0x39f/0x3a7, then enable VRF09");
+	uint32_t pre = rail(MPHY_RAIL_REG);
+	con_hex2("PRE ", "a09=", pre, "vrf09=", rail(0x1b65));
+	con_str("UNLK", "0x9c9c -> 0x39e/f + 0x3a7/8, then write 0xa09=1 (real key)");
 	/* 0x9c9c is a 16-bit key spanning reg pairs: 0x39e/0x39f and 0x3a7/0x3a8 */
 	spmi_write(SID_MT6363, 0x39e, 0x9c, &st); spmi_write(SID_MT6363, 0x39f, 0x9c, &st);
 	spmi_write(SID_MT6363, 0x3a7, 0x9c, &st); spmi_write(SID_MT6363, 0x3a8, 0x9c, &st);
-	spmi_write(SID_MT6363, 0x1b65, (pre | 0x01) & 0xff, &st);	/* VRF09 CON0 |= EN */
-	uint32_t post = rail(0x1b65);
+	spmi_write(SID_MT6363, MPHY_RAIL_REG, (pre | 0x01) & 0xff, &st);	/* the preloader's write */
+	uint32_t post = rail(MPHY_RAIL_REG);		/* reached here => no reset */
 	spmi_write(SID_MT6363, 0x39e, 0x00, &st); spmi_write(SID_MT6363, 0x39f, 0x00, &st);
 	spmi_write(SID_MT6363, 0x3a7, 0x00, &st); spmi_write(SID_MT6363, 0x3a8, 0x00, &st);	/* re-lock */
 	udelay(3000);
-	con_hex2("POST", "vrf09=", post, "wr_sta=", st);
-	(void)MPHY_RAIL_REG;
+	con_hex2("POST", "a09=", post, "wr_sta=", st);
 
 	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
 	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
