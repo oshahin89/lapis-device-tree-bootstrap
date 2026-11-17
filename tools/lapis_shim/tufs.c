@@ -311,42 +311,81 @@ static int spmi_read(uint32_t sid, uint32_t addr, uint32_t *out, uint32_t *sta_o
 	return 0;
 }
 
+/* SPMI register WRITE via PMIF SWINF channel 2 (EXT_REG_LONG, 1 byte). The
+ * driver does not poll completion on writes; we poll back to IDLE for safety.
+ * Returns 0 on success (command issued), -1 if the channel never went idle. */
+static int spmi_write(uint32_t sid, uint32_t addr, uint32_t val, uint32_t *sta_out)
+{
+	uint32_t s = 0;
+	int i;
+	for (i = 0; i < 5000; i++) {
+		s = rd(PMIF + PMIF_CH_STA);
+		if (((s >> 1) & 7) == SWINF_IDLE)
+			break;
+		udelay(2);
+	}
+	*sta_out = s;
+	if (((s >> 1) & 7) != SWINF_IDLE)
+		return -1;
+	wr(PMIF + PMIF_WDATA, val & 0xff);
+	__asm__ volatile("dsb sy" ::: "memory");
+	/* EXT_REG_LONG write: opc class 3, write bit 29, sid, len-1=0, addr */
+	wr(PMIF + PMIF_CH_SEND, (3u << 30) | (1u << 29) | (sid << 24) | (addr & 0xffff));
+	__asm__ volatile("dsb sy" ::: "memory");
+	for (i = 0; i < 5000; i++) {			/* settle back to idle */
+		s = rd(PMIF + PMIF_CH_STA);
+		if (((s >> 1) & 7) == SWINF_IDLE)
+			break;
+		udelay(2);
+	}
+	*sta_out = s;
+	return 0;
+}
+
 void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v8: SPMI read-only validation (MT6363 via PMIF)");
+	con_str("LAPIS", "v9: SPMI-write 0xa09=1 (power MPHY rail) then wake");
 
-	(void)smc_ufs; (void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
+	(void)smc_ufs; (void)ref_clk_on; (void)uic; (void)dme_set;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
-	(void)UFSPLL_CTRL; (void)UFSAO_ALL; (void)UFSPDN_ALL;
-
-	static volatile uint32_t scratch;
-	scratch = 0xA5A5A5A5;
-	__asm__ volatile("dsb sy" ::: "memory");
+	(void)UFSPLL_CTRL; (void)MT6363_SWCID0;
 
 	con_skip();
-	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "ram=", scratch);
+	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "mphy=", rd(MPHY + MP_GLB_DIG_8C));
 
-	/* Is PMIF (0x1cc04000) mapped, and what FSM state? (exc armed: a SEA here with
-	 * FAR=0x1cc048A8 means PMIF is not in our stage-2.) READ-ONLY throughout. */
-	con_str("PMIF", "reading ch_sta 0x1cc048A8 (exc armed)");
-	uint32_t sta0 = rd(PMIF + PMIF_CH_STA);
-	con_hex2("PMIF", "ch_sta=", sta0, "fsm=", (sta0 >> 1) & 7);
-
-	/* SPMI reads of the MT6363 (sid 4): chip-id (known-good path check) + the
-	 * MPHY rail register 0xa09 the preloader sets. All reads, no writes. */
+	/* 1. read reg 0xa09 (expect 0x40-chip confirmed path; rail bit0 == 0). */
 	uint32_t v = 0, st = 0;
-	int r = spmi_read(SID_MT6363, MT6363_HWCID, &v, &st);
-	con_hex2("HWID", "rc/val=", ((uint32_t)(r & 0xff) << 24) | (v & 0xff), "sta=", st);
-	v = 0; st = 0;
-	r = spmi_read(SID_MT6363, MT6363_SWCID0, &v, &st);
-	con_hex2("SWID", "rc/val=", ((uint32_t)(r & 0xff) << 24) | (v & 0xff), "sta=", st);
-	v = 0; st = 0;
-	r = spmi_read(SID_MT6363, MPHY_RAIL_REG, &v, &st);
-	con_hex2("RA09", "rc/val=", ((uint32_t)(r & 0xff) << 24) | (v & 0xff), "sta=", st);
+	int r = spmi_read(SID_MT6363, MPHY_RAIL_REG, &v, &st);
+	con_hex2("PRE ", "rc/0xa09=", ((uint32_t)(r & 0xff) << 24) | (v & 0xff), "sta=", st);
 
-	con_str("KEY ", "HWID val nonzero+rc00 => SPMI path OK; RA09 = rail state");
+	/* 2. SET bit0 of reg 0xa09 (what preloader ufs_aio_init_mphy does) and verify. */
+	r = spmi_write(SID_MT6363, MPHY_RAIL_REG, (v | 0x01) & 0xff, &st);
+	con_hex2("WR  ", "rc=", (uint32_t)(r & 0xff), "sta=", st);
+	udelay(2000);					/* rail ramp */
+	uint32_t v2 = 0;
+	r = spmi_read(SID_MT6363, MPHY_RAIL_REG, &v2, &st);
+	con_hex2("POST", "rc/0xa09=", ((uint32_t)(r & 0xff) << 24) | (v2 & 0xff), "sta=", st);
+
+	/* 3. now the clock + reset + set_active sequence, then read the MPHY. */
+	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
+	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
+	wr(TOPCK + CLK_CFG_UPDATE1,
+	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
+	__asm__ volatile("dsb sy" ::: "memory");
+	wr(UFSCFG_AO + RST_SET, 1U << 8);		/* assert mphy reset */
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(10);
+	wr(UFSCFG_AO + RST_CLR, 1U << 8);		/* deassert mphy reset */
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(20);
+	mphy_power_on();
+	udelay(10);
+	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	con_hex2("MPHY", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
+
+	con_str("KEY ", "POST 0xa09=01 + nonzero MPHY = RAIL ON & PHY ALIVE");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
