@@ -262,10 +262,11 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v6: MMIO power-up attempt + power-path mapping probe");
+	con_str("LAPIS", "v7: release the ufscfg_ao MPHY reset (0x112b804c bit8)");
 
 	(void)smc_ufs; (void)ref_clk_on; (void)uic; (void)dme_set;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)PMIF;
+	(void)UFSPLL_CTRL; (void)SPMI_BASE;
 
 	static volatile uint32_t scratch;
 	scratch = 0xA5A5A5A5;
@@ -275,41 +276,37 @@ void shim_main(uint64_t dtb)
 	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "ram=", scratch);
 	con_hex2("MPHY", "pre8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
 
-	/* ---- PHASE 1: everything we CAN reach (all known-mapped MMIO) ----
-	 * ufscfg_ao + ufscfg_pdn clock gates, topckgen UFS mux re-latch, then the
-	 * MPHY set_active. Writes only to mapped blocks (0x112b8000/0x112bb000/
-	 * 0x10000000/0x112a0000), so this phase cannot fault. */
-	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);	/* ungate unipro/phy clocks */
-	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);	/* ungate ufshci/aes/ahb/axi */
-	__asm__ volatile("dsb sy" ::: "memory");
-	/* re-latch the UFS clock muxes (gateless MUX_CLR_SET_UPD) */
+	/* STEP 1: enable the UFS clocks (ufscfg_ao/pdn gates + topckgen UFS muxes). */
+	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
+	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
 	wr(TOPCK + CLK_CFG_UPDATE1,
 	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
 	__asm__ volatile("dsb sy" ::: "memory");
 	udelay(20);
-	mphy_power_on();				/* phy set_active (writes MPHY regs) */
-	udelay(10);
-	con_hex2("P1  ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	con_hex2("CLK ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
 
-	/* ---- PHASE 2: the preloader UFS PLL control (0x1c00f290 |= bit31) ----
-	 * Read it first with exc_report armed: if it FAULTS (FAR=0x1c00f290) the PLL
-	 * control is not mapped for us => the power-up needs secure/SPMI and this is
-	 * the wall. If it reads, apply the preloader's write and re-check the MPHY. */
-	con_str("P2  ", "reading UFS PLL ctrl 0x1c00f290 (exc armed)");
-	uint32_t pllc = rd(UFSPLL_CTRL);
-	con_hex2("P2  ", "pllctrl=", pllc, "spmi=", 0);
-	wr(UFSPLL_CTRL, pllc | 0x80000000U);
+	/* STEP 2: THE NEW LEVER -- release the dedicated MPHY reset.
+	 * nothing-mt6878 DTS ufscfgao_rst: "ufs mphy reset", bit 8:
+	 *   assert  = SET bit8 @ 0x112b8000+0x48
+	 *   deassert= SET bit8 @ 0x112b8000+0x4c
+	 * We have NEVER driven this (v1-v6 only touched ufscfg clock gates / the
+	 * ufscfg_pdn unipro/hci resets). A held MPHY reset reads 0 / ignores writes --
+	 * exactly our symptom. Do a clean pulse: assert then deassert. */
+	wr(UFSCFG_AO + RST_SET, 1U << 8);		/* assert  mphy reset */
 	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(50);
+	udelay(10);
+	wr(UFSCFG_AO + RST_CLR, 1U << 8);		/* deassert mphy reset */
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(20);
+	con_hex2("RST ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+
+	/* STEP 3: phy set_active, then re-read. */
 	mphy_power_on();
 	udelay(10);
-	con_hex2("P2  ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	con_hex2("ACT ", "mphy8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	con_hex2("ACT ", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
 
-	/* ---- PHASE 3: is the SPMI/PMIF window mapped? (the PMIC rail path) ---- */
-	con_str("P3  ", "reading SPMI 0x1040d000 (exc armed)");
-	con_hex2("P3  ", "spmi=", rd(SPMI_BASE), "+8=", rd(SPMI_BASE + 8));
-
-	con_str("DONE", "Power+Vol-down to recover");
+	con_str("DONE", "nonzero MPHY = WOKE UP. Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
 }
