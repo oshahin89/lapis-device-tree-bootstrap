@@ -362,7 +362,7 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v19: SPMI SID scan with channel recovery");
+	con_str("LAPIS", "v20: SID scan from sid4 up (confirm channel first)");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
@@ -380,14 +380,20 @@ void shim_main(uint64_t dtb)
 	 * real MPHY-rail register may live on a DIFFERENT sid. Read each sid's chip-id
 	 * (HWCID 0x8, SWCID 0xa) + reg 0xa09: a sid that answers with a sane id is a
 	 * live PMIC die. No writes anywhere -> cannot reset. */
-	for (uint32_t sid = 0; sid < 16; sid++) {
+	/* Start at sid 4 (known-good: v8 read it) and go up, so a valid read confirms
+	 * the channel before any non-existent sid can wedge it. Each read recovers the
+	 * channel (CH_RDY on error). hw != 0xee => a PMIC die answers at that sid. */
+	for (uint32_t sid = 4; sid < 12; sid++) {
 		uint32_t hw = 0xEE, a09 = 0xEE, s = 0;
+		/* clear any stale channel state first */
+		wr(PMIF + PMIF_CH_RDY, 1);
+		__asm__ volatile("dsb sy" ::: "memory");
+		udelay(50);
 		spmi_read(sid, MT6363_HWCID, &hw, &s);
 		spmi_read(sid, 0xa09, &a09, &s);
-		/* value = sid in high nibble | hwid<<8 | a09: read sid from top */
 		con_hex2("SID ", "sid.hw=", (sid << 16) | (hw & 0xff), "a09=", a09 & 0xff);
 	}
-	con_str("KEY ", "sid.hw high=sid, low=chipid; nonzero on sid!=4 = another die");
+	con_str("KEY ", "sid.hw high=sid low=chipid; sid4 should be 40; others!=ee=die");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
