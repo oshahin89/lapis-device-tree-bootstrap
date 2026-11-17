@@ -724,3 +724,39 @@ may have wrongly ruled out an AP power domain for the MPHY); (3) read OP_EN as w
 as CON0 to disambiguate HW-mode-on from off; (4) apply the OP_EN+CON0 method to the
 right MT6363 rail once identified. The MPHY may need an AP-side MTCMOS/SPM domain,
 not (only) a PMIC rail -- reconsider with hakios's approach.
+
+## 26. hakios-driven study: UFS power is SSPM-managed (the register is in firmware) (2026-11-17)
+
+Studied hakios's MTK bring-up (reference/hakios-mt6768) systematically. It gave the
+complete MTK block-wakeup toolbox and, crucially, reopened avenues I had wrongly
+dismissed:
+
+- **UFS DOES have MTCMOS.** The ufshci DT node has `mediatek,ufs-rtff-mtcmos`, and
+  the SSPM power tables list `ufs_vlp` and `ufs_vcore` as UFS power states. So a
+  powered-down UFS MTCMOS domain is a valid cause of 0x112a0000 reading 0 (I was
+  wrong in section 8 to rule out a UFS power domain).
+- **The MTK SPM power-domain sequence** (hakios redwood_mali.c, SPM @0x10006000):
+  per domain CON reg — `PWR_ON`(bit2)+`PWR_ON_2ND`(bit3) -> wait PWR_STATUS(0x180)
+  -> clear `PWR_CLK_DIS`(bit4) -> clear `PWR_ISO`(bit1) -> set `PWR_RST_B`(bit0) ->
+  clear `PWR_SRAM_PDN`(bit8), wait ack. This is exactly how to wake a block that
+  reads 0.
+- **MTK bus protection** (hakios redwood_connsys.c / mali, infracfg @0x10001000):
+  release via the protection CLR regs (~0x2a4), status at 0x220/0x228/0x250/0x258.
+  A block behind an un-released bus protection also reads 0 / drops writes — our
+  exact symptom.
+- **The correct PMIC method** (OP_EN then CON0 bit0, no key; OP_EN0 = CON0_ADDR+5).
+
+**But the one missing number is in firmware.** The UFS MTCMOS is managed by SSPM,
+not by MMIO the UFS host driver touches (ufs-mediatek.c has no rtff/mtcmos/bus-prot
+code — it votes via SPM resource requests / SMCs). The UFS SPM-domain CON offset,
+the UFS infra bus-protection bit, and the real MPHY PMIC rail register are all in
+SSPM/preloader firmware — none appears in the kernel/DT sources we have. So the
+hakios method is clear for every mechanism, but the UFS-specific address is still
+only obtainable from the preloader's runtime log (UART) or by RE'ing SSPM/preloader
+firmware.
+
+**Net:** hakios confirmed the mechanisms and gave working code for each, but the
+exact UFS register remains firmware-held. The realistic unblocks are unchanged:
+the preloader UART log (cleanest) or a focused SSPM/preloader firmware RE. The
+avenues are now fully mapped (PMIC rail / SPM domain / bus protection), each with a
+hakios reference implementation to copy once the UFS-specific number is known.
