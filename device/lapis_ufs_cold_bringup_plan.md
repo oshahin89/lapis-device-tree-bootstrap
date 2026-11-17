@@ -451,3 +451,36 @@ Only the efuse 0x11f10000 SEA-faults. So the remaining work is entirely about
    before us) -- if it powers UFS down, find and skip/undo that specific step.
 Next session: RE the SPMI/PMIC write path (offline) and build a probe that sets
 PMIC reg 0xa09, then re-reads 0x112a0000.
+
+## 18. v7 (MPHY reset) did not wake it — MMIO is exhausted, PMIC rail confirmed (2026-11-17)
+
+Released the dedicated ufscfg_ao "ufs mphy reset" (bit8: assert @0x112b8048,
+deassert @0x112b804c) as a clean pulse, after the clock enables, then set_active.
+On device: `CLK/RST/ACT mphy = 0` at every step (a09c, b044 also 0). The MPHY
+stayed dark.
+
+So every MMIO lever reachable from our EL1 shim has now been tried and none wakes
+the MPHY: ufscfg_ao/pdn clock gates, topckgen UFS mux re-latch, UFS PLL ctrl
+0x1c00f290 bit31, the ufscfg_ao MPHY reset, and phy set_active. The MPHY register
+block at 0x112a0000 remains mapped-but-dark (reads 0, writes don't stick).
+
+**Definitive conclusion: the MPHY analog rail is genuinely OFF and is powered only
+by the PMIC** (preloader ufs_aio_init_mphy = PMIC reg 0xa09 set, over SPMI). The
+"rails latch so it's probably still on" assumption is wrong: the preloader has
+ufs_aio_poweroff_notify / "[UFS] notify power-off success", i.e. UFS is powered
+DOWN at handoff, so by the time our shim runs the rail is off. No MMIO we can
+reach substitutes for the PMIC rail.
+
+### The remaining path (offline RE, next)
+Power the MPHY rail by driving PMIC reg 0xa09. Options, best first:
+1. **SPMI from the shim.** SPMI master 0x1040d000 is mapped for us (v6). RE the
+   preloader's SPMI write primitive (the real bus-write behind pmic_write 0x207fe88
+   -> a runtime fn-ptr [handle+40]+72; and the command worker 0x20778d4 that writes
+   0x1040d080/0x1040d100/0x1040d108) to issue a PMIC write of reg 0xa09 bit0=1.
+   Needs the SPMI arbiter/command format for MT6878 (SPMI-M at 0x1040d000) and the
+   PMIC slave id for the UFS LDO. This is the cleanest since no secure call.
+2. **SMC to secure world.** Re-examine MTK UFS_CONTROL (0xC2000276): HOST_PWR_CTRL
+   returned 0 but did not wake it (section 12) -- try DEVICE_PWR_CTRL, the ref-clk
+   notify sequence, or find a dedicated PMIC/regulator SMC the stock kernel uses.
+3. **Keep the rail on across handoff.** If LK/preloader powers UFS down right before
+   our shim, find that power-off call and a boot path that skips it (harder).
