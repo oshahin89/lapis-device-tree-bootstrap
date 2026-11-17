@@ -343,50 +343,43 @@ static int spmi_write(uint32_t sid, uint32_t addr, uint32_t val, uint32_t *sta_o
 	return 0;
 }
 
+/* read one MT6363 LDO enable register (bit0 = on). 0xEE on SPMI error. READ-ONLY. */
+static uint32_t rail(uint32_t addr)
+{
+	uint32_t v = 0xEE, st = 0;
+	spmi_read(SID_MT6363, addr, &v, &st);
+	return v;
+}
+
 void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v11: untried safe SMCs (HOST_PWR MPHY, DEVICE_PWR)");
+	con_str("LAPIS", "v12: MT6363 rail scan (hakios method, READ-ONLY)");
 
-	(void)ref_clk_on; (void)uic; (void)dme_set; (void)spmi_read; (void)spmi_write;
+	(void)ref_clk_on; (void)uic; (void)dme_set; (void)spmi_write; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
 	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
-	(void)PMIF; (void)SID_MT6363; (void)SIP_UFS_VA09_PWR_CTRL;
+	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL;
+	(void)SIP_UFS_HOST_PWR_CTRL; (void)SIP_UFS_DEVICE_PWR_CTRL;
+	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY;
+	(void)UFSAO_ALL; (void)UFSPDN_ALL;
 
 	con_skip();
 	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "mphy=", rd(MPHY + MP_GLB_DIG_8C));
 
-	/* Untried SMC sub-ops of 0xC2000276 (all safe -- SMCs return, no PMIC write).
-	 * We only ever tried HOST_PWR_CTRL(HCI) and VA09. NEVER the HOST_PWR MPHY
-	 * option, nor DEVICE_PWR_CTRL. host_pwr_ctrl(opt,on)=smc(BIT5,opt,on);
-	 * device_pwr_ctrl(on,ufs_ver)=smc(BIT7,on,ver). ATF may power the MPHY/rail. */
-	int64_t rc_hci  = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_HCI, 1);
-	int64_t rc_mphy = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_MPHY, 1);	/* NEW */
-	int64_t rc_dev  = smc_ufs(SIP_UFS_DEVICE_PWR_CTRL, 1, 3);		/* NEW: on, ufs3 */
-	con_hex2("SMC1", "hci=", (uint32_t)rc_hci, "mphy=", (uint32_t)rc_mphy);
-	con_hex2("SMC2", "dev=", (uint32_t)rc_dev, "va09=",
-		 (uint32_t)smc_ufs(SIP_UFS_VA09_PWR_CTRL, 1, 0));
-	udelay(300);
+	/* READ-ONLY scan of MT6363 LDO enable registers (EN_BIT 0 = bit0 on). SPMI
+	 * reads only, via the path validated in v8. Each rail's low bit says whether
+	 * it is enabled. Find the UFS/analog rail(s) reading 0 (off) -- the candidate
+	 * MPHY/UFS power that LK left down. VUFS18 should read ON (DT: always-on) as a
+	 * sanity check. No writes anywhere. */
+	con_hex2("UFS ", "vemc1bf3=", rail(0x1bf3), "vufs12_1c01=", rail(0x1c01));
+	con_hex2("UFS ", "vufs18_1c0f=", rail(0x1c0f), "vio18_1c1d=", rail(0x1c1d));
+	con_hex2("ANA ", "va12a_1c65=", rail(0x1c65), "va12b_1c73=", rail(0x1c73));
+	con_hex2("ANA ", "va15_1c81=", rail(0x1c81), "vm18_1c8f=", rail(0x1c8f));
+	con_hex2("RF  ", "vrf09_1b65=", rail(0x1b65), "vrf12_1b73=", rail(0x1b73));
 
-	/* clocks + MPHY reset + set_active, then read the MPHY. */
-	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
-	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
-	wr(TOPCK + CLK_CFG_UPDATE1,
-	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
-	__asm__ volatile("dsb sy" ::: "memory");
-	wr(UFSCFG_AO + RST_SET, 1U << 8);
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(10);
-	wr(UFSCFG_AO + RST_CLR, 1U << 8);
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(20);
-	mphy_power_on();
-	udelay(10);
-	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
-	con_hex2("MPHY", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
-
-	con_str("KEY ", "nonzero MPHY = an SMC powered it (ATF, no PMIC write)");
+	con_str("KEY ", "bit0=1 on, 0 off; find the off UFS/analog rail. 0xEE=read err");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
