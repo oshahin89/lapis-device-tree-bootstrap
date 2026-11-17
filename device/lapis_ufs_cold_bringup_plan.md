@@ -660,3 +660,38 @@ GZ stage-2 is the only translation and it faults on unmapped MMIO; every MMIO le
 it; the SPMI read path works (MT6363 HWCID 0x40 via PMIF 0x1cc04000 sid 4); the
 MPHY rail is PMIC-powered; VA09 does not apply to lapis; the exact rail register is
 the one open unknown.
+
+## 24. v11: all UFS_CONTROL SMC sub-ops are no-ops — safe avenues exhausted (2026-11-17)
+
+v11 issued every UFS_CONTROL (0xC2000276) sub-op we had not tried, safely:
+host_pwr(HCI,1), **host_pwr(MPHY,1)**, **device_pwr(1,ufs3)**, va09(1). Result on
+device: `SMC1 hci=0 mphy=0`, `SMC2 dev=0 va09=0` -- ALL return 0 (accepted, not
+0xffffffff) -- but the MPHY stayed 0 after them + clocks + reset + set_active. No
+reboot. So these SMCs are **stubs** in this firmware (ATF returns 0 without doing
+the real power action), i.e. the secure-world UFS power path is not functional for
+us here.
+
+**State: every quick/safe avenue to wake the MPHY is exhausted.**
+- All MMIO levers (ufscfg clocks, topckgen mux, UFS PLL ctrl, MPHY reset,
+  set_active): no effect.
+- All UFS_CONTROL SMC sub-ops: return 0 but no effect (stubs).
+- Raw PMIC write (0xa09): resets the SoC (wrong reg/method, and 0xa09 is a
+  preloader enum not a real address).
+The MPHY register block stays mapped-but-dark; only the preloader's exact
+(SPMI, keyed) PMIC sequence is known to power it, and that is obfuscated behind a
+runtime vtable.
+
+### The one remaining lead (deep offline RE, uncertain)
+Crack the preloader's PMIC regmap to recover: the SPMI SID, the REAL MT6363
+register that enum 0xa09 maps to, and any TMA protection-key unlock. Entry points
+found: the PMIC handle lives at 0x20f1948 (x24=0x20f1000 + 0x948); it is computed
+at **0x2064470** (`add x0,x0,#0x948`) and used by pmic_config_interface
+(0x20798fc); `spmi_init` is referenced at **0x2079b20**. Tracing 0x2064470 and the
+spmi_init path to the struct that holds ops->transfer + the SID + the key is the
+authoritative-but-substantial next effort. Until then, no safe on-device move
+remains.
+
+### Bottom line for the project
+The full (UFS-root) iOS boot stays blocked on this one cold MPHY-rail power-up. The
+**RAM-disk iOS boot already works** (PID 1 + heartbeat on the device) and remains
+the usable milestone. Cleanest unblock if hardware allows: the UART log (§23).
