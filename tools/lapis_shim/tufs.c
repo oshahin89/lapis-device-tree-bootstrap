@@ -355,31 +355,48 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v12: MT6363 rail scan (hakios method, READ-ONLY)");
+	con_str("LAPIS", "v13: enable VRF09 (0.9V) via SET alias, then wake MPHY");
 
-	(void)ref_clk_on; (void)uic; (void)dme_set; (void)spmi_write; (void)mphy_power_on;
+	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
 	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
 	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL;
 	(void)SIP_UFS_HOST_PWR_CTRL; (void)SIP_UFS_DEVICE_PWR_CTRL;
 	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY;
-	(void)UFSAO_ALL; (void)UFSPDN_ALL;
 
 	con_skip();
 	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "mphy=", rd(MPHY + MP_GLB_DIG_8C));
 
-	/* READ-ONLY scan of MT6363 LDO enable registers (EN_BIT 0 = bit0 on). SPMI
-	 * reads only, via the path validated in v8. Each rail's low bit says whether
-	 * it is enabled. Find the UFS/analog rail(s) reading 0 (off) -- the candidate
-	 * MPHY/UFS power that LK left down. VUFS18 should read ON (DT: always-on) as a
-	 * sanity check. No writes anywhere. */
-	con_hex2("UFS ", "vemc1bf3=", rail(0x1bf3), "vufs12_1c01=", rail(0x1c01));
-	con_hex2("UFS ", "vufs18_1c0f=", rail(0x1c0f), "vio18_1c1d=", rail(0x1c1d));
-	con_hex2("ANA ", "va12a_1c65=", rail(0x1c65), "va12b_1c73=", rail(0x1c73));
-	con_hex2("ANA ", "va15_1c81=", rail(0x1c81), "vm18_1c8f=", rail(0x1c8f));
-	con_hex2("RF  ", "vrf09_1b65=", rail(0x1b65), "vrf12_1b73=", rail(0x1b73));
+	/* GUESS-AND-CHECK, safest form: enable the 0.9V analog rail VRF09 (MT6363
+	 * 0x1b65, EN_BIT 0) via its SET alias (enable_reg + 1 = 0x1b66), the documented
+	 * mt6363 method -- a single-byte write to a NORMAL LDO's set register (unlike
+	 * v9's raw TOP reg 0xa09 that reset). The preloader enum "0xa09" hints 0.9V and
+	 * VUFS12(1.2V) is already on, so VRF09 is the top candidate for the MPHY analog.
+	 * Read before, write SET=1, read back (verify bit0=1 and that we did not reset),
+	 * then clocks + MPHY reset + set_active, and read the MPHY. */
+	uint32_t st = 0;
+	con_hex2("PRE ", "vrf09_1b65=", rail(0x1b65), "vufs12=", rail(0x1c01));
+	spmi_write(SID_MT6363, 0x1b66, 0x01, &st);		/* VRF09 SET: enable bit0 */
+	udelay(3000);						/* rail ramp */
+	con_hex2("POST", "vrf09_1b65=", rail(0x1b65), "wr_sta=", st);
 
-	con_str("KEY ", "bit0=1 on, 0 off; find the off UFS/analog rail. 0xEE=read err");
+	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
+	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
+	wr(TOPCK + CLK_CFG_UPDATE1,
+	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
+	__asm__ volatile("dsb sy" ::: "memory");
+	wr(UFSCFG_AO + RST_SET, 1U << 8);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(10);
+	wr(UFSCFG_AO + RST_CLR, 1U << 8);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(20);
+	mphy_power_on();
+	udelay(10);
+	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	con_hex2("MPHY", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
+
+	con_str("KEY ", "POST bit0=1 + nonzero MPHY = VRF09 was the MPHY rail!");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
