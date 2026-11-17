@@ -781,3 +781,28 @@ transfer fn + regmap init, or a careful guess-and-check of the MT6363 analog rai
 (VA12_1 0x1c65 / VA12_2 0x1c73 / VA15 0x1c81) via the safe OP_EN+CON0 method —
 these are normal LDO enables (unlike the 0xa09 TOP register that reset the SoC), so
 the proper keyed-free method is low risk, but it is still a guess at which rail.
+
+## 28. Guess-and-check (v13/v14): MT6363 LDO enables are write-protected (2026-11-17)
+
+Tried to enable VRF09 (0.9V analog, top MPHY-rail guess; preloader enum 0xa09 hints
+0.9V, VUFS12/1.2V already on) by two safe methods:
+- **v13**: write 0x01 to the SET alias 0x1b66. Safe (no reset) but VRF09 (0x1b65)
+  read back 0 -- no effect.
+- **v14**: set OP_EN0 (0x1b6a=1, SW mode) then direct read-modify-write of CON0
+  (0x1b65 |= bit0). Also safe (no reset) and ALSO no effect -- 0x1b65 still 0.
+
+Both writes were silently ignored (readback unchanged, no reset). Contrast: v9's
+write to the TOP reg 0xa09 reset the SoC instantly. So MT6363 **LDO enable
+registers silently drop SW writes** unless unlocked -- they are **write-protected
+(TMA key) or hardware-controlled**. VUFS12 (0x1c01=0xe1) is SW-enabled and readable,
+so some rails are SW-owned, but VRF09's enable is not writable as-is.
+
+**This is the same firmware wall from another angle.** Enabling the MPHY rail needs
+the MT6363 protection-key unlock (TMA_KEY_L 0x36e + the key value) and/or the exact
+OP_EN mode sequence (NORMAL_OP_EN 0x800000 pattern), neither of which is public --
+both live in the preloader/SSPM firmware. The SPMI read/write path itself works
+(reads correct, writes reach -- 0xa09 proved it), but we cannot flip a protected
+rail without the firmware's key. Guess-and-check is exhausted safely without a
+break; the remaining unblocks are unchanged: the preloader UART log, or RE of the
+preloader's protection-unlock + PMIC regmap. Do NOT keep guessing key values into
+0x36e (a wrong key write to a protection register is high-risk).
