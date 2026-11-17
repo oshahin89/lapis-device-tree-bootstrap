@@ -254,6 +254,7 @@ static void dme_set(uint16_t attr, uint32_t val)
  * us -- we never asked ATF to power it. Our PSCI SMC already proved SMCs from
  * this shim reach EL3 through GenieZone. */
 #define MTK_SIP_UFS_CONTROL	0xC2000276ULL
+#define SIP_UFS_VA09_PWR_CTRL	(1U << 0)	/* the MPHY analog rail (VA09) */
 #define SIP_UFS_DEVICE_RESET	(1U << 1)
 #define SIP_UFS_REF_CLK_NOTIFY	(1U << 3)
 #define SIP_UFS_HOST_PWR_CTRL	(1U << 5)
@@ -346,38 +347,36 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v9: SPMI-write 0xa09=1 (power MPHY rail) then wake");
+	con_str("LAPIS", "v10: VA09 via ATF SMC (safe) + wake MPHY");
 
-	(void)smc_ufs; (void)ref_clk_on; (void)uic; (void)dme_set;
+	(void)ref_clk_on; (void)uic; (void)dme_set; (void)spmi_read; (void)spmi_write;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
-	(void)UFSPLL_CTRL; (void)MT6363_SWCID0;
+	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
+	(void)PMIF; (void)SID_MT6363;
 
 	con_skip();
 	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "mphy=", rd(MPHY + MP_GLB_DIG_8C));
 
-	/* 1. read reg 0xa09 (expect 0x40-chip confirmed path; rail bit0 == 0). */
-	uint32_t v = 0, st = 0;
-	int r = spmi_read(SID_MT6363, MPHY_RAIL_REG, &v, &st);
-	con_hex2("PRE ", "rc/0xa09=", ((uint32_t)(r & 0xff) << 24) | (v & 0xff), "sta=", st);
+	/* ufs_mtk_mphy_power_on(on) in ufs-mediatek.c: (regulator_enable(va09) is the
+	 * framework side) then ufs_mtk_va09_pwr_ctrl(res,1) -- an SMC to 0xC2000276
+	 * sub-op VA09_PWR_CTRL=BIT(0) -- then phy set_active. ATF does the keyed PMIC
+	 * VA09 enable; NO raw PMIC write from us. This is the sub-op we never tried
+	 * (we only tried HOST_PWR_CTRL=BIT5). SMCs are safe (they return). */
+	int64_t rc_hci = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_HCI, 1);
+	int64_t rc_va09 = smc_ufs(SIP_UFS_VA09_PWR_CTRL, 1, 0);		/* power VA09 */
+	con_hex2("SMC ", "hci=", (uint32_t)rc_hci, "va09=", (uint32_t)rc_va09);
+	udelay(300);					/* VA09 stabilize (kernel waits 200us) */
 
-	/* 2. SET bit0 of reg 0xa09 (what preloader ufs_aio_init_mphy does) and verify. */
-	r = spmi_write(SID_MT6363, MPHY_RAIL_REG, (v | 0x01) & 0xff, &st);
-	con_hex2("WR  ", "rc=", (uint32_t)(r & 0xff), "sta=", st);
-	udelay(2000);					/* rail ramp */
-	uint32_t v2 = 0;
-	r = spmi_read(SID_MT6363, MPHY_RAIL_REG, &v2, &st);
-	con_hex2("POST", "rc/0xa09=", ((uint32_t)(r & 0xff) << 24) | (v2 & 0xff), "sta=", st);
-
-	/* 3. now the clock + reset + set_active sequence, then read the MPHY. */
+	/* clocks + MPHY reset + set_active, then read the MPHY. */
 	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
 	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
 	wr(TOPCK + CLK_CFG_UPDATE1,
 	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
 	__asm__ volatile("dsb sy" ::: "memory");
-	wr(UFSCFG_AO + RST_SET, 1U << 8);		/* assert mphy reset */
+	wr(UFSCFG_AO + RST_SET, 1U << 8);
 	__asm__ volatile("dsb sy" ::: "memory");
 	udelay(10);
-	wr(UFSCFG_AO + RST_CLR, 1U << 8);		/* deassert mphy reset */
+	wr(UFSCFG_AO + RST_CLR, 1U << 8);
 	__asm__ volatile("dsb sy" ::: "memory");
 	udelay(20);
 	mphy_power_on();
@@ -385,7 +384,7 @@ void shim_main(uint64_t dtb)
 	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
 	con_hex2("MPHY", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
 
-	con_str("KEY ", "POST 0xa09=01 + nonzero MPHY = RAIL ON & PHY ALIVE");
+	con_str("KEY ", "nonzero MPHY = VA09 ON & PHY ALIVE (via ATF, no PMIC write)");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");

@@ -556,3 +556,32 @@ slot-retry dropped to 1 but stayed bootable, Android boots fine.
 
 **Rule going forward: no PMIC write until the exact register + method (SET alias,
 EN_BIT, OP_EN, key) is confirmed, and read-verified on-device first.**
+
+## 21. The SAFE path: VA09 is the MPHY rail, powered by an ATF SMC (2026-11-17, offline)
+
+Reading the full Linux driver (reference/lapis-v-oss/.../ufs-mediatek.c) settled
+the rail identity and gave a safe way in. `ufs_mtk_mphy_power_on(on=1)` does:
+```
+regulator_enable(reg_va09);         // VA09 LDO (framework/SPMI side)
+udelay(200);                        // stabilize VA09
+ufs_mtk_va09_pwr_ctrl(res, 1);      // an SMC (ATF does the real VA09 power)
+phy_power_on(mphy);                 // the MPHY set_active (MMIO, our mphy_power_on)
+```
+So **the MPHY analog rail is VA09, not VUFS12** (and the preloader enum "0xa09"
+literally = VA09). Crucially, VA09 has a dedicated **SMC** (ufs-mediatek.h):
+- `MTK_SIP_UFS_CONTROL = 0xC2000276`
+- `UFS_MTK_SIP_VA09_PWR_CTRL = BIT(0)` ; `ufs_mtk_va09_pwr_ctrl(res,on)` =
+  smc(0xC2000276, BIT(0)=1, on). i.e. our smc_ufs(1, 1, 0).
+
+**We never tried BIT(0).** Earlier SMC probes used HOST_PWR_CTRL=BIT(5) only. The
+ATF VA09 SMC does the keyed, sequenced PMIC enable for us -- so we can power the
+MPHY rail WITHOUT any raw PMIC write (which is what reset the SoC in v9). This is
+the safe route.
+
+### v10 (built, SAFE -- SMCs only, no PMIC write)
+smc host_pwr_ctrl(HCI,1) + **smc va09_pwr_ctrl(1)** + 300us + clocks + MPHY reset
++ set_active, then read 0x112a0000. If the MPHY reads nonzero, VA09 came on via
+ATF and the PHY is alive -- then on to DME_LINKSTARTUP. If va09 SMC returns an
+error or the MPHY stays 0, the regulator_enable(va09) half may also be required
+(then do the VA09 LDO via the proper keyed MT6363 sequence, reg per §20, with a
+read-verify first). SMCs are safe (they return), unlike the raw PMIC write.
