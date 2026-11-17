@@ -303,9 +303,16 @@ static int spmi_read(uint32_t sid, uint32_t addr, uint32_t *out, uint32_t *sta_o
 		udelay(1);
 	}
 	*sta_out = s;
-	if ((s >> 18) & 1) { wr(PMIF + PMIF_CH_RDY, 1); return -2; }	/* err */
-	if (((s >> 1) & 7) != SWINF_WFVLDCLR)
+	if ((s >> 18) & 1) {				/* SWINFERR (e.g. NACK) */
+		wr(PMIF + PMIF_CH_RDY, 1);		/* clear so the channel recovers */
+		__asm__ volatile("dsb sy" ::: "memory");
+		return -2;
+	}
+	if (((s >> 1) & 7) != SWINF_WFVLDCLR) {
+		wr(PMIF + PMIF_CH_RDY, 1);		/* force back toward idle */
+		__asm__ volatile("dsb sy" ::: "memory");
 		return -3;				/* timeout */
+	}
 	*out = rd(PMIF + PMIF_RDATA) & 0xff;
 	wr(PMIF + PMIF_CH_RDY, 1);			/* clear valid */
 	__asm__ volatile("dsb sy" ::: "memory");
@@ -355,7 +362,7 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v18: SAFE scan of all SPMI slave ids (find PMIC dies)");
+	con_str("LAPIS", "v19: SPMI SID scan with channel recovery");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
