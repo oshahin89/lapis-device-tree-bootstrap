@@ -347,25 +347,27 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v10: VA09 via ATF SMC (safe) + wake MPHY");
+	con_str("LAPIS", "v11: untried safe SMCs (HOST_PWR MPHY, DEVICE_PWR)");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)spmi_read; (void)spmi_write;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
 	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
-	(void)PMIF; (void)SID_MT6363;
+	(void)PMIF; (void)SID_MT6363; (void)SIP_UFS_VA09_PWR_CTRL;
 
 	con_skip();
 	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "mphy=", rd(MPHY + MP_GLB_DIG_8C));
 
-	/* ufs_mtk_mphy_power_on(on) in ufs-mediatek.c: (regulator_enable(va09) is the
-	 * framework side) then ufs_mtk_va09_pwr_ctrl(res,1) -- an SMC to 0xC2000276
-	 * sub-op VA09_PWR_CTRL=BIT(0) -- then phy set_active. ATF does the keyed PMIC
-	 * VA09 enable; NO raw PMIC write from us. This is the sub-op we never tried
-	 * (we only tried HOST_PWR_CTRL=BIT5). SMCs are safe (they return). */
-	int64_t rc_hci = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_HCI, 1);
-	int64_t rc_va09 = smc_ufs(SIP_UFS_VA09_PWR_CTRL, 1, 0);		/* power VA09 */
-	con_hex2("SMC ", "hci=", (uint32_t)rc_hci, "va09=", (uint32_t)rc_va09);
-	udelay(300);					/* VA09 stabilize (kernel waits 200us) */
+	/* Untried SMC sub-ops of 0xC2000276 (all safe -- SMCs return, no PMIC write).
+	 * We only ever tried HOST_PWR_CTRL(HCI) and VA09. NEVER the HOST_PWR MPHY
+	 * option, nor DEVICE_PWR_CTRL. host_pwr_ctrl(opt,on)=smc(BIT5,opt,on);
+	 * device_pwr_ctrl(on,ufs_ver)=smc(BIT7,on,ver). ATF may power the MPHY/rail. */
+	int64_t rc_hci  = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_HCI, 1);
+	int64_t rc_mphy = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_MPHY, 1);	/* NEW */
+	int64_t rc_dev  = smc_ufs(SIP_UFS_DEVICE_PWR_CTRL, 1, 3);		/* NEW: on, ufs3 */
+	con_hex2("SMC1", "hci=", (uint32_t)rc_hci, "mphy=", (uint32_t)rc_mphy);
+	con_hex2("SMC2", "dev=", (uint32_t)rc_dev, "va09=",
+		 (uint32_t)smc_ufs(SIP_UFS_VA09_PWR_CTRL, 1, 0));
+	udelay(300);
 
 	/* clocks + MPHY reset + set_active, then read the MPHY. */
 	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
@@ -384,7 +386,7 @@ void shim_main(uint64_t dtb)
 	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
 	con_hex2("MPHY", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
 
-	con_str("KEY ", "nonzero MPHY = VA09 ON & PHY ALIVE (via ATF, no PMIC write)");
+	con_str("KEY ", "nonzero MPHY = an SMC powered it (ATF, no PMIC write)");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
