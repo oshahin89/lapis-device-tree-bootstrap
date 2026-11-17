@@ -355,7 +355,7 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v15: TMA-unlock (0x9c9c) then write 0xa09 like preloader");
+	con_str("LAPIS", "v16: unlock 0x9c9c->0x39e/0x3a7 (real key), enable VRF09");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
@@ -375,16 +375,25 @@ void shim_main(uint64_t dtb)
 	 * re-lock. If 0xa09 is TMA-protected this now takes without a reset; if it SEAs/
 	 * resets, 0xa09 is behind a different protection. */
 	uint32_t st = 0;
-	con_hex2("PRE ", "a09=", rail(MPHY_RAIL_REG), "tma36e=", rail(0x36e));
-	con_str("TMA ", "unlock 0x9c9c -> 0x36e/0x36f, then write 0xa09=1");
-	spmi_write(SID_MT6363, 0x36e, 0x9c, &st);		/* TMA_KEY_L */
-	spmi_write(SID_MT6363, 0x36f, 0x9c, &st);		/* TMA_KEY_H */
-	spmi_write(SID_MT6363, MPHY_RAIL_REG, 0x01, &st);	/* the preloader's write */
-	uint32_t a09_post = rail(MPHY_RAIL_REG);		/* if we reach here: no reset */
-	spmi_write(SID_MT6363, 0x36e, 0x00, &st);		/* re-lock TMA */
-	spmi_write(SID_MT6363, 0x36f, 0x00, &st);
-	udelay(3000);						/* rail ramp */
-	con_hex2("POST", "a09=", a09_post, "wr_sta=", st);
+	/* CORRECTED protection key: LK's PMIC table (lk.img) unlocks with 0x9c9c
+	 * written to regs 0x39e / 0x39f / 0x3a7 (matches coreboot MT6363 0x39E/0x39F) --
+	 * NOT 0x36e that v15 used. Safe test: unlock with the real key, then try to
+	 * enable VRF09 (0x1b65, a NORMAL LDO that only ignored our writes before, never
+	 * reset). If it NOW takes (readback bit0=1), the key works; a later probe can
+	 * then write 0xa09 with confidence. If still 0, VRF09 is HW-controlled. */
+	uint32_t pre = rail(0x1b65);
+	con_hex2("PRE ", "vrf09=", pre, "key39e=", rail(0x39e));
+	con_str("UNLK", "0x9c9c -> 0x39e/0x39f/0x3a7, then enable VRF09");
+	/* 0x9c9c is a 16-bit key spanning reg pairs: 0x39e/0x39f and 0x3a7/0x3a8 */
+	spmi_write(SID_MT6363, 0x39e, 0x9c, &st); spmi_write(SID_MT6363, 0x39f, 0x9c, &st);
+	spmi_write(SID_MT6363, 0x3a7, 0x9c, &st); spmi_write(SID_MT6363, 0x3a8, 0x9c, &st);
+	spmi_write(SID_MT6363, 0x1b65, (pre | 0x01) & 0xff, &st);	/* VRF09 CON0 |= EN */
+	uint32_t post = rail(0x1b65);
+	spmi_write(SID_MT6363, 0x39e, 0x00, &st); spmi_write(SID_MT6363, 0x39f, 0x00, &st);
+	spmi_write(SID_MT6363, 0x3a7, 0x00, &st); spmi_write(SID_MT6363, 0x3a8, 0x00, &st);	/* re-lock */
+	udelay(3000);
+	con_hex2("POST", "vrf09=", post, "wr_sta=", st);
+	(void)MPHY_RAIL_REG;
 
 	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
 	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
