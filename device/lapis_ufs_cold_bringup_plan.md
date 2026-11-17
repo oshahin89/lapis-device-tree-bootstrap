@@ -617,3 +617,46 @@ Resolve what the preloader's ufs_aio_init_mphy actually writes, end to end:
 Known-good MT6363 registers for reference (header): VUFS12 ADDR 0x1c01 (EN_BIT 0,
 SET +1, OP_EN0 0x1c06), VRF09 ADDR 0x1b65. TMA key regs: TMA_KEY_L 0x36e,
 BUCK_TOP_KEY_PROT_LO 0x13fa (key values not public -- find in preloader).
+
+## 23. Static RE of the preloader PMIC path is a dead end — need the UART log (2026-11-17)
+
+Tried to resolve what the preloader's "0xa09" really writes:
+- The preloader uses SPMI (PMIF 0x1cc04000; it has `spmi_init`, `[PMIF]` logs),
+  same bus we reach. So 0xa09 goes over SPMI like ours.
+- But the PMIC access is a **runtime vtable**: pmic_config_interface (0x20798fc)
+  -> pmic_read/write (0x207ad08/0x207fe88) -> 0x2080008 `mov x0,x8; br x6`, where
+  x6 = handle->ops->transfer loaded from the regmap struct at runtime. The real
+  SPMI transfer fn, the SID, any enum->address table, and the protection-key
+  unlock are all set up at init in RAM -- not statically visible from these funcs.
+- The lapis/nothing DT gives no help: ufsphy@112a0000 has **no supply** property,
+  ufshci has only vcc=vemc / vccq=vufs12 (device rails, not the AP host-PHY rail),
+  and no `mediatek,ufs-support-va09`. MT6363 has no VA09 LDO. So neither the DT nor
+  the header identifies the AP-side MPHY rail, and the preloader enum 0xa09 cannot
+  be mapped to a real MT6363 register by static RE.
+
+Net: identifying the exact MPHY PMIC rail/register by static analysis is
+impractical, and blind on-device PMIC writes are dangerous (v9's wrong write reset
+the SoC instantly). 
+
+### The clean path forward: capture the preloader UART log
+The preloader logs **every** register write of its cold MPHF bring-up as
+`"[write addr 0x%x=0x%x]"` (section 15). Wiring the phone's UART (MT6878 UART0 TX
+testpoint, 3.3V, ~921600 8N1) to a USB-UART adapter and capturing a normal cold
+boot gives the EXACT addr=value sequence the preloader uses to power and init the
+MPHY -- the authoritative, zero-guess, low-risk answer. That sequence can then be
+replayed from the shim (the SPMI write path is already validated by v8). This is
+the recommended next step; it needs a UART tap on the device (the CP210x on the
+host is currently wired to sensors, not the phone).
+
+Alternative (no hardware): a much deeper RE session to find where the preloader
+populates the PMIC regmap ops + SID + protection key in RAM init, then the real
+0xa09 target. Higher effort, uncertain. On-device PMIC trial-and-error is NOT
+advisable (reset risk).
+
+### Solidly established today (recap)
+MPHY 0x112a0000 is mapped + writable from our EL1 shim but powered off; MMU off so
+GZ stage-2 is the only translation and it faults on unmapped MMIO; every MMIO lever
+(ufscfg clocks, topckgen mux, UFS PLL ctrl, MPHY reset, set_active) fails to wake
+it; the SPMI read path works (MT6363 HWCID 0x40 via PMIF 0x1cc04000 sid 4); the
+MPHY rail is PMIC-powered; VA09 does not apply to lapis; the exact rail register is
+the one open unknown.
