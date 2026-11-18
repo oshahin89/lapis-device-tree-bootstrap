@@ -406,7 +406,42 @@ static uint32_t rail(uint32_t addr)
 	return v;
 }
 
-void shim_main(uint64_t dtb)
+void shim_main(uint64_t dtb, uint64_t entry_el)
+{
+	(void)dtb;
+	con_clear(BLUE);
+	con_str("LAPIS", "v27: bare-metal check (entry EL + raw MPHY). No GZ expected.");
+
+	/* PATH A: booting WITHOUT GenieZone. LK should enter us at EL2; start.S
+	 * then drops to EL1 with HCR_EL2.VM=0 (stage-2 OFF) -> flat physical MMIO.
+	 * If so, the ufsphy window is no longer RAZ/WI and reads real values. The
+	 * preloader/LK already powered UFS, so a RAW read should show it alive. */
+	con_skip();
+	con_hex2("EL  ", "entry_el=", (uint32_t)(entry_el >> 2), "cur_el=",
+		 (uint32_t)(rsr("CurrentEL") >> 2));
+	con_hex2("RAW ", "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C), "mphy_803c=",
+		 rd(MPHY + 0x803c));
+	con_hex2("HCI ", "cap=", rd(UFSHCI + REG_CAP), "ipver=", rd(UFSHCI + REG_IP_VER));
+
+	/* now bring up clocks + wake, read again */
+	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
+	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(10);
+	wr(UFSHCI + RST_CLR, RST_UNIPRO | RST_HCI);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(10);
+	mphy_power_on();
+	udelay(10);
+	con_hex2("WAKE", "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C), "mphy_803c=",
+		 rd(MPHY + 0x803c));
+	con_str("KEY ", "entry_el=2 + RAW mphy NONZERO => bare-metal works, blocker gone!");
+	con_str("DONE", "Power+Vol-down to recover");
+	for (;;)
+		__asm__ volatile("wfe");
+}
+
+void shim_main_v26_unused(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);

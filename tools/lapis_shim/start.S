@@ -28,6 +28,7 @@ _head:
 _start:
 	msr	daifset, #0xf
 	mov	x19, x0			/* DTB from LK */
+	mrs	x20, CurrentEL		/* entry EL (callee-saved); passed to shim_main */
 
 	/*
 	 * LK leaves the MT6878 TOPRGU watchdog armed; clear WDT_MODE with its
@@ -86,6 +87,7 @@ _start:
 	str	xzr, [x1], #8
 	b	1b
 2:	mov	x0, x19
+	mov	x1, x20			/* entry EL (CurrentEL value, EL<<2) */
 	bl	shim_main
 3:	wfe
 	b	3b
