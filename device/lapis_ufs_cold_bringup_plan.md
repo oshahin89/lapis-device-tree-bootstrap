@@ -1102,3 +1102,29 @@ ref-clk SMCs) with no MPHY access, and find why HCE doesn't come up.
 Tool notes: stock modules come from the vendor_boot ramdisk (legacy-lz4 cpio at
 page 1); tracefs `tracing_on` is 0 by default on HyperOS; pstore console survives
 the panic at /sys/fs/pstore/console-ramoops-0.
+
+## 39. v29: UFS LINK UP, DEVICE PRESENT (2026-11-18) 🎉
+
+v29 (commit 027237f) — Android's UFSHCI-only bring-up, no MPHY access, host resets
+in ufscfg_pdn. On device (unlisted = 0):
+
+```
+REF   ack=1  refctl=3           ref clock requested + acked
+DRST  stop_ok=1  smc=0          hba stop + device reset SMC low/high
+HCE   ok=1  hcs=0x8             HOST CONTROLLER ENABLED (first time)
+HCE2  xoufs=0x182
+PRE   lpm/lcc=0  sp/res=0x9000  DME sets OK; VS_SAVEPOWERCONTROL=0x90
+LINK  try/done/res=0x00010100  hcs=0x0f   LINKSTARTUP OK on try 1; DP=1
+ERR   uecpa=0x80000010  IS=0x404        PA error logged during line init (benign)
+```
+
+Root causes of every earlier failure:
+1. Host resets written at UFSHCI+0x48/0x4c (UECDME/UTRIACR) instead of
+   ufscfg_pdn+0x48/0x4c (live DT ti,syscon-reset) — the host was never reset.
+2. Missing the ufshcd/ufs-mediatek order: ref-clk SMC notify around the
+   REFCLK request, hba stop + device-reset SMC, XOUFS_CTRL |= 0x80 before HCE,
+   600 us delay then poll HCE.
+3. The MPHY was a red herring: it is DEVAPC secure-only (§38) and not needed.
+
+Next: UTP transfer requests (UTRL at a DMA buffer): NOP OUT, then a SCSI READ of
+LBA 1 and check for the GPT header "EFI PART" — end-to-end storage I/O.
