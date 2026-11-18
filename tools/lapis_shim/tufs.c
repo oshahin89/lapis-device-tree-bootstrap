@@ -410,35 +410,37 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v25: full power-CYCLE UFS0_PHY domain (reset MPHY from hibernate)");
+	con_str("LAPIS", "v26: kernel SMC sequence (va09 + host_pwr HCI/MPHY) then read MPHY");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)spmi_read; (void)spmi_write;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE; (void)rail;
 	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
-	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL; (void)SID_MT6363;
-	(void)SIP_UFS_HOST_PWR_CTRL; (void)SIP_UFS_DEVICE_PWR_CTRL;
-	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY; (void)UFS0_PWR_CON;
+	(void)PMIF; (void)SID_MT6363; (void)SIP_UFS_DEVICE_PWR_CTRL;
+	(void)UFS0_PWR_CON; (void)UFS0_PHY_PWR_CON; (void)SPM_BASE; (void)pd_off; (void)pd_on;
 
-	/* HYPOTHESIS: the MPHY reads 0 because it is stuck in deep hibernate. LK hands
-	 * off with the UFS0_PHY domain already ON, so our shim never triggers the
-	 * off->on domain transition that resets the MPHY out of hibernate. Android
-	 * cycled this domain at boot. v22 only toggled the already-on domain; here we
-	 * do a clean full OFF then full ON of UFS0_PHY (0x1c001e14). */
-	uintptr_t phy = SPM_BASE + UFS0_PHY_PWR_CON;
+	/* v25 result: a clean off->on power-cycle of UFS0_PHY acked (ack=1,
+	 * phy_con=0xc200000d) yet the MPHY still read ALL ZERO. That kills the
+	 * hibernate theory. The signature -- reads 0, writes ignored, NO fault,
+	 * while UFSHCI next door is live -- is a silent access firewall (DEVAPC /
+	 * secure stage-2) that only the SECURE WORLD can open. The stock kernel
+	 * opens it via the MTK UFS SMC before touching the MPHY: va09_pwr_ctrl(on)
+	 * powers the MPHY analog rail (VA09), and host_pwr_ctrl(HCI/MPHY, true)
+	 * asks ATF to power+expose the host/PHY. Our PSCI SMC already reaches EL3.
+	 * Issue exactly those SMCs, print each return code, then read the MPHY. */
 	con_skip();
-	con_hex2("CON0", "phy_con=", rd(phy), "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C));
-	pd_off(phy);
-	con_hex2("OFF ", "phy_con=", rd(phy), "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C));
-	int ack = pd_on(phy);
-	con_hex2("ON  ", "phy_con=", rd(phy), "ack=", (uint32_t)ack);
+	int64_t r_va09 = smc_ufs(SIP_UFS_VA09_PWR_CTRL, 1, 0);
+	int64_t r_hci  = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_HCI, 1);
+	int64_t r_mphy = smc_ufs(SIP_UFS_HOST_PWR_CTRL, HOST_PWR_MPHY, 1);
+	con_hex2("SMC1", "va09=", (uint32_t)r_va09, "hci=", (uint32_t)r_hci);
+	con_hex2("SMC2", "mphy=", (uint32_t)r_mphy, "mphy_hi=", (uint32_t)(r_mphy >> 32));
+	udelay(100);
 
-	/* domain reset done -> now bring up clocks, release UFSHCI reset to the MPHY,
-	 * wake it, and read. */
+	/* now clocks + release UFSHCI reset to the PHY + wake, then read */
 	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
 	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
 	__asm__ volatile("dsb sy" ::: "memory");
 	udelay(10);
-	wr(UFSHCI + RST_CLR, RST_UNIPRO | RST_HCI);	/* deassert PHY/unipro reset */
+	wr(UFSHCI + RST_CLR, RST_UNIPRO | RST_HCI);
 	__asm__ volatile("dsb sy" ::: "memory");
 	udelay(10);
 	mphy_power_on();
@@ -446,7 +448,7 @@ void shim_main(uint64_t dtb)
 	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
 	con_hex2("MPH2", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
 
-	con_str("KEY ", "if mphy 8c/803c now NONZERO -> hibernate was the blocker!");
+	con_str("KEY ", "SMC ret 0=OK; if MPHY now NONZERO -> secure world was the gate!");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
