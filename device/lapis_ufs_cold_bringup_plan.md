@@ -1179,3 +1179,31 @@ backed up read-only to `device/hyperos4_readback/lun2_gpt_2026-11-18.bin`
 --iosroot-gib 16` proposes taking the last 16 GiB of `userdata` (224.7 GiB,
 LBA 3565568..62476279) → `iosroot` LBA 58281976..62476279. That destroys or
 requires shrinking Android's userdata: user decision, not done.
+
+## 42. iosroot carved from userdata WITHOUT wiping Android (2026-11-18)
+
+1. **Online f2fs shrink** — `tools/f2fs_shrink` (F2FS_IOC_RESIZE_FS = 0x4008f510)
+   on the mounted, metadata-encrypted `/data`, requested 54,715,904 blocks. The
+   kernel rounded to whole sections: block_count 58,910,712 → **54,716,408**
+   (section_count 114,711 → 106,519), ~20 s, `ok`. df 225 → 209 GiB, used
+   unchanged (126 GB). (SELinux logged the ioctl as permissive=1 for magisk.)
+2. **GPT** — `tools/lapis_gpt_carve.py`: entry count unchanged (94; the
+   preloader has an entry-count overflow check with an unknown limit), so the
+   empty, unreferenced padding partition `bk3` (entry 91) was moved onto the
+   freed tail and renamed `iosroot`; `userdata` (entry 92) end moved. Backup
+   GPT written first (LBA 62480376, 8 blocks, sha256 21ae0ec4…), then primary
+   (LBA 1, 7 blocks, sha256 c5f63496…); both read back identical; the live
+   table re-parsed with valid header/entry CRCs.
+3. **Reboot**: preloader + LK accepted the table, Android booted normally.
+   `iosroot` = `/dev/block/sdc92`, 17,179,869,184 B (16 GiB, LBA
+   58281976..62476279); `userdata` = 224,118,407,168 B = exactly the new fs
+   size; vold's fsck.f2fs on `/dev/block/mapper/userdata` clean; user files
+   intact. The fstab `resize` flag is "unknown" on this build, so Android will
+   not grow /data back.
+
+Originals: `device/hyperos4_readback/lun2_gpt_2026-11-18.bin` (LBA 0-63) and
+`lun2_gpt_end_2026-11-18.bin` (last 8 LBAs), gitignored. Avoid OTA updates (LK
+has GPT_Update code that may rewrite the table).
+
+Next: write `build/iosroot.img` (16 GiB HFS+) to `iosroot`, then boot iOS with
+`rd=ufsroot0 ufsroot=iosroot ufslun=2`.
