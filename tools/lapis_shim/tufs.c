@@ -406,7 +406,90 @@ static uint32_t rail(uint32_t addr)
 	return v;
 }
 
+/* Android "MMIO guard" vendor-hyp hypercalls, exactly as the stock HyperOS
+ * kernel issues them (disassembled kvm_init_ioremap_services and
+ * ioremap_phys_range_hook): conduit HVC, x0 = 0xC600000N, MAP takes
+ * x1 = phys page, x2 = pgprot (PROT_DEVICE_nGnRE = 0x0068000000000713),
+ * one call per granule (INFO returns the granule, kernel requires 4 KiB). */
+#define HYP_MMIO_GUARD_INFO	0xC6000005ULL
+#define HYP_MMIO_GUARD_ENROLL	0xC6000006ULL
+#define HYP_MMIO_GUARD_MAP	0xC6000007ULL
+#define PROT_DEVICE_nGnRE	0x0068000000000713ULL
+
+static uint64_t hvc3(uint64_t fn, uint64_t a1, uint64_t a2)
+{
+	register uint64_t x0 __asm__("x0") = fn;
+	register uint64_t x1 __asm__("x1") = a1;
+	register uint64_t x2 __asm__("x2") = a2;
+	register uint64_t x3 __asm__("x3") = 0;
+	__asm__ volatile("hvc #0"
+			 : "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3)
+			 : : "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11",
+			     "x12", "x13", "x14", "x15", "x16", "x17", "memory");
+	return x0;
+}
+
+/* MAP every 4 KiB page of [base, base+size); returns the first nonzero ret
+ * (or 0 if all succeeded) and the count of OK pages in *ok. */
+static uint64_t guard_map(uint64_t base, uint64_t size, uint32_t *ok)
+{
+	uint64_t first_err = 0;
+	*ok = 0;
+	for (uint64_t a = base; a < base + size; a += 0x1000) {
+		uint64_t r = hvc3(HYP_MMIO_GUARD_MAP, a, PROT_DEVICE_nGnRE);
+		if (r == 0)
+			(*ok)++;
+		else if (!first_err)
+			first_err = r;
+	}
+	return first_err;
+}
+
 void shim_main(uint64_t dtb, uint64_t entry_el)
+{
+	uint32_t ok;
+	uint64_t r;
+	(void)dtb;
+	con_clear(BLUE);
+	con_str("LAPIS", "v28: MMIO-guard hypercall (INFO/MAP/ENROLL) for ufsphy");
+	con_skip();
+	con_hex2("EL  ", "entry_el=", (uint32_t)(entry_el >> 2), "cur_el=",
+		 (uint32_t)(rsr("CurrentEL") >> 2));
+	con_hex2("RAW0", "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C), "mphy_803c=",
+		 rd(MPHY + 0x803c));
+
+	/* clocks first, while all MMIO still behaves as before */
+	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
+	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(10);
+
+	r = hvc3(HYP_MMIO_GUARD_INFO, 0, 0);
+	con_hex2("INFO", "granule=", (uint32_t)r, "hi=", (uint32_t)(r >> 32));
+
+	r = guard_map(MPHY, 0x10000, &ok);
+	con_hex2("MAP1", "err=", (uint32_t)r, "ok_pages=", ok);
+	con_hex2("RD1 ", "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C), "mphy_803c=",
+		 rd(MPHY + 0x803c));
+
+	r = hvc3(HYP_MMIO_GUARD_ENROLL, 0, 0);
+	con_hex2("ENRL", "ret=", (uint32_t)r, "hi=", (uint32_t)(r >> 32));
+	r = guard_map(MPHY, 0x10000, &ok);
+	con_hex2("MAP2", "err=", (uint32_t)r, "ok_pages=", ok);
+	con_hex2("RD2 ", "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C), "mphy_803c=",
+		 rd(MPHY + 0x803c));
+
+	mphy_power_on();
+	udelay(10);
+	con_hex2("WAKE", "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C), "mphy_803c=",
+		 rd(MPHY + 0x803c));
+	con_str("KEY ", "ret 0=OK, ffffffff=not supported; MPHY nonzero => unlocked!");
+	con_str("DONE", "Power+Vol-down to recover");
+	for (;;)
+		__asm__ volatile("wfe");
+}
+
+void shim_main_v27_unused(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb;
 	con_clear(BLUE);
