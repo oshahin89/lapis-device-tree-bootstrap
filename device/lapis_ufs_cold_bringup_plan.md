@@ -941,3 +941,30 @@ power-on sequence (set PWR_ON+PWR_ON_2ND, wait ack, clear CLK_DIS, clear ISO, se
 RST_B, clear SRAM_PDN), then read 0x112a0000 -- it should finally be alive. This is
 plain MMIO on the power-controller (not PMIC), so no brown-out/reset risk.
 Root dump saved to scratchpad mtcmos_dump.txt.
+
+## 34. v22: the UFS MTCMOS domain is ALREADY ON for our shim — power is not the blocker (2026-11-18)
+
+v22 read UFS0_PWR_CON/UFS0_PHY_PWR_CON before touching them:
+```
+PRE  pwr=0xc200024d  phypwr=0xc200000d
+```
+These are the SAME powered-on values as live Android. So **LK leaves the UFS MTCMOS
+power domain (incl. UFS0_PHY, the MPHY domain) ON when it hands off to us** — the
+power domain is NOT the blocker. (Our power-on sequence then ran on the already-on
+domain; POST pwr lost the ack bits 0xc0000000 transiently but phypwr stayed
+0xc200000d and nothing reset, confirming 0x1c001e1x is mapped+writable for us.)
+After all that, MPHY 0x112a0000 STILL reads 0.
+
+So the MPHY is **mapped AND powered AND its domain is on**, yet reads 0 / ignores
+writes. That leaves exactly two possibilities:
+1. a specific MPHY **clock** we have not enabled (the ufsphy "mp"/ref clock), despite
+   the ufscfg gates + topckgen mux re-latch we do; or
+2. **GenieZone maps 0x112a0000 as RAZ/WI** for our VM specifically (grants it to the
+   stock kernel VM but not ours) -- a stage-2 device-assignment restriction.
+
+Decisive next step (we now have root on stock Android): read the exact UFS clock
+state on the WORKING system (`/sys/kernel/debug/clk/clk_summary`: ufs/unipro/mphy/
+aes_ufsfde clocks + rates) and diff against what our shim enables. A clock enabled
+there but not by us = a safe clock-write fix. If the clocks match and the MPHY is
+still dark for us only, it is the GenieZone RAZ/WI case (branch A, a GZ mapping
+problem). The power-domain and PMIC-rail theories are both now ruled out.
