@@ -1000,3 +1000,34 @@ devmem being off blocks reading the MPHY/clock on Android to diff directly; a ke
 module on the rooted device could read+diff definitively, else try the UFSPLL enable
 in the shim. Device left on rooted Android (Magisk init_boot; un-root = flash stock
 device/hyperos4_readback/init_boot.img).
+
+## 36. v23: UFSPLL is ALSO already on — every hardware cause ruled out; it's GZ or a last clock gate (2026-11-18)
+
+v23 read the apmixed UFSPLL before enabling: CON0=0x000561e0, CON1=0x0216d89d. CON1
+bit24 (power-down) = 0 => **UFSPLL is already running** for our shim (Android runs it
+for HS-G3; so does LK's handoff). Enabling it changed nothing; the MPHY stayed 0.
+
+So, confirmed via root + probes, for our shim at the moment the MPHY is read:
+- PMIC rail: does not exist (no ufsphy rail).
+- MTCMOS power domain (UFS0_PHY_PWR_CON 0x1c001e14): ON.
+- UFS reference clock (UFSPLL): ON.
+- ufscfg_ao/pdn gates + topckgen UFS mux: we set them.
+- The ufsphy has no DT clocks; the kernel wakes it by writing 0x112a0000 directly
+  (phy set_active), with no special UFSHCI enable (REG_UFS_MPHYCTRL 0x2200 is a debug
+  dump only).
+
+i.e. the MPHY is mapped, powered, and clocked in the SAME state as live Android, yet
+0x112a0000 reads 0 / ignores writes ONLY for our shim. The remaining explanations:
+1. **GenieZone RAZ/WIs 0x112a0000 for our VM** (grants it to the stock kernel VM, not
+   ours) -- a stage-2 device-assignment restriction; or
+2. a **last MPHY-block register-interface clock gate** not covered by ufscfg_ao/pdn
+   or the topckgen mux.
+
+### Definitive next step (now feasible, we are rooted)
+Build a kernel module for the live HyperOS kernel that ioremaps and reads 0x112a0000
+(confirm it is nonzero on Android => mapped+clocked there) and dumps the exact
+ufscfg/topckgen/apmixed clock-gate state, then diff vs our shim. If 0x112a0000 is
+nonzero on Android with the same gates we set, the difference is the GenieZone grant
+(branch A: gz.img / how the stock kernel VM gets the ufsphy mapped). If a clock gate
+differs, enabling it in the shim is the fix. (devmem is unavailable, so a module is
+the way to read MMIO on-device.) Needs the lapis HyperOS kernel source to build.
