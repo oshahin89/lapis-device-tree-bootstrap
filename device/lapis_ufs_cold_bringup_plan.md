@@ -911,3 +911,33 @@ phone. NOT recommended. The sensible conclusion is to preserve what we have:
   (sid4 MT6363 / sid5 0x21 / sid6 MT6319), the real protection key (0x9c9c ->
   0x39e/0x39f,0x3a7/0x3a8), the hakios reference, and the full register/RE maps in
   sections 1-31.
+
+## 33. SOLVED (root): the MPHY is an MMIO MTCMOS domain at 0x1c001e14, not a PMIC rail (2026-11-18)
+
+User rooted the stock HyperOS Android (Magisk-patched init_boot). On the WORKING
+system two decisive facts emerged:
+1. **regulator_summary: there is NO ufsphy PMIC rail.** The only UFS regulator
+   consumers are `112b0000.ufshci-vcc` (mt6363_vemc) and `112b0000.ufshci-vccq`
+   (mt6363_vufs12). So the whole PMIC-rail hunt (0xa09, VRF09, VA12, all 21 probes)
+   was chasing a rail that does not exist. (devmem is unavailable: no /dev/mem.)
+2. **dmesg prints the UFS power-domain MMIO registers** (power-controller @0x1c001000):
+   ```
+   UFS0_PWR_CON      : [0x1c001e10] = 0xc200024d   (powered ON)
+   UFS0_PHY_PWR_CON  : [0x1c001e14] = 0xc200000d   (powered ON)  <-- the MPHY domain
+   ```
+   Off domains read 0x0200xxxx; on domains read 0xc2000xxx (high bits = PWR_ACK).
+
+So the MPHY (0x112a0000) is gated by an **MMIO MTCMOS power domain** at
+**0x1c001e14 (UFS0_PHY_PWR_CON)** in the SPM/power-controller at 0x1c001000 -- NOT a
+PMIC rail. We searched the preloader for SPM at 0x10006xxx (section 27, wrong base);
+the real UFS power-controller is 0x1c001000, which is in the 0x1c00xxxx region we
+already proved mapped (0x1c00f290). CON bit layout (MTK scpsys / hakios): RST_B b0,
+ISO b1, PWR_ON b2, PWR_ON_2ND b3, CLK_DIS b4, SRAM_PDN b8; PWR_ACK in the high bits.
+ON target: UFS0_PWR_CON=0xc200024d, UFS0_PHY_PWR_CON=0xc200000d.
+
+### The fix (probe v22)
+Drive UFS0_PWR_CON (0x1c001e10) then UFS0_PHY_PWR_CON (0x1c001e14) through the MTCMOS
+power-on sequence (set PWR_ON+PWR_ON_2ND, wait ack, clear CLK_DIS, clear ISO, set
+RST_B, clear SRAM_PDN), then read 0x112a0000 -- it should finally be alive. This is
+plain MMIO on the power-controller (not PMIC), so no brown-out/reset risk.
+Root dump saved to scratchpad mtcmos_dump.txt.
