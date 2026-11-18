@@ -1063,3 +1063,42 @@ different and harder class than everything attempted in sections 1-36.
 
 The iOS RAM-disk boot remains the fully-working milestone. The full UFS-root iOS
 boot is blocked on the GenieZone grant of 0x112a0000 to our VM.
+
+## 38. ROOT CAUSE: the MPHY is DEVAPC-locked to the secure world — for Android too (2026-11-18)
+
+§37 was wrong. Sequence of tests:
+
+- **v25** full off→on power-cycle of UFS0_PHY (ack=1, CON=0xc200000d): MPHY still 0.
+  Not hibernate.
+- **v26** the kernel's MTK UFS SMCs (va09 on, host_pwr HCI/MPHY on): all return 0.
+  MPHY still 0.
+- **Bare-metal (no GZ)**: zeroed gz_b → boot loop; gz_b with ONE byte changed in a
+  debug string → LK refuses, drops to fastboot. LK enforces gz integrity even
+  unlocked. A custom hypervisor is impossible without the signing key.
+- **v28** Android MMIO-guard hypercalls (from disassembly of the stock kernel's
+  `kvm_init_ioremap_services` / `ioremap_phys_range_hook`: HVC 0xC6000005 INFO,
+  0xC6000006 ENROLL, 0xC6000007 MAP(x1=page, x2=0x0068000000000713)): INFO=0,
+  MAP=0xffffffff. GZ does not implement MMIO guard; the kernel doesn't use it.
+- **Ground truth on rooted Android**: kprobe on `ufs_mediatek_mod:ufs_mtk_setup_clocks`
+  fetching `+0x8c(+8(+152(+0(+176(%x0)))))` (hba→priv→mphy→drvdata→mmio).
+  The read raised a **DEVAPC violation at 0x112a008c** and MediaTek's
+  `devapc_extra_handler` BUG()ed (pstore: `devapc-mtk-multi-ao.c:998`, x19 =
+  0x112a008c) — with `fm_axi_ufs_ck` = 78 MHz, i.e. clocked. The stock kernel's
+  normal-world access to the MPHY is denied by the bus firewall too.
+
+Conclusion: DEVAPC makes 0x112a0000 secure-only. A denied read returns 0 and a
+denied write is dropped (plus a violation IRQ, which the shim never sees with DAIF
+masked) — exactly the "RAZ/WI, no fault" we saw for 30 probes. Android does not
+touch the MPHY at runtime: `ufs_mtk_phy_power_on` never fired, phy probe calls
+`pm_runtime_forbid` ("mediatek,pm-forbidden-on-hwver"), and the two phy clocks
+("unipro", "mp") are absent from the DT. The preloader/secure world owns it.
+
+**So reading the MPHY is not needed and was never the real blocker.** The failure to
+fix is the one in §31-era probes: `HCE ok=0  LINK res=0 dp=0` — host-controller
+enable never completes. Next: replicate Android's UFSHCI-only bring-up
+(ufs-mediatek hce_enable_notify / pre_link / link_startup_notify, device reset +
+ref-clk SMCs) with no MPHY access, and find why HCE doesn't come up.
+
+Tool notes: stock modules come from the vendor_boot ramdisk (legacy-lz4 cpio at
+page 1); tracefs `tracing_on` is 0 by default on HyperOS; pstore console survives
+the panic at /sys/fs/pstore/console-ramoops-0.
