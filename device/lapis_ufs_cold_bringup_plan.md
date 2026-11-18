@@ -1128,3 +1128,28 @@ Root causes of every earlier failure:
 
 Next: UTP transfer requests (UTRL at a DMA buffer): NOP OUT, then a SCSI READ of
 LBA 1 and check for the GPT header "EFI PART" — end-to-end storage I/O.
+
+## 40. v30: FIRST UFS STORAGE READS FROM THE SHIM — "EFI PART" (2026-11-18) 🎉
+
+v30 (commit 0cc4d96): v29 link-up, then UTP transfer requests in legacy
+single-doorbell mode, physical DMA from .bss (MMU/caches off). On device
+(unlisted = 0):
+
+```
+UTRL  pa=0x40004800  rsr=1                  request list live
+NOP   try/ocs=0x100  resp=0x20000000        NOP IN on try 1
+QSET  type/resp/ocs=0x360000  val=1         query response OK, fDeviceInit set
+QRD   fDevInit=0                            device init complete
+LUN0  tur=0x21000000 read=0x21000000  DATA 4d4d4d01 38000000   "MMM" GFH = preloader (boot LU A)
+LUN1  tur=0x21000000 read=0x21000000  DATA 4d4d4d01 38000000   preloader (boot LU B)
+LUN2  tur=0x21000000 read=0x21000000  DATA 45464920 50415254   "EFI PART" = main GPT
+```
+
+Read = response UPIU 0x21, response 0, status GOOD, OCS 0. End-to-end UFS reads
+(link, UPIU, PRDT DMA) work from EL1 under GenieZone. LUN map: 0/1 = boot LUs
+(preloader A/B), 2 = main LU with the GPT (Android sdc: gz_b=sdc67, boot, etc.).
+
+Next: parse the LUN2 GPT and read a named partition; then move this driver into
+the iOS boot path (shim-side block loader or the XNU UFS driver) so iOS can boot
+from a UFS root instead of the RAM disk. Writes are untested: do them only on a
+scratch partition, and only after reads are solid.
