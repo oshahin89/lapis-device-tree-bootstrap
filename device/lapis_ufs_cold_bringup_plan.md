@@ -1031,3 +1031,35 @@ nonzero on Android with the same gates we set, the difference is the GenieZone g
 (branch A: gz.img / how the stock kernel VM gets the ufsphy mapped). If a clock gate
 differs, enabling it in the shim is the fix. (devmem is unavailable, so a module is
 the way to read MMIO on-device.) Needs the lapis HyperOS kernel source to build.
+
+## 37. DEFINITIVE: the blocker is GenieZone (MPHY RAZ/WI'd for our VM), not hardware (2026-11-18)
+
+v24 (clock-routing verify) closed the last hardware door:
+- ufscfg_ao gate STA = 0 both before and after our ungate => the UFS clocks were
+  already UNGATED (0=ungated) and stay so. Clocks on.
+- topckgen CLK_CFG_10 = 0x03050602 => ufs_sel [18:16] = 5 (a valid parent LK set,
+  since LK used UFS), aes_ufsfde [10:8] = 6. The UFS reference clock mux is routed.
+- (+ earlier: power domain UFS0_PHY_PWR_CON on, UFSPLL on, no ufsphy PMIC rail.)
+
+So at MPHY-read time our shim has the SAME on-state as live Android for power, the
+UFS reference clock, its mux routing, and the ufscfg gates -- yet 0x112a0000 reads 0
+and ignores writes ONLY for our shim. Every hardware cause is eliminated.
+
+**Conclusion: the UFS blocker is a GenieZone stage-2 device-assignment restriction.**
+GenieZone (the MTK type-1 hypervisor; gz.img in the boot chain) maps the ufsphy
+window (0x112a0000) RAZ/WI for our shim's VM while granting it to the stock Android
+kernel's VM. This is why it reads 0 without faulting (RAZ/WI, distinct from the SEA
+on a truly-unmapped hole 0x09000000), and why no power/clock poke from EL1 ever
+changes it. It is a hypervisor problem, not a hardware bring-up problem -- a
+different and harder class than everything attempted in sections 1-36.
+
+### What would be needed (branch A, hard)
+- RE gz.img: how GenieZone builds the normal-world VM's stage-2 device map and why
+  the ufsphy is excluded for our shim. Then either present our shim as the granted
+  VM, or find a GZ hypercall that maps the window.
+- OR a kernel module on the rooted stock Android to 100%-confirm (read 0x112a0000 =
+  nonzero there; read the UFS clock fmeter rates) -- definitive but does not itself
+  unblock; it only proves the GZ hypothesis before the gz.img work.
+
+The iOS RAM-disk boot remains the fully-working milestone. The full UFS-root iOS
+boot is blocked on the GenieZone grant of 0x112a0000 to our VM.
