@@ -1269,3 +1269,17 @@ attributes, PA_PWRMODE) in ufsinit.c, then boot again and leave it running.
   Original block saved in device/hyperos4_readback/ (gitignored).
 
 Next: boot `build/ios_ufsroot_hs.img` again and check for the lock screen.
+
+## 45. Run 3 (HS + ICL NOP): SpringBoard now waits on backboardd's migration gate
+
+Symbolized (ruby `tools/image/dyld_scan.py` on the cache extracted to
+`build/dsc/`, unslid = addr - slide): SpringBoard t0 = dyld → SpringBoard
++0x9b5c8 → FrontBoard +0x5c304 → BackBoardServices +0x3ace0 → BoardServices →
+libxpc sync → mach_msg — the `BKSSystemShellService _checkIn` wait topaz
+documents (NOTES 0055n). So the ICL NOP moved SpringBoard past LS. backboardd
+t12 = backboardd → DataMigration.framework → libxpc sync: backboardd holds the
+system-shell check-in until data migration ends. datamigrator and
+migrationpluginwrapper are running; ADT already has /chosen/unique-chip-id +
+chip-id (topaz's IOPlatformUUID root cause). backboardd created its 1125x2436
+IOSurfaces but 0 swaps yet (no GPU; topaz saw the Apple-logo progress screen
+only in a ~60 min run). Runs 2–3 lasted only 3–5 min. Next: a 20–30 min run.
