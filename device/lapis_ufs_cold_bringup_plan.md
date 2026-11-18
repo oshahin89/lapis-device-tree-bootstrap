@@ -968,3 +968,35 @@ aes_ufsfde clocks + rates) and diff against what our shim enables. A clock enabl
 there but not by us = a safe clock-write fix. If the clocks match and the MPHY is
 still dark for us only, it is the GenieZone RAZ/WI case (branch A, a GZ mapping
 problem). The power-domain and PMIC-rail theories are both now ruled out.
+
+## 35. Root findings (2026-11-18): PMIC rail AND power domain both RULED OUT; narrowed to UFS ref-clock vs GZ
+
+With root on stock Android (devmem is unavailable: CONFIG_DEVMEM is off even with
+SELinux permissive -> "/dev/mem: No such device"), the readable interfaces settled
+a lot:
+- **No ufsphy PMIC rail** (regulator_summary): only 112b0000.ufshci-vcc (mt6363_vemc)
+  and ufshci-vccq (mt6363_vufs12). The entire 20-probe PMIC-rail hunt chased a rail
+  that does not exist.
+- **UFS MTCMOS power domain is ON for our shim** (v22 read UFS0_PHY_PWR_CON=0xc200000d
+  before touching it). LK leaves it powered. Not the blocker.
+- **The ufsphy (112a0000) has NO clocks in the live FDT** (props: compatible,
+  mphy-ver, reg, ranges, bootmode, #phy-cells only). It is bound to ufs_mtk_phy but
+  takes its clock from the UFSHCI clock list + the power domain, not its own DT
+  clocks. So the "mp"/"unipro" phy-clock theory is moot on this device.
+- UFS is fully up on Android: **SKhynix HN8T162EHKX041, UFS 2.2 (ver 0x220), HS Gear
+  3, 2 lanes**; host caps 0x3587071f, mtk-caps 0x1308 (VA09 bit clear -> VA09 unused,
+  as we found). From /proc/ufs_debug.
+
+So the MPHY is **mapped, powered (domain on), and its clocks are the same ones we
+enable**, yet reads 0 only for our shim. Two possibilities remain:
+1. the **UFS reference clock (UFSPLL -> topckgen ufs_sel)** is off for our shim (LK
+   likely stops it at handoff; Android runs it for HS-G3). We read 0x10351000=0 and
+   never properly enabled the apmixed UFSPLL (CON0 @0x1000c36c). This is a SAFE MMIO
+   clock lever to try.
+2. **GenieZone RAZ/WIs 0x112a0000 for our VM** specifically (grants it to the stock
+   kernel VM, not ours) -- a stage-2 device-assignment restriction.
+
+devmem being off blocks reading the MPHY/clock on Android to diff directly; a kernel
+module on the rooted device could read+diff definitively, else try the UFSPLL enable
+in the shim. Device left on rooted Android (Magisk init_boot; un-root = flash stock
+device/hyperos4_readback/init_boot.img).
