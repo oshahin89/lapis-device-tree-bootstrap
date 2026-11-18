@@ -28,3 +28,4 @@ payload_properties.txt
 
 # HyperOS 4 restore binaries (keep only the README with hashes).
 device/hyperos4_readback/*.img
+device/hyperos4_readback/*.bin

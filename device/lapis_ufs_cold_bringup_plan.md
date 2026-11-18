@@ -1153,3 +1153,29 @@ Next: parse the LUN2 GPT and read a named partition; then move this driver into
 the iOS boot path (shim-side block loader or the XNU UFS driver) so iOS can boot
 from a UFS root instead of the RAM disk. Writes are untested: do them only on a
 scratch partition, and only after reads are solid.
+
+## 41. XNU reads the UFS through its own driver (2026-11-18) 🎉
+
+`tools/lapis_shim/ufsinit.c` (commit 3daad0d) runs the v29/v30 sequence in the
+iOS boot shim before `loader_boot()`, so the SWEET xnu driver (`sweet_ufs.c`,
+which only adopts a running host: HCE=1, HCS.DP|UTRLRDY, idle doorbell,
+initialised device) can take over.
+
+Test image `build/ios_ufs_test.img`: shim + `kernel.development.sweet` + ADT
+`--with-a78 --debug` (with `/sweet-ufs`), boot-args
+`debug=0xc serial=3 cpus=8 keepsyms=1 -noprogress sweethw=0 wdt=-1
+rd=ufsroot0 ufsroot=userdata ufslun=2 sweetlog=0` — no `ufsrw`, so the driver
+refuses writes (EROFS, patch 0030).
+
+Result on screen: **`unknown volume signature`** — HFS read the volume header
+of `userdata` through sweet_ufs and found F2FS, as expected. So the driver
+adopted the host, read the LUN2 GPT, found `userdata` and returned data. (On
+Nov 11 it stopped at `host not ready (hce 0x0 hcs 0x0)`.) The pstore mirror
+was empty after the manual Power+Vol-down, so the screen line is the record.
+
+Storage for the iOS root: LUN2 = 255,919,652,864 B (62,480,384 × 4 KiB), GPT
+backed up read-only to `device/hyperos4_readback/lun2_gpt_2026-11-18.bin`
+(gitignored; sha256 79e9c15a…72ab). No free space; `lapis_gpt_plan.py
+--iosroot-gib 16` proposes taking the last 16 GiB of `userdata` (224.7 GiB,
+LBA 3565568..62476279) → `iosroot` LBA 58281976..62476279. That destroys or
+requires shrinking Android's userdata: user decision, not done.
