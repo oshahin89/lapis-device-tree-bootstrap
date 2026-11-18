@@ -445,7 +445,120 @@ static uint64_t guard_map(uint64_t base, uint64_t size, uint32_t *ok)
 	return first_err;
 }
 
+/* Host resets are a ti,syscon-reset controller in ufscfg_pdn (live DT:
+ * syscon@112bb000/reset-controller, ti,reset-bits <0x48 b 0x4c b ...>):
+ * +0x48 = assert (SET), +0x4c = deassert (CLR); bit0 unipro, bit1 crypto,
+ * bit2 hci. Earlier probes wrote these at UFSHCI+0x48/0x4c -- wrong block. */
+#define PDN_RST_SET	0x48
+#define PDN_RST_CLR	0x4c
+#define PDN_RST_ALL	(RST_UNIPRO | RST_CRYPTO | RST_HCI)
+#define REG_UECPA	0x38
+#define REG_UECDL_	0x3C
+#define REG_UECN	0x40
+#define REG_UECT	0x44
+#define VS_SAVEPOWER	0xD0A6
+
+static int hce_wait(uint32_t want, int ms)
+{
+	for (int i = 0; i < ms * 10; i++) {
+		if ((rd(UFSHCI + REG_HCE) & 1) == want)
+			return 1;
+		udelay(100);
+	}
+	return 0;
+}
+
+/* DME_GET: value comes back in UCMDARG3, result code in UCMDARG2. */
+static int dme_get(uint16_t attr, uint32_t *val, uint32_t *res)
+{
+	int ok = uic(UIC_DME_GET, (uint32_t)attr << 16, 0, 0, res);
+	*val = rd(UFSHCI + REG_UCMDARG3);
+	return ok;
+}
+
 void shim_main(uint64_t dtb, uint64_t entry_el)
+{
+	uint32_t v, res = 0xee;
+	int ok;
+	(void)dtb; (void)entry_el;
+	con_clear(BLUE);
+	con_str("LAPIS", "v29: Android UFSHCI-only bring-up (no MPHY), resets in ufscfg_pdn");
+	con_skip();
+	con_hex2("ST0 ", "hce=", rd(UFSHCI + REG_HCE), "hcs=", rd(UFSHCI + REG_HCS));
+
+	/* clocks (ufscfg gates) */
+	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
+	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(10);
+
+	/* ufs_mtk_setup_ref_clk(on): SMC PRE, request, wait ack, SMC POST */
+	int64_t r_pre = smc_ufs(SIP_UFS_REF_CLK_NOTIFY, 1, PRE_CHANGE);
+	int rc = ref_clk_on();
+	udelay(30);
+	int64_t r_post = smc_ufs(SIP_UFS_REF_CLK_NOTIFY, 1, POST_CHANGE);
+	con_hex2("REF ", "ack=", (uint32_t)rc, "refctl=", rd(UFSHCI + REG_REFCLK_CTRL));
+	con_hex2("REFS", "pre=", (uint32_t)r_pre, "post=", (uint32_t)r_post);
+
+	/* ufs_mtk_device_reset: hba_stop, RST_n low 10us, high, wait 10ms */
+	wr(UFSHCI + REG_HCE, 0);
+	ok = hce_wait(0, 10);
+	int64_t r_lo = smc_ufs(SIP_UFS_DEVICE_RESET, 0, 0);
+	udelay(15);
+	int64_t r_hi = smc_ufs(SIP_UFS_DEVICE_RESET, 1, 0);
+	udelay(15000);
+	con_hex2("DRST", "stop_ok=", (uint32_t)ok, "smc=",
+		 (uint32_t)(r_lo | r_hi));
+
+	/* hce_enable_notify(PRE): host reset via ufscfg_pdn, CLK_CG early */
+	wr(UFSCFG_PDN + PDN_RST_SET, PDN_RST_ALL);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(110);
+	wr(UFSCFG_PDN + PDN_RST_CLR, PDN_RST_ALL);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(10);
+	wr(UFSHCI + REG_XOUFS_CTRL, rd(UFSHCI + REG_XOUFS_CTRL) | 0x80);
+
+	/* ufshcd_hba_start + delay 600us + poll (50 x 1ms) */
+	wr(UFSHCI + REG_HCE, 1);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(600);
+	ok = hce_wait(1, 50);
+	con_hex2("HCE ", "ok=", (uint32_t)ok, "hcs=", rd(UFSHCI + REG_HCS));
+	con_hex2("HCE2", "xoufs=", rd(UFSHCI + REG_XOUFS_CTRL), "is=", rd(UFSHCI + REG_IS));
+
+	/* pre_link: unipro non-LPM, TX LCC off, disable deep stall */
+	res = 0xee;
+	uic(UIC_DME_SET, (uint32_t)VS_UNIPROPOWERDOWNCTRL << 16, 0, 0, &res);
+	uint32_t r1 = res; res = 0xee;
+	uic(UIC_DME_SET, (uint32_t)PA_LOCAL_TX_LCC_ENABLE << 16, 0, 0, &res);
+	uint32_t r2 = res; res = 0xee;
+	v = 0;
+	dme_get(VS_SAVEPOWER, &v, &res);
+	uint32_t r3 = res; res = 0xee;
+	uic(UIC_DME_SET, (uint32_t)VS_SAVEPOWER << 16, 0, v & ~(1U << 6), &res);
+	con_hex2("PRE ", "lpm/lcc=", (r1 << 16) | r2, "sp/res=", (v << 8) | (r3 & 0xff));
+
+	/* DME_LINKSTARTUP, up to 3 attempts; DP = HCS bit0 */
+	for (int t = 1; t <= 3; t++) {
+		res = 0xee;
+		int done = uic(UIC_DME_LINKSTARTUP, 0, 0, 0, &res);
+		udelay(1000);
+		uint32_t hcs = rd(UFSHCI + REG_HCS);
+		con_hex2("LINK", "try/done/res=", (t << 16) | (done << 8) | (res & 0xff),
+			 "hcs=", hcs);
+		if (done && (res & 0xff) == 0 && (hcs & HCS_DP))
+			break;
+	}
+	con_hex2("ERR ", "uecpa=", rd(UFSHCI + REG_UECPA), "uecdl=", rd(UFSHCI + REG_UECDL_));
+	con_hex2("ERR2", "uecn=", rd(UFSHCI + REG_UECN), "is=", rd(UFSHCI + REG_IS));
+	con_str("KEY ", "HCE ok=1, LINK res=0, hcs bit0 (DP)=1 => UFS device found!");
+	con_str("DONE", "Power+Vol-down to recover");
+	for (;;)
+		__asm__ volatile("wfe");
+}
+
+void shim_main_v28_unused(uint64_t dtb, uint64_t entry_el)
 {
 	uint32_t ok;
 	uint64_t r;
