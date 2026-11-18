@@ -61,6 +61,21 @@
 #define UFSPLL_CTRL	0x1c00f290UL	/* preloader ufspll_ctrl: OR 0x80000000 */
 #define SPMI_BASE	0x1040d000UL	/* NOTE: 0x1040d000 is security_ao, NOT spmi */
 
+/* MTCMOS power-domain CON registers in the SPM/power-controller (0x1c001000).
+ * UFS0 main at +0xe10, UFS0_PHY (the MPHY domain) at +0xe14. Bits:
+ *   b0 RST_B, b1 ISO, b2 PWR_ON, b3 PWR_ON_2ND, b4 CLK_DIS, b8 SRAM_PDN.
+ * PWR_ACK/ACK_2ND live in the top nibble: ON reads 0xc2000xxx, OFF 0x0200xxxx. */
+#define SPM_BASE	0x1c001000UL
+#define UFS0_PWR_CON	0xe10
+#define UFS0_PHY_PWR_CON 0xe14
+#define PD_RST_B	(1U << 0)
+#define PD_ISO		(1U << 1)
+#define PD_PWR_ON	(1U << 2)
+#define PD_PWR_ON_2ND	(1U << 3)
+#define PD_CLK_DIS	(1U << 4)
+#define PD_SRAM_PDN	(1U << 8)
+#define PD_ACK		0xc0000000U	/* PWR_ACK & PWR_ACK_2ND set when fully ON */
+
 /* MT6878 PMIF / SPMI master (DTS spmi@1cc04000: pmif 0x1cc04000 size 0x8ff,
  * spmimst 0x1cc01000). Size 0x8ff => mt8195-style offsets (SWINF channel 2 at
  * 0x08xx). Linux drivers/spmi/spmi-mtk-pmif.c. The MPHY rail (mt6363_vufs12) is
@@ -172,6 +187,39 @@ static void udelay(uint32_t us)
 	uint64_t f = rsr("cntfrq_el0"), t0 = rsr("cntvct_el0");
 	while (rsr("cntvct_el0") - t0 < (f / 1000000) * us + 1)
 		;
+}
+
+/* MTCMOS off sequence: isolate, reset, gate clock, drop SRAM, drop PWR_ON. */
+static void pd_off(uintptr_t con)
+{
+	wr(con, rd(con) | PD_SRAM_PDN);		udelay(1);
+	wr(con, rd(con) & ~PD_RST_B);
+	wr(con, rd(con) | PD_ISO);
+	wr(con, rd(con) | PD_CLK_DIS);
+	wr(con, rd(con) & ~PD_PWR_ON_2ND);
+	wr(con, rd(con) & ~PD_PWR_ON);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(30);				/* let the domain fully collapse */
+}
+
+/* MTCMOS on sequence: raise PWR_ON, wait ack, un-gate clock, de-isolate, release
+ * reset, restore SRAM. Returns 1 if PWR_ACK came back. */
+static int pd_on(uintptr_t con)
+{
+	int i, ok = 0;
+	wr(con, rd(con) | PD_PWR_ON);		udelay(1);
+	wr(con, rd(con) | PD_PWR_ON_2ND);
+	for (i = 0; i < 2000; i++) {		/* up to ~2 ms */
+		if ((rd(con) & PD_ACK) == PD_ACK) { ok = 1; break; }
+		udelay(1);
+	}
+	wr(con, rd(con) & ~PD_CLK_DIS);
+	wr(con, rd(con) & ~PD_ISO);
+	wr(con, rd(con) | PD_RST_B);
+	wr(con, rd(con) & ~PD_SRAM_PDN);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(30);
+	return ok;
 }
 
 static void mphy_set(uint32_t off, uint32_t bit) { wr(MPHY + off, rd(MPHY + off) | bit); }
@@ -362,35 +410,43 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v24: verify clock routing (ufsao/pdn STA + ufs_sel mux)");
+	con_str("LAPIS", "v25: full power-CYCLE UFS0_PHY domain (reset MPHY from hibernate)");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)spmi_read; (void)spmi_write;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE; (void)rail;
 	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
 	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL; (void)SID_MT6363;
 	(void)SIP_UFS_HOST_PWR_CTRL; (void)SIP_UFS_DEVICE_PWR_CTRL;
-	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY; (void)mphy_power_on;
+	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY; (void)UFS0_PWR_CON;
 
-	/* Verify the UFS clock routing actually lands. ufscfg gate STA (+0x04): a SET bit
-	 * means GATED. So after we write ALL bits to CLR (+0x0C) to ungate, STA for those
-	 * bits should read 0. topckgen CLK_CFG_10 (0xB0) holds the UFS muxes (AES_UFSFDE
-	 * [10:8], UFS [18:16], MBIST [25:24]); CLK_CFG_0 (0x10) holds AXI_UFS ([18:16]).
-	 * A selection of 0 or a wrong/off parent on ufs_sel would leave the MPHY block
-	 * unclocked -> reads 0 despite the power domain being on. */
+	/* HYPOTHESIS: the MPHY reads 0 because it is stuck in deep hibernate. LK hands
+	 * off with the UFS0_PHY domain already ON, so our shim never triggers the
+	 * off->on domain transition that resets the MPHY out of hibernate. Android
+	 * cycled this domain at boot. v22 only toggled the already-on domain; here we
+	 * do a clean full OFF then full ON of UFS0_PHY (0x1c001e14). */
+	uintptr_t phy = SPM_BASE + UFS0_PHY_PWR_CON;
 	con_skip();
-	con_hex2("STA0", "ao_sta=", rd(UFSCFG_AO + UFSAO_CG_STA),
-		 "pdn_sta=", rd(UFSCFG_PDN + UFSPDN_CG_STA));
-	/* ungate everything, then re-read STA to confirm the ungate took */
+	con_hex2("CON0", "phy_con=", rd(phy), "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C));
+	pd_off(phy);
+	con_hex2("OFF ", "phy_con=", rd(phy), "mphy_8c=", rd(MPHY + MP_GLB_DIG_8C));
+	int ack = pd_on(phy);
+	con_hex2("ON  ", "phy_con=", rd(phy), "ack=", (uint32_t)ack);
+
+	/* domain reset done -> now bring up clocks, release UFSHCI reset to the MPHY,
+	 * wake it, and read. */
 	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
 	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
 	__asm__ volatile("dsb sy" ::: "memory");
 	udelay(10);
-	con_hex2("STA1", "ao_sta=", rd(UFSCFG_AO + UFSAO_CG_STA),
-		 "pdn_sta=", rd(UFSCFG_PDN + UFSPDN_CG_STA));
-	con_hex2("MUX ", "cfg0=", rd(TOPCK + 0x10), "cfg10=", rd(TOPCK + 0xB0));
+	wr(UFSHCI + RST_CLR, RST_UNIPRO | RST_HCI);	/* deassert PHY/unipro reset */
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(10);
+	mphy_power_on();
+	udelay(10);
 	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	con_hex2("MPH2", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
 
-	con_str("KEY ", "ao_sta bits 0-9 should be 0 after ungate; cfg10[18:16]=ufs_sel");
+	con_str("KEY ", "if mphy 8c/803c now NONZERO -> hibernate was the blocker!");
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
