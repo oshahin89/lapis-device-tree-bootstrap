@@ -1313,3 +1313,22 @@ centred, page-aligned: 168×5120 = 210 pages), stride 5120, left-aligned (155 px
 strip on the right). QEMU regression passes (8/8 CPUs, root, PID 1, heartbeat)
 and prints `AppleCLCD 1125x2436 stride 5120 at 0xfd801000 … presented as
 1125x2436`. Phone image: `build/ios_ufsroot_hs_ipx.img` (not booted yet).
+
+## 48. Run 5 (home, display window fix): APPLE LOGO + PROGRESS BAR ON SCREEN 🍎
+
+User booted `ios_ufsroot_hs_ipx.img` from Termux (dd to boot_b) at home: the
+Apple logo and the data-migration progress bar appeared, the bar stopped just
+before the end. Log summary (on-phone decoder): `AppleM2ScalerCSCDriver`
+1 (was 41,940), **103,000+ IOMFB swaps** (backboardd presents ~60 Hz in
+software), datamigrator exec 1 + migrationpluginwrapper 2, CommCenter crashed
+106×, SpringBoard t0 still in the BackBoardServices check-in, backboardd t4 in
+DataMigration (sample 14). So the display fix works; the migration reruns
+every boot and crawls (CPU-bound: 60 Hz software CA + CommCenter loop).
+
+Cause: `mkiosroot.sh` never ran `sweet-root-tweaks.py`, which is what took
+topaz to the home screen (LastSystemVersion so DataMigration does not run,
+CommCenter jobs removed, Setup skipped, BKNoWatchdogs, VirtualAudio off,
+containers, activation ark). `tools/lapis_iosroot_tweak.sh` builds
+`build/iosroot_tweaked.img` = iosroot.img + tweaks (sudo loop mount) + ICL
+NOP (SHA-checked). Next: run it on the PC (needs sudo), write the image to
+iosroot (push + on-device dd), boot.
