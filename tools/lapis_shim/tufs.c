@@ -362,58 +362,69 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v21: read SPMI arbiter record regs (last PMIC transactions)");
+	con_str("LAPIS", "v22: power the UFS MTCMOS domain (0x1c001e10/e14) then MPHY");
 
-	/* spmimst block @0x1cc01000 (DT spmi@1cc04000 reg-names pmif,spmimst). The SPMI
-	 * arbiter records recent bus transactions in SPMI_REC0..REC4 (0x44..0x54), decoded
-	 * at REC_CMD_DEC (0x5c), with REC_CTRL at 0x40. If LK's last UFS PMIC writes (the
-	 * power-down before handoff) are still in the record, we recover the real sid/addr
-	 * without UART. READ-ONLY. exc armed: a SEA here means spmimst isn't mapped. */
-	{
-	const uint64_t SPMIMST = 0x1cc01000UL;
-	con_skip();
-	con_hex2("REC ", "ctrl40=", rd(SPMIMST + 0x40), "dec5c=", rd(SPMIMST + 0x5c));
-	con_hex2("REC ", "r0_44=", rd(SPMIMST + 0x44), "r1_48=", rd(SPMIMST + 0x48));
-	con_hex2("REC ", "r2_4c=", rd(SPMIMST + 0x4c), "r3_50=", rd(SPMIMST + 0x50));
-	con_hex2("REC ", "r4_54=", rd(SPMIMST + 0x54), "dbgfc=", rd(SPMIMST + 0xfc));
-	con_str("KEY ", "REC words encode recent {opc,sid,addr,data}; find UFS writes");
-	con_str("DONE", "Power+Vol-down to recover");
-	for (;;) __asm__ volatile("wfe");
-	}
-
-	con_str("OLD ", "v20 scan below (unreached)");
-
-	(void)ref_clk_on; (void)uic; (void)dme_set; (void)mphy_power_on;
-	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE;
+	(void)ref_clk_on; (void)uic; (void)dme_set; (void)spmi_read; (void)spmi_write;
+	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE; (void)rail;
 	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
-	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL; (void)spmi_write;
+	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL; (void)SID_MT6363;
 	(void)SIP_UFS_HOST_PWR_CTRL; (void)SIP_UFS_DEVICE_PWR_CTRL;
-	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY; (void)SID_MT6363;
-	(void)UFSAO_ALL; (void)UFSPDN_ALL; (void)rail;
+	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY;
+
+	/* Root on live Android (dmesg) revealed the MPHY is gated by an MMIO MTCMOS
+	 * power domain in the power-controller @0x1c001000 -- NOT a PMIC rail:
+	 *   UFS0_PWR_CON     0x1c001e10 = 0xc200024d (on)
+	 *   UFS0_PHY_PWR_CON 0x1c001e14 = 0xc200000d (on)  <- the MPHY domain
+	 * CON bits (MTK scpsys): RST_B b0, ISO b1, PWR_ON b2, PWR_ON_2ND b3, CLK_DIS b4,
+	 * SRAM_PDN b8; PWR_ACK in the top bits (0xc0000000 when powered). Drive both
+	 * domains on, then read the MPHY. Plain MMIO -> no PMIC brown-out/reset risk. */
+	const uint64_t UFS0_PWR_CON = 0x1c001e10UL, UFS0_PHY_PWR_CON = 0x1c001e14UL;
 
 	con_skip();
 	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "mphy=", rd(MPHY + MP_GLB_DIG_8C));
+	con_hex2("PRE ", "pwr=", rd(UFS0_PWR_CON), "phypwr=", rd(UFS0_PHY_PWR_CON));
 
-	/* READ-ONLY SPMI bus scan: MT6363 is dual-die and may have companion PMICs
-	 * (MT6373/MT6316) at other slave ids. 0xa09 on sid 4 is destructive, but the
-	 * real MPHY-rail register may live on a DIFFERENT sid. Read each sid's chip-id
-	 * (HWCID 0x8, SWCID 0xa) + reg 0xa09: a sid that answers with a sane id is a
-	 * live PMIC die. No writes anywhere -> cannot reset. */
-	/* Start at sid 4 (known-good: v8 read it) and go up, so a valid read confirms
-	 * the channel before any non-existent sid can wedge it. Each read recovers the
-	 * channel (CH_RDY on error). hw != 0xee => a PMIC die answers at that sid. */
-	for (uint32_t sid = 4; sid < 12; sid++) {
-		uint32_t hw = 0xEE, a09 = 0xEE, s = 0;
-		/* clear any stale channel state first */
-		wr(PMIF + PMIF_CH_RDY, 1);
+	/* MTCMOS power-on sequence, applied to UFS0 first then UFS0_PHY. */
+	for (int d = 0; d < 2; d++) {
+		uint64_t con = d ? UFS0_PHY_PWR_CON : UFS0_PWR_CON;
+		wr(con, rd(con) | (1u << 2));			/* PWR_ON */
 		__asm__ volatile("dsb sy" ::: "memory");
-		udelay(50);
-		spmi_read(sid, MT6363_HWCID, &hw, &s);
-		spmi_read(sid, 0xa09, &a09, &s);
-		con_hex2("SID ", "sid.hw=", (sid << 16) | (hw & 0xff), "a09=", a09 & 0xff);
+		wr(con, rd(con) | (1u << 3));			/* PWR_ON_2ND */
+		__asm__ volatile("dsb sy" ::: "memory");
+		for (int i = 0; i < 1000; i++) {		/* wait PWR_ACK (top bits) */
+			if ((rd(con) & 0xc0000000u) == 0xc0000000u) break;
+			udelay(10);
+		}
+		wr(con, rd(con) & ~(1u << 4));			/* clear CLK_DIS */
+		__asm__ volatile("dsb sy" ::: "memory");
+		wr(con, rd(con) & ~(1u << 1));			/* clear ISO */
+		__asm__ volatile("dsb sy" ::: "memory");
+		wr(con, rd(con) | (1u << 0));			/* RST_B */
+		__asm__ volatile("dsb sy" ::: "memory");
+		wr(con, rd(con) & ~(1u << 8));			/* clear SRAM_PDN */
+		__asm__ volatile("dsb sy" ::: "memory");
+		udelay(100);
 	}
-	con_str("KEY ", "sid.hw high=sid low=chipid; sid4 should be 40; others!=ee=die");
-	con_str("DONE", "Power+Vol-down to recover");
+	con_hex2("POST", "pwr=", rd(UFS0_PWR_CON), "phypwr=", rd(UFS0_PHY_PWR_CON));
+
+	/* clocks + MPHY reset + set_active, then read the MPHY -- should be ALIVE now. */
+	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
+	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
+	wr(TOPCK + CLK_CFG_UPDATE1,
+	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
+	__asm__ volatile("dsb sy" ::: "memory");
+	wr(UFSCFG_AO + RST_SET, 1U << 8);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(10);
+	wr(UFSCFG_AO + RST_CLR, 1U << 8);
+	__asm__ volatile("dsb sy" ::: "memory");
+	udelay(20);
+	mphy_power_on();
+	udelay(10);
+	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
+	con_hex2("MPHY", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
+
+	con_str("KEY ", "nonzero MPHY = MTCMOS woke it -- THE FIX. Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
 }
