@@ -1283,3 +1283,18 @@ migrationpluginwrapper are running; ADT already has /chosen/unique-chip-id +
 chip-id (topaz's IOPlatformUUID root cause). backboardd created its 1125x2436
 IOSurfaces but 0 swaps yet (no GPU; topaz saw the Apple-logo progress screen
 only in a ~60 min run). Runs 2–3 lasted only 3–5 min. Next: a 20–30 min run.
+
+## 46. Run 4: 23 min long run — migration ends, SpringBoard still not checked in
+
+`build/ios_ufsroot_hs.img`, 15:50 → ~16:13. No logo ever visible (text only).
+sweetlog 5.7 MB (ring wrapped, start lost), 9 sampler snapshots, **0 IOMFB
+swaps**. CommCenter crash-loops (~75×; no baseband; root tweaks would remove it).
+Last snapshot: backboardd t12 back in the idle workqueue (no longer in
+DataMigration → migration done), backboardd t0 in its run loop, SpringBoard t0
+still in FrontBoard → BackBoardServices → libxpc sync (system-shell check-in).
+So backboardd never produces a frame and never answers the check-in.
+Lead: the endless `IOServiceMatchingfailed for: AppleM2ScalerCSCDriver` —
+CoreAnimation wants the hardware scaler when the IOMFB display size differs
+from the 1125x2436 layer size; lapis's panel/LK framebuffer is 1280x2784.
+topaz needed patch 0061 ("1125x2436 presentation"). Next (offline): compare
+what our AppleCLCD reports (ADT /arm-io/disp0, boot_args Video) with topaz 0061.
