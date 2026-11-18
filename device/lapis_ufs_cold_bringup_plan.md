@@ -1207,3 +1207,33 @@ has GPT_Update code that may rewrite the table).
 
 Next: write `build/iosroot.img` (16 GiB HFS+) to `iosroot`, then boot iOS with
 `rd=ufsroot0 ufsroot=iosroot ufslun=2`.
+
+## 43. iOS USERLAND RUNS FROM THE UFS ROOT (2026-11-18) 🎉
+
+`build/iosroot.img` (sha256 7e74a0f0…) written to `iosroot` (push to /data +
+on-device dd, 191 MB/s; partition hash verified). Boot image
+`build/ios_ufsroot.img`: shim (ufsinit.c) + kernel.development.sweet +
+`build/phone.adt` (8 CPUs, /sweet-ufs, iPhone X /product), boot-args
+`debug=0xc serial=3 cpus=8 keepsyms=1 -noprogress sweethw=0 wdt=-1
+rd=ufsroot0 ufsroot=iosroot ufslun=2 ufsrw=1 rootrw=1 launchd_unsecure_cache=1
+unentitled_ios_sim_launch=1 ignition_level=1`.
+
+The screen scrolled continuously; after ~15 min the user reset it. No camera,
+so the partition was pulled back (`build/iosroot_after.img`) and read with
+`tools/lapis_hfs_read.py` (read-only HFS+ catalog reader, no mount/sudo):
+writeCount 1→702, +22 files, +10 folders, clock starts at 1970 (no RTC), last
+write at +916 s. iOS wrote AKSSetup.log (+421 s), keybags, utmpx, prng.seed,
+lockdown.sock/mDNSResponder sockets, usermanagerd.log, logd.0.log (logd pid 24),
+`launchd_cache_loader.log` ("Cache sent to launchd successfully") and a
+129 KB `/private/var/log/com.apple.xpc.launchd/launchd.log`.
+
+launchd.log: **70 daemons spawned** (logd, configd, powerd, keybagd, lockdownd,
+mediaserverd, locationd, backboardd pid 56, runningboardd, ...); SpringBoard
+reached "spawning / launching: system support" but had no pid yet. No crash,
+no panic. Everything is extremely slow: root mounted at +37 s, launchd plist
+load at +479 s; backboardd spawned 16:08:00, running 16:08:51, "created"
+16:13:31. Diagnosis: the link is left in its post-LINKSTARTUP mode (PWM-G1,
+~MB/s); we never do the power-mode change to HS gear.
+
+Next: HS power-mode change (ufs-mediatek `ufs_mtk_pre_pwr_change` + PA_* DME
+attributes, PA_PWRMODE) in ufsinit.c, then boot again and leave it running.
