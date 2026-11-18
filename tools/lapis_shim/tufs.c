@@ -476,15 +476,12 @@ static int dme_get(uint16_t attr, uint32_t *val, uint32_t *res)
 	return ok;
 }
 
-void shim_main(uint64_t dtb, uint64_t entry_el)
+/* v29 bring-up (proven on device: HCE ok, LINKSTARTUP res=0, HCS=0xf).
+ * Returns HCS after link startup; bit0 = device present. */
+static uint32_t ufs_link_up(void)
 {
-	uint32_t v, res = 0xee;
+	uint32_t v, res = 0xee, hcs = 0;
 	int ok;
-	(void)dtb; (void)entry_el;
-	con_clear(BLUE);
-	con_str("LAPIS", "v29: Android UFSHCI-only bring-up (no MPHY), resets in ufscfg_pdn");
-	con_skip();
-	con_hex2("ST0 ", "hce=", rd(UFSHCI + REG_HCE), "hcs=", rd(UFSHCI + REG_HCS));
 
 	/* clocks (ufscfg gates) */
 	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
@@ -497,8 +494,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	int rc = ref_clk_on();
 	udelay(30);
 	int64_t r_post = smc_ufs(SIP_UFS_REF_CLK_NOTIFY, 1, POST_CHANGE);
-	con_hex2("REF ", "ack=", (uint32_t)rc, "refctl=", rd(UFSHCI + REG_REFCLK_CTRL));
-	con_hex2("REFS", "pre=", (uint32_t)r_pre, "post=", (uint32_t)r_post);
+	con_hex2("REF ", "ack=", (uint32_t)rc, "smc=", (uint32_t)(r_pre | r_post));
 
 	/* ufs_mtk_device_reset: hba_stop, RST_n low 10us, high, wait 10ms */
 	wr(UFSHCI + REG_HCE, 0);
@@ -507,8 +503,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	udelay(15);
 	int64_t r_hi = smc_ufs(SIP_UFS_DEVICE_RESET, 1, 0);
 	udelay(15000);
-	con_hex2("DRST", "stop_ok=", (uint32_t)ok, "smc=",
-		 (uint32_t)(r_lo | r_hi));
+	(void)r_lo; (void)r_hi;
 
 	/* hce_enable_notify(PRE): host reset via ufscfg_pdn, CLK_CG early */
 	wr(UFSCFG_PDN + PDN_RST_SET, PDN_RST_ALL);
@@ -525,7 +520,6 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	udelay(600);
 	ok = hce_wait(1, 50);
 	con_hex2("HCE ", "ok=", (uint32_t)ok, "hcs=", rd(UFSHCI + REG_HCS));
-	con_hex2("HCE2", "xoufs=", rd(UFSHCI + REG_XOUFS_CTRL), "is=", rd(UFSHCI + REG_IS));
 
 	/* pre_link: unipro non-LPM, TX LCC off, disable deep stall */
 	res = 0xee;
@@ -537,22 +531,205 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	dme_get(VS_SAVEPOWER, &v, &res);
 	uint32_t r3 = res; res = 0xee;
 	uic(UIC_DME_SET, (uint32_t)VS_SAVEPOWER << 16, 0, v & ~(1U << 6), &res);
-	con_hex2("PRE ", "lpm/lcc=", (r1 << 16) | r2, "sp/res=", (v << 8) | (r3 & 0xff));
+	(void)r1; (void)r2; (void)r3;
 
 	/* DME_LINKSTARTUP, up to 3 attempts; DP = HCS bit0 */
 	for (int t = 1; t <= 3; t++) {
 		res = 0xee;
 		int done = uic(UIC_DME_LINKSTARTUP, 0, 0, 0, &res);
 		udelay(1000);
-		uint32_t hcs = rd(UFSHCI + REG_HCS);
+		hcs = rd(UFSHCI + REG_HCS);
 		con_hex2("LINK", "try/done/res=", (t << 16) | (done << 8) | (res & 0xff),
 			 "hcs=", hcs);
 		if (done && (res & 0xff) == 0 && (hcs & HCS_DP))
 			break;
 	}
-	con_hex2("ERR ", "uecpa=", rd(UFSHCI + REG_UECPA), "uecdl=", rd(UFSHCI + REG_UECDL_));
-	con_hex2("ERR2", "uecn=", rd(UFSHCI + REG_UECN), "is=", rd(UFSHCI + REG_IS));
-	con_str("KEY ", "HCE ok=1, LINK res=0, hcs bit0 (DP)=1 => UFS device found!");
+	(void)REG_UECPA; (void)REG_UECDL_; (void)REG_UECN; (void)REG_UECT;
+	return hcs;
+}
+
+/* ---------------- v30: UTP transfer requests (legacy SDB mode) ----------------
+ * DT has mediatek,ufs-disable-mcq, no iommus => single doorbell, physical DMA.
+ * MMU/caches are off, so every CPU access is Device memory: no cache
+ * maintenance needed for DMA buffers. Buffers live in .bss (PC-relative,
+ * phys == addr). Layouts per UFSHCI 3.x / linux ufshci.h:
+ *   UTRD 32B: dw0 CT[31:28]=1 DD[26:25] | dw2 OCS[7:0] | dw4/5 UCD base |
+ *             dw6 resp_len(DW)[15:0] resp_off(DW)[31:16] |
+ *             dw7 prdt_len[15:0] prdt_off(DW)[31:16]
+ *   UCD: cmd UPIU @0 (512B), resp UPIU @512 (512B), PRDT @1024
+ *   PRDT entry 16B: addr lo, addr hi, 0, byte_count-1
+ * UPIU fields are big-endian. */
+#define REG_UTRLBA	0x50
+#define REG_UTRLBAU	0x54
+#define REG_UTRLDBR	0x58
+#define REG_UTRLRSR	0x60
+#define DD_NONE		0
+#define DD_TO_DEV	1
+#define DD_FROM_DEV	2
+#define UPIU_NOP_OUT	0x00
+#define UPIU_CMD	0x01
+#define UPIU_QUERY_REQ	0x16
+
+static uint32_t utrl[32 * 8] __attribute__((aligned(1024)));
+static uint8_t ucd[2048] __attribute__((aligned(1024)));
+static uint8_t dbuf[4096] __attribute__((aligned(4096)));
+static uint8_t task_tag;
+
+static void zero(void *p, uint32_t n)
+{
+	volatile uint8_t *b = p;
+	while (n--)
+		*b++ = 0;
+}
+
+/* Submit slot 0 and poll the doorbell. Returns OCS (0 = success), 0xEE on
+ * doorbell timeout. *resp points at the response UPIU. */
+static uint32_t utp_send(uint32_t dd, uint32_t data_len)
+{
+	uint64_t ucd_pa = (uint64_t)(uintptr_t)ucd;
+	uint64_t buf_pa = (uint64_t)(uintptr_t)dbuf;
+	volatile uint32_t *d = utrl;
+
+	zero(ucd + 512, 512);
+	d[0] = (1U << 28) | (dd << 25);
+	d[1] = 0;
+	d[2] = 0x0F;			/* OCS = invalid until the host writes it */
+	d[3] = 0;
+	d[4] = (uint32_t)ucd_pa;
+	d[5] = (uint32_t)(ucd_pa >> 32);
+	d[6] = (128U << 16) | 128U;	/* resp offset 512B, length 512B (in DW) */
+	d[7] = (256U << 16) | (data_len ? 1U : 0U);
+	if (data_len) {
+		volatile uint32_t *p = (volatile uint32_t *)(ucd + 1024);
+		p[0] = (uint32_t)buf_pa;
+		p[1] = (uint32_t)(buf_pa >> 32);
+		p[2] = 0;
+		p[3] = data_len - 1;
+	}
+	__asm__ volatile("dsb sy" ::: "memory");
+	wr(UFSHCI + REG_IS, rd(UFSHCI + REG_IS));
+	wr(UFSHCI + REG_UTRLDBR, 1);
+	__asm__ volatile("dsb sy" ::: "memory");
+	for (int i = 0; i < 50000; i++) {		/* up to ~1 s */
+		if (!(rd(UFSHCI + REG_UTRLDBR) & 1))
+			return d[2] & 0xFF;
+		udelay(20);
+	}
+	return 0xEE;
+}
+
+static void upiu_hdr(uint8_t type, uint8_t flags, uint8_t lun, uint8_t func)
+{
+	zero(ucd, 512);
+	ucd[0] = type;
+	ucd[1] = flags;
+	ucd[2] = lun;
+	ucd[3] = task_tag++;
+	ucd[5] = func;
+}
+
+/* Query flag op (0x05 read / 0x06 set) on IDN; returns (resp<<8)|ocs and the
+ * flag value in *val. */
+static uint32_t query_flag(uint8_t opcode, uint8_t idn, uint32_t *val)
+{
+	upiu_hdr(UPIU_QUERY_REQ, 0, 0, opcode == 0x05 ? 0x01 : 0x81);
+	ucd[12] = opcode;
+	ucd[13] = idn;
+	uint32_t ocs = utp_send(DD_NONE, 0);
+	uint8_t *r = ucd + 512;
+	*val = ((uint32_t)r[20] << 24) | ((uint32_t)r[21] << 16) |
+	       ((uint32_t)r[22] << 8) | r[23];
+	return ((uint32_t)r[0] << 16) | ((uint32_t)r[6] << 8) | ocs;
+}
+
+/* SCSI command; returns (resp_type<<24)|(response<<16)|(status<<8)|ocs. */
+static uint32_t scsi(uint8_t lun, const uint8_t *cdb, uint32_t len, uint32_t dd)
+{
+	upiu_hdr(UPIU_CMD, dd == DD_FROM_DEV ? 0x40 : (dd == DD_TO_DEV ? 0x20 : 0),
+		 lun, 0);
+	ucd[12] = (uint8_t)(len >> 24);
+	ucd[13] = (uint8_t)(len >> 16);
+	ucd[14] = (uint8_t)(len >> 8);
+	ucd[15] = (uint8_t)len;
+	for (int i = 0; i < 16; i++)
+		ucd[16 + i] = cdb[i];
+	uint32_t ocs = utp_send(dd, len);
+	uint8_t *r = ucd + 512;
+	return ((uint32_t)r[0] << 24) | ((uint32_t)r[6] << 16) |
+	       ((uint32_t)r[7] << 8) | ocs;
+}
+
+static uint32_t be32(const uint8_t *p)
+{
+	return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+	       ((uint32_t)p[2] << 8) | p[3];
+}
+
+void shim_main(uint64_t dtb, uint64_t entry_el)
+{
+	(void)dtb; (void)entry_el;
+	con_clear(BLUE);
+	con_str("LAPIS", "v30: UFS I/O -- NOP OUT, fDeviceInit, TUR, READ(10) LBA1 => GPT?");
+	con_skip();
+
+	uint32_t hcs = ufs_link_up();
+	if (!(hcs & HCS_DP)) {
+		con_str("FAIL", "no device after link startup");
+		goto out;
+	}
+
+	/* transfer request list, then run */
+	uint64_t utrl_pa = (uint64_t)(uintptr_t)utrl;
+	zero(utrl, sizeof(utrl));
+	wr(UFSHCI + REG_UTRLBA, (uint32_t)utrl_pa);
+	wr(UFSHCI + REG_UTRLBAU, (uint32_t)(utrl_pa >> 32));
+	wr(UFSHCI + REG_UTRLRSR, 1);
+	__asm__ volatile("dsb sy" ::: "memory");
+	con_hex2("UTRL", "pa=", (uint32_t)utrl_pa, "rsr=", rd(UFSHCI + REG_UTRLRSR));
+
+	/* ufshcd_verify_dev_init: NOP OUT until NOP IN (0x20) */
+	uint32_t ocs = 0xEE;
+	int t;
+	for (t = 1; t <= 10; t++) {
+		upiu_hdr(UPIU_NOP_OUT, 0, 0, 0);
+		ocs = utp_send(DD_NONE, 0);
+		if (ocs == 0 && ucd[512] == 0x20)
+			break;
+		udelay(1000);
+	}
+	con_hex2("NOP ", "try/ocs=", (t << 8) | ocs, "resp=", be32(ucd + 512));
+	if (ocs != 0)
+		goto out;
+
+	/* ufshcd_complete_dev_init: SET fDeviceInit(1), poll READ until 0 */
+	uint32_t fv = 0, q = query_flag(0x06, 0x01, &fv);
+	con_hex2("QSET", "type/resp/ocs=", q, "val=", fv);
+	for (t = 0; t < 1000; t++) {
+		q = query_flag(0x05, 0x01, &fv);
+		if ((q & 0xFF) == 0 && fv == 0)
+			break;
+		udelay(1000);
+	}
+	con_hex2("QRD ", "ms/res=", (t << 16) | (q & 0xFFFF), "fDevInit=", fv);
+
+	/* LUN 0..2: TEST UNIT READY (clears UNIT ATTENTION), then READ(10) LBA 1 */
+	for (uint8_t lun = 0; lun < 3; lun++) {
+		static const uint8_t tur[16] = { 0x00 };
+		uint32_t s = 0;
+		for (int k = 0; k < 4; k++) {
+			s = scsi(lun, tur, 0, DD_NONE);
+			if (((s >> 8) & 0xFF) == 0 && (s & 0xFF) == 0)
+				break;
+		}
+		uint8_t rd10[16] = { 0x28, 0, 0, 0, 0, 1, 0, 0, 1, 0 };
+		zero(dbuf, sizeof(dbuf));
+		uint32_t r = scsi(lun, rd10, 4096, DD_FROM_DEV);
+		con_hex2(lun == 0 ? "LUN0" : (lun == 1 ? "LUN1" : "LUN2"),
+			 "tur=", s, "read=", r);
+		con_hex2("DATA", "w0=", be32(dbuf), "w1=", be32(dbuf + 4));
+	}
+	con_str("KEY ", "read=21000000 + DATA 45464920 50415254 = 'EFI PART' => UFS I/O works!");
+out:
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
