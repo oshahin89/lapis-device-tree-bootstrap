@@ -362,59 +362,36 @@ void shim_main(uint64_t dtb)
 {
 	(void)dtb;
 	con_clear(BLUE);
-	con_str("LAPIS", "v23: enable UFSPLL (apmixed set/clr) then wake MPHY");
+	con_str("LAPIS", "v24: verify clock routing (ufsao/pdn STA + ufs_sel mux)");
 
 	(void)ref_clk_on; (void)uic; (void)dme_set; (void)spmi_read; (void)spmi_write;
 	(void)EFUSE_CPUVER; (void)EFUSE_UFSCAL; (void)EFUSE; (void)SPMI_BASE; (void)rail;
 	(void)UFSPLL_CTRL; (void)MT6363_SWCID0; (void)MT6363_HWCID; (void)MPHY_RAIL_REG;
 	(void)PMIF; (void)smc_ufs; (void)SIP_UFS_VA09_PWR_CTRL; (void)SID_MT6363;
 	(void)SIP_UFS_HOST_PWR_CTRL; (void)SIP_UFS_DEVICE_PWR_CTRL;
-	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY;
+	(void)HOST_PWR_HCI; (void)HOST_PWR_MPHY; (void)mphy_power_on;
 
-	/* Root ruled out PMIC rail + power domain; the ufsphy has no DT clocks and takes
-	 * the UFS reference clock from the UFSPLL. clk-mt6878.c: UFSPLL is PLL_SETCLR in
-	 * apmixed (@0x1000c000): enable bit 2 via en_set (+0x74), reset-release bit 0 via
-	 * rstb_set (+0x84), power-down = CON1 (+0x370) bit 24. If UFSPLL is off for our
-	 * shim (Android runs it for HS-G3), the MPHY has no ref clock -> dark. Enable it
-	 * (plain apmixed MMIO, UFS-specific, no PMIC/reset risk), then wake the MPHY. */
-	const uint64_t APMIXED = 0x1000c000UL;
-	const uint64_t EN_SET = APMIXED + 0x74, RSTB_SET = APMIXED + 0x84;
-	const uint64_t UFSPLL_C0 = APMIXED + 0x36c, UFSPLL_C1 = APMIXED + 0x370;
-
+	/* Verify the UFS clock routing actually lands. ufscfg gate STA (+0x04): a SET bit
+	 * means GATED. So after we write ALL bits to CLR (+0x0C) to ungate, STA for those
+	 * bits should read 0. topckgen CLK_CFG_10 (0xB0) holds the UFS muxes (AES_UFSFDE
+	 * [10:8], UFS [18:16], MBIST [25:24]); CLK_CFG_0 (0x10) holds AXI_UFS ([18:16]).
+	 * A selection of 0 or a wrong/off parent on ufs_sel would leave the MPHY block
+	 * unclocked -> reads 0 despite the power domain being on. */
 	con_skip();
-	con_hex2("BASE", "hci=", rd(UFSHCI + REG_CAP), "mphy=", rd(MPHY + MP_GLB_DIG_8C));
-	con_hex2("PLL ", "con0=", rd(UFSPLL_C0), "con1=", rd(UFSPLL_C1));  /* con1 bit24=PD */
-
-	/* UFSPLL power-up (PLL_SETCLR): clear PD -> set EN(bit2) -> release RSTB(bit0). */
-	wr(UFSPLL_C1, rd(UFSPLL_C1) & ~(1u << 24));		/* clear power-down */
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(2);
-	wr(EN_SET, 1u << 2);					/* UFSPLL enable (set alias) */
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(2);
-	wr(RSTB_SET, 1u << 0);					/* UFSPLL reset release */
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(30);						/* PLL settle */
-	con_hex2("POST", "con0=", rd(UFSPLL_C0), "con1=", rd(UFSPLL_C1));
-
-	/* clocks + MPHY reset + set_active, then read the MPHY -- should be ALIVE now. */
+	con_hex2("STA0", "ao_sta=", rd(UFSCFG_AO + UFSAO_CG_STA),
+		 "pdn_sta=", rd(UFSCFG_PDN + UFSPDN_CG_STA));
+	/* ungate everything, then re-read STA to confirm the ungate took */
 	wr(UFSCFG_AO  + UFSAO_CG_CLR, UFSAO_ALL);
 	wr(UFSCFG_PDN + UFSPDN_CG_CLR, UFSPDN_ALL);
-	wr(TOPCK + CLK_CFG_UPDATE1,
-	   (1U << TOP_UPD_AES_UFSFDE) | (1U << TOP_UPD_UFS) | (1U << TOP_UPD_UFS_MBIST));
-	__asm__ volatile("dsb sy" ::: "memory");
-	wr(UFSCFG_AO + RST_SET, 1U << 8);
 	__asm__ volatile("dsb sy" ::: "memory");
 	udelay(10);
-	wr(UFSCFG_AO + RST_CLR, 1U << 8);
-	__asm__ volatile("dsb sy" ::: "memory");
-	udelay(20);
-	mphy_power_on();
-	udelay(10);
+	con_hex2("STA1", "ao_sta=", rd(UFSCFG_AO + UFSAO_CG_STA),
+		 "pdn_sta=", rd(UFSCFG_PDN + UFSPDN_CG_STA));
+	con_hex2("MUX ", "cfg0=", rd(TOPCK + 0x10), "cfg10=", rd(TOPCK + 0xB0));
 	con_hex2("MPHY", "8c=", rd(MPHY + MP_GLB_DIG_8C), "803c=", rd(MPHY + 0x803c));
-	con_hex2("MPHY", "a09c=", rd(MPHY + 0xA09C), "b044=", rd(MPHY + 0xB044));
 
-	con_str("KEY ", "nonzero MPHY = MTCMOS woke it -- THE FIX. Power+Vol-down to recover");
+	con_str("KEY ", "ao_sta bits 0-9 should be 0 after ungate; cfg10[18:16]=ufs_sel");
+	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
 }
