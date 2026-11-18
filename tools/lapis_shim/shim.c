@@ -36,6 +36,17 @@ void shim_main(uint64_t dtb)
 	 * A failure is reported but not fatal: RAM-disk roots don't need UFS. */
 	const char *ufs = ufs_bring_up();
 	con_str("UFS", ufs ? ufs : "host up, device initialised");
+	if (!ufs) {
+		/* PWM-G1 after LINKSTARTUP is ~MB/s; switch to HS (v31: ~800 MB/s).
+		 * If the change fails, redo the bring-up so xnu still gets a PWM link. */
+		unsigned int gear = 0, lanes = 0;
+		const char *hs = ufs_set_hs(&gear, &lanes);
+		con_str("UFS", hs ? hs : "HS mode (FAST, rate B)");
+		if (hs) {
+			ufs = ufs_bring_up();
+			con_str("UFS", ufs ? ufs : "recovered in PWM");
+		}
+	}
 	con_skip();
 
 	const char *why = loader_boot();
