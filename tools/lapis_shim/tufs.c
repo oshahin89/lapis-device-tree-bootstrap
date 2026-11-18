@@ -22,6 +22,7 @@
  */
 #include <stdint.h>
 #include "console.h"
+#include "ufsinit.h"
 #include "reboot.h"
 
 #define rsr(r) ({ uint64_t _v; __asm__ volatile("mrs %0, " r : "=r"(_v)); _v; })
@@ -572,7 +573,7 @@ static uint32_t ufs_link_up(void)
 
 static uint32_t utrl[32 * 8] __attribute__((aligned(1024)));
 static uint8_t ucd[2048] __attribute__((aligned(1024)));
-static uint8_t dbuf[4096] __attribute__((aligned(4096)));
+static uint8_t dbuf[256 * 1024] __attribute__((aligned(4096)));
 static uint8_t task_tag;
 
 static void zero(void *p, uint32_t n)
@@ -665,7 +666,7 @@ static uint32_t be32(const uint8_t *p)
 	       ((uint32_t)p[2] << 8) | p[3];
 }
 
-void shim_main(uint64_t dtb, uint64_t entry_el)
+void shim_main_v30_unused(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
@@ -869,6 +870,79 @@ void exc_report(uint64_t slot, uint64_t esr, uint64_t elr, uint64_t far)
 	con_hex("ESR", esr);
 	con_hex("ELR", elr);
 	con_hex("FAR", far);
+	for (;;)
+		__asm__ volatile("wfe");
+}
+
+/* ---------------- v31: HS gear switch + read throughput ---------------- */
+
+static uint64_t cnt(void) { return rsr("cntvct_el0"); }
+
+/* Read 16 MiB from LUN2 (64 x 256 KiB READ(10)); returns KiB/s, 0 on error. */
+static uint32_t read_speed(uint32_t *err)
+{
+	uint64_t f = rsr("cntfrq_el0"), t0 = cnt();
+	for (uint32_t i = 0; i < 64; i++) {
+		uint32_t lba = 0x1000 + i * 64;		/* 4 KiB blocks, inside the GPT/padding area */
+		uint8_t c[16];
+		zero(c, sizeof(c));
+		c[0] = 0x28;
+		c[2] = (uint8_t)(lba >> 24);
+		c[3] = (uint8_t)(lba >> 16);
+		c[4] = (uint8_t)(lba >> 8);
+		c[5] = (uint8_t)lba;
+		c[8] = 64;
+		uint32_t r = scsi(2, c, 64 * 4096, DD_FROM_DEV);
+		if ((r & 0xFF) || ((r >> 8) & 0xFF)) {
+			*err = r;
+			return 0;
+		}
+	}
+	uint64_t dt = cnt() - t0;
+	*err = 0;
+	return (uint32_t)((16ULL * 1024 * f) / (dt ? dt : 1));
+}
+
+void shim_main(uint64_t dtb, uint64_t entry_el)
+{
+	(void)dtb; (void)entry_el;
+	con_clear(BLUE);
+	con_str("LAPIS", "v31: UFS HS gear switch -- read speed PWM vs HS");
+	con_skip();
+
+	const char *e = ufs_bring_up();
+	con_str("UP  ", e ? e : "host up, device initialised (PWM)");
+	if (e)
+		goto out;
+
+	/* take the request list over from ufsinit, like xnu's driver does */
+	uint64_t pa = (uint64_t)(uintptr_t)utrl;
+	zero(utrl, sizeof(utrl));
+	wr(UFSHCI + REG_UTRLRSR, 0);
+	wr(UFSHCI + REG_UTRLBA, (uint32_t)pa);
+	wr(UFSHCI + REG_UTRLBAU, (uint32_t)(pa >> 32));
+	wr(UFSHCI + REG_UTRLRSR, 1);
+	__asm__ volatile("dsb sy" ::: "memory");
+
+	uint32_t err, kbs = read_speed(&err);
+	con_hex2("PWM ", "KiB/s=", kbs, "err=", err);
+
+	unsigned int g = 0, l = 0;
+	e = ufs_set_hs(&g, &l);
+	con_str("HS  ", e ? e : "FAST mode, rate B");
+	if (e)
+		goto out;
+
+	kbs = read_speed(&err);
+	con_hex2("HSRD", "KiB/s=", kbs, "err=", err);
+
+	uint8_t rd10[16] = { 0x28, 0, 0, 0, 0, 1, 0, 0, 1, 0 };
+	zero(dbuf, 4096);
+	uint32_t r = scsi(2, rd10, 4096, DD_FROM_DEV);
+	con_hex2("GPT ", "read=", r, "w0=", be32(dbuf));
+	con_str("KEY ", "HSRD KiB/s >> PWM KiB/s and GPT w0=45464920 => HS works");
+out:
+	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");
 }

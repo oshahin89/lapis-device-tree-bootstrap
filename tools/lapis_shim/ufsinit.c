@@ -65,7 +65,31 @@
 
 #define UIC_DME_GET		0x01
 #define UIC_DME_SET		0x02
+#define UIC_DME_PEER_GET	0x03
 #define UIC_DME_LINKSTARTUP	0x16
+#define IS_UPMS			(1U << 4)	/* UIC power mode status */
+
+/* PA / DME attributes for the power-mode change (ufshcd + unipro.h) */
+#define PA_ACTIVETXDATALANES	0x1560
+#define PA_CONNECTEDTXDATALANES	0x1561
+#define PA_TXGEAR		0x1568
+#define PA_TXTERMINATION	0x1569
+#define PA_HSSERIES		0x156A
+#define PA_PWRMODE		0x1571
+#define PA_ACTIVERXDATALANES	0x1580
+#define PA_CONNECTEDRXDATALANES	0x1581
+#define PA_RXGEAR		0x1583
+#define PA_RXTERMINATION	0x1584
+#define PA_MAXRXHSGEAR		0x1587
+#define PA_PWRMODEUSERDATA0	0x15B0
+#define PA_TXHSADAPTTYPE	0x15D4
+#define DME_LOCALFC0PROTTO	0xD041
+#define DME_LOCALTC0REPLAYTO	0xD042
+#define DME_LOCALAFC0REQTO	0xD043
+#define FAST_MODE		1
+#define PA_HS_MODE_B		2
+#define PA_NO_ADAPT		3
+#define PWR_LOCAL		1
 #define PA_LOCAL_TX_LCC_ENABLE	0x155E
 #define VS_SAVEPOWERCONTROL	0xD0A6
 #define VS_UNIPROPOWERDOWNCTRL	0xD0A8
@@ -306,5 +330,79 @@ const char *ufs_bring_up(void)
 
 	if (rd(UFSHCI + REG_UTRLDBR))
 		return "UFS: doorbell busy";
+	return 0;
+}
+
+/* DME_GET / DME_PEER_GET; 1 on success with *v = value. */
+static int dme_get(uint32_t cmd, uint16_t attr, uint32_t *v)
+{
+	uint32_t res;
+	return uic(cmd, (uint32_t)attr << 16, 0, &res, v) && res == 0;
+}
+
+/*
+ * ufshcd_config_pwr_mode + ufs_mtk_pre_pwr_change: switch the link from its
+ * post-LINKSTARTUP PWM-G1 to FAST (HS) mode, rate B, at the highest gear both
+ * sides support (Android on lapis runs gear [3,3] lanes [2,2] pwr [1,1] rate B
+ * on the SK hynix UFS 2.2 part). Gears < G4 use PA_NO_ADAPT.
+ * Returns 0 on success, or a reason string; *gear and *lanes report the target.
+ */
+const char *ufs_set_hs(uint32_t *gear, uint32_t *lanes)
+{
+	uint32_t hrx = 0, drx = 0, crx = 0, ctx = 0, res, hcs = 0;
+
+	if (!dme_get(UIC_DME_GET, PA_MAXRXHSGEAR, &hrx) ||
+	    !dme_get(UIC_DME_PEER_GET, PA_MAXRXHSGEAR, &drx) ||
+	    !dme_get(UIC_DME_GET, PA_CONNECTEDRXDATALANES, &crx) ||
+	    !dme_get(UIC_DME_GET, PA_CONNECTEDTXDATALANES, &ctx))
+		return "UFS HS: capability DME_GET failed";
+	uint32_t g = hrx < drx ? hrx : drx;
+	uint32_t l = crx < ctx ? crx : ctx;
+	if (g > 5)
+		g = 5;			/* host cap: HS-G5 */
+	*gear = g;
+	*lanes = l;
+	if (g == 0 || l == 0)
+		return "UFS HS: no HS gear / lanes";
+
+	int ok = dme_set(PA_RXGEAR, g) && dme_set(PA_ACTIVERXDATALANES, l) &&
+		 dme_set(PA_RXTERMINATION, 1) &&
+		 dme_set(PA_TXGEAR, g) && dme_set(PA_ACTIVETXDATALANES, l) &&
+		 dme_set(PA_TXTERMINATION, 1) &&
+		 dme_set(PA_HSSERIES, PA_HS_MODE_B) &&
+		 dme_set(PA_PWRMODEUSERDATA0 + 0, 8191) &&	/* DL_FC0ProtectionTimeOutVal */
+		 dme_set(PA_PWRMODEUSERDATA0 + 1, 65535) &&	/* DL_TC0ReplayTimeOutVal */
+		 dme_set(PA_PWRMODEUSERDATA0 + 2, 32767) &&	/* DL_AFC0ReqTimeOutVal */
+		 dme_set(PA_PWRMODEUSERDATA0 + 3, 8191) &&	/* DL_FC1ProtectionTimeOutVal */
+		 dme_set(PA_PWRMODEUSERDATA0 + 4, 65535) &&	/* DL_TC1ReplayTimeOutVal */
+		 dme_set(PA_PWRMODEUSERDATA0 + 5, 32767) &&	/* DL_AFC1ReqTimeOutVal */
+		 dme_set(DME_LOCALFC0PROTTO, 8191) &&
+		 dme_set(DME_LOCALTC0REPLAYTO, 65535) &&
+		 dme_set(DME_LOCALAFC0REQTO, 32767) &&
+		 dme_set(PA_TXHSADAPTTYPE, PA_NO_ADAPT);
+	if (!ok)
+		return "UFS HS: attribute DME_SET failed";
+
+	/* PA_PWRMODE = rx<<4 | tx, then wait for UPMS and check UPMCRS */
+	wr(UFSHCI + REG_IS, IS_UPMS);
+	if (!uic(UIC_DME_SET, (uint32_t)PA_PWRMODE << 16, (FAST_MODE << 4) | FAST_MODE, &res, 0) ||
+	    res != 0)
+		return "UFS HS: PA_PWRMODE DME_SET failed";
+	int t;
+	for (t = 0; t < 1000; t++) {		/* up to ~100 ms */
+		if (rd(UFSHCI + REG_IS) & IS_UPMS)
+			break;
+		udelay(100);
+	}
+	hcs = rd(UFSHCI + REG_HCS);
+	wr(UFSHCI + REG_IS, IS_UPMS);
+	con_hex2("UFS", "hs_gear/lanes=", (g << 8) | l, "upmcrs/hcs=",
+		 (((hcs >> 8) & 7) << 16) | (hcs & 0xFF));
+	if (t == 1000)
+		return "UFS HS: no power-mode-change status";
+	if (((hcs >> 8) & 7) != PWR_LOCAL)
+		return "UFS HS: power-mode change rejected";
+	if (!(hcs & HCS_DP) || !(hcs & HCS_UTRLRDY))
+		return "UFS HS: host not ready after change";
 	return 0;
 }

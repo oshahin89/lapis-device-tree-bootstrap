@@ -14,7 +14,7 @@ case "$WHAT" in
 	shim)    MAIN=shim.c; EXTRA="loader.c ufsinit.c" ;;
 	regdump) MAIN=regdump.c; EXTRA="pstore.c" ;;
 	tchip)   MAIN=tchip.c; EXTRA="reboot.c" ;;
-	tufs)    MAIN=tufs.c; EXTRA="reboot.c" ;;
+	tufs)    MAIN=tufs.c; EXTRA="reboot.c ufsinit.c" ;;
 	pstest)  MAIN=pstest.c; EXTRA="pstore.c reboot.c" ;;
 	*) echo "unknown target $WHAT" >&2; exit 2 ;;
 esac
