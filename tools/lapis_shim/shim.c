@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include "console.h"
 #include "loader.h"
+#include "ufsinit.h"
 
 #define rsr(r) ({ uint64_t _v; __asm__ volatile("mrs %0, " r : "=r"(_v)); _v; })
 
@@ -29,6 +30,12 @@ void shim_main(uint64_t dtb)
 	con_hex2("DTB", "at=", (uint32_t)dtb,
 		 "magic=", dtb ? __builtin_bswap32(*(volatile uint32_t *)dtb) : 0);
 	con_hex("CNTFRQ", rsr("cntfrq_el0"));
+	con_skip();
+
+	/* LK leaves the UFS host off; bring it up so xnu's driver can adopt it.
+	 * A failure is reported but not fatal: RAM-disk roots don't need UFS. */
+	const char *ufs = ufs_bring_up();
+	con_str("UFS", ufs ? ufs : "host up, device initialised");
 	con_skip();
 
 	const char *why = loader_boot();

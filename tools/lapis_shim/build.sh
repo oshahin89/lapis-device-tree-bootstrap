@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|regdump|pstest|tchip|tufs]}")
 WHAT=${2:-shim}
 case "$WHAT" in
-	shim)    MAIN=shim.c; EXTRA="loader.c" ;;
+	shim)    MAIN=shim.c; EXTRA="loader.c ufsinit.c" ;;
 	regdump) MAIN=regdump.c; EXTRA="pstore.c" ;;
 	tchip)   MAIN=tchip.c; EXTRA="reboot.c" ;;
 	tufs)    MAIN=tufs.c; EXTRA="reboot.c" ;;
