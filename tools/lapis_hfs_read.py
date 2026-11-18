@@ -172,6 +172,16 @@ def lookup(v, target):
     target = "/" + target.strip("/")
     for kind, parent, name, cnid, rec in entries:
         if path(parent) + "/" + name == target:
+            # HFS+ hard link: fdType 'hlnk' / creator 'hfs+'; the data lives in
+            # "\0\0\0\0HFS+ Private Data/iNode<N>", N = permissions.special
+            if kind == "f" and rec[48:56] == b"hlnkhfs+":
+                inode = be32(rec, 44)
+                want = f"iNode{inode}"
+                for k2, p2, n2, c2, r2 in entries:
+                    if k2 == "f" and n2 == want and path(p2).endswith("HFS+ Private Data"):
+                        print(f"(hard link -> {want})", file=sys.stderr)
+                        return k2, c2, r2, entries, path
+                sys.exit(f"hard link target {want} not found")
             return kind, cnid, rec, entries, path
     sys.exit(f"not found: {target}")
 
@@ -198,6 +208,28 @@ def cmd_cat(v, a):
         sys.stdout.buffer.write(data)
 
 
+def cmd_extents(v, a):
+    """Print the data-fork extents and, with --offset, the device block holding
+    that file byte (block size = volume block size)."""
+    kind, _, rec, _, _ = lookup(v, a.path)
+    if kind != "f":
+        sys.exit("not a file")
+    fork = Fork(rec[88:168])
+    print(f"size {fork.size}  blocks {fork.total_blocks}  overflow {fork.overflow}")
+    for s, c in fork.extents:
+        print(f"  extent start {s} count {c}")
+    if a.offset is not None:
+        fb, inner = divmod(a.offset, v.bs)
+        pos = 0
+        for s, c in fork.extents:
+            if fb < pos + c:
+                print(f"offset {a.offset:#x}: file block {fb:#x} -> device block {s + fb - pos} "
+                      f"+ {inner:#x}")
+                return
+            pos += c
+        sys.exit("offset beyond the listed extents")
+
+
 def cmd_diff(a):
     ch = 1 << 20
     n = 0
@@ -217,11 +249,13 @@ def cmd_diff(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sp = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("info", "newer", "ls", "cat"):
+    for name in ("info", "newer", "ls", "cat", "extents"):
         p = sp.add_parser(name)
         p.add_argument("img")
-        if name in ("ls", "cat"):
+        if name in ("ls", "cat", "extents"):
             p.add_argument("path")
+        if name == "extents":
+            p.add_argument("--offset", type=lambda x: int(x, 0))
         if name == "newer":
             p.add_argument("--since", type=int, default=0)
             p.add_argument("--limit", type=int, default=200)
@@ -234,7 +268,8 @@ def main():
     if a.cmd == "diff":
         return cmd_diff(a)
     v = Volume(a.img)
-    {"info": cmd_info, "newer": cmd_newer, "ls": cmd_ls, "cat": cmd_cat}[a.cmd](v, a)
+    {"info": cmd_info, "newer": cmd_newer, "ls": cmd_ls, "cat": cmd_cat,
+     "extents": cmd_extents}[a.cmd](v, a)
 
 
 if __name__ == "__main__":

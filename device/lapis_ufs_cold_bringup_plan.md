@@ -1237,3 +1237,35 @@ load at +479 s; backboardd spawned 16:08:00, running 16:08:51, "created"
 
 Next: HS power-mode change (ufs-mediatek `ufs_mtk_pre_pwr_change` + PA_* DME
 attributes, PA_PWRMODE) in ufsinit.c, then boot again and leave it running.
+
+## 44. HS in xnu, console log decoded, SpringBoard hang, ICL NOP (2026-11-18)
+
+- **v31 probe**: `ufs_set_hs()` → hs_gear/lanes 0x302 (G3 ×2), UPMCRS=PWR_LOCAL,
+  16 MiB read at 821,436 KiB/s (~800 MiB/s), GPT intact. (The PWM measurement
+  hit UNIT ATTENTION on its first READ: `0x21010200`.) The boot shim now runs it
+  (commit 6ae20a7); image `build/ios_ufsroot_hs.img`.
+- **Run 2 (HS)**: much faster. Kernel patch 0047 ("sweetlog") keeps the whole
+  console in the LAST 1025 blocks of the root partition — decode with
+  `reference/xnu-topaz-baseline/tools/sweet-log.py` (run 1: 48 KB; run 2: 2.9 MB).
+  Run 2: XNU adopts the HS link (`SWEET UFS: "iosroot" on LUN 2 … read-write`,
+  `BSD root: ufsroot0`); SpringBoard, backboardd, lsd exec once, no crash;
+  backboardd opens the framebuffer (`SWEET FB: display on`, IOMFB selectors OK,
+  3 IOSurfaces), finds no GPU (IOAcceleratorES/AGXAccelerator none) and logs
+  `IOServiceMatchingfailed for: AppleM2ScalerCSCDriver` 41,940 times (the
+  repeating on-screen error); SpringBoard t0 parked in mach_msg. CommCenter
+  crash-loops (root tweaks not applied: tools/ios-sweet/sweet-root-tweaks.py
+  removes it).
+- **Caveat**: our `iosroot` is exactly the HFS size, so sweetlog writes over the
+  volume's last 4 MiB. Those 1024 blocks are free in the allocation bitmap
+  (checked before and after), but the ring covers the alternate volume header
+  (block 4194303). Fix later: grow iosroot by ≥ 8 MiB for the log.
+- **ICL NOP** (ruby docs/en/05-userland.md — same iPhone X 16.7.16 / 20H392
+  cache; lsd/MobileGestalt deadlock that keeps SpringBoard in
+  `_LSContextInitCommon`): `dyld_shared_cache_arm64.15` (hard link →
+  `HFS+ Private Data/iNode748997430`, one extent at block 2432483) file
+  offset 0x1619f0c → iosroot block **2438140** + 0xf0c, same as ruby. Block
+  SHA ae317804… (original, verified on PC and phone) → `02 25 5e 95` replaced
+  by `1f 20 03 d5` → 4a489542… (ruby's patched SHA), written and read back.
+  Original block saved in device/hyperos4_readback/ (gitignored).
+
+Next: boot `build/ios_ufsroot_hs.img` again and check for the lock screen.
