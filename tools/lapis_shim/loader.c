@@ -20,6 +20,13 @@
 #include "loader.h"
 
 #define BOOT_LINE_LENGTH	608
+
+/* boot_args.Video window presented to xnu (see loader_boot) */
+#define VIDEO_W			1125
+#define VIDEO_H			2436
+#define VIDEO_OFF_Y		((FB_H - VIDEO_H) / 2)
+_Static_assert(VIDEO_W <= FB_W && VIDEO_H <= FB_H, "window fits the panel");
+_Static_assert((VIDEO_OFF_Y * FB_STRIDE) % 4096 == 0, "window base page-aligned");
 #define PAGE_16K		0x4000UL
 
 /*
@@ -160,11 +167,21 @@ const char *loader_boot(void)
 	ba->physBase = p->phys_base;
 	ba->memSize = p->mem_size;
 	ba->topOfKernelData = top;
-	ba->Video.v_baseAddr = FB_BASE;
+	/*
+	 * Present an iPhone X-sized window (1125x2436) of the 1280x2772 panel.
+	 * The iPhone X userland lays out 1125x2436 layers; SWEET's AppleCLCD
+	 * (patch 0061) only presents 1125x2436 when the console is at most that
+	 * size, otherwise it reports the native panel and CoreAnimation wants the
+	 * hardware scaler (endless "IOServiceMatchingfailed for:
+	 * AppleM2ScalerCSCDriver", no swaps, SpringBoard never checks in).
+	 * Vertically centred; the row offset (168 = 210 pages of 5120 B) keeps the
+	 * base page-aligned, so the window is left-aligned (155 px strip right).
+	 */
+	ba->Video.v_baseAddr = FB_BASE + (uint64_t)VIDEO_OFF_Y * FB_STRIDE;
 	ba->Video.v_display = 1;
 	ba->Video.v_rowBytes = FB_STRIDE;
-	ba->Video.v_width = FB_W;
-	ba->Video.v_height = FB_H;
+	ba->Video.v_width = VIDEO_W;
+	ba->Video.v_height = VIDEO_H;
 	ba->Video.v_depth = 32;
 	ba->deviceTreeP = adt_pa - delta;		/* xnu reads it with the MMU on: a VA */
 	ba->deviceTreeLength = (uint32_t)p->adt_size;

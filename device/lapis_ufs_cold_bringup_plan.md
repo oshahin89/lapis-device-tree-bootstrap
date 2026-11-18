@@ -1298,3 +1298,18 @@ CoreAnimation wants the hardware scaler when the IOMFB display size differs
 from the 1125x2436 layer size; lapis's panel/LK framebuffer is 1280x2784.
 topaz needed patch 0061 ("1125x2436 presentation"). Next (offline): compare
 what our AppleCLCD reports (ADT /arm-io/disp0, boot_args Video) with topaz 0061.
+
+## 47. Root cause of "no frames": display size mismatch → fix in the loader
+
+Run logs: `SWEET FB: AppleCLCD 1280x2772 stride 5120 … presented as 1280x2772`,
+while backboardd creates 1125x2436 IOSurfaces (iPhone X, from /product).
+Patch 0061 presents 1125x2436 only if the console is ≤ 1125x2436 (topaz's
+1080x2400 panel is cropped); lapis's 1280x2772 panel is larger, so the native
+size is reported, CoreAnimation needs the hardware scaler → endless
+`IOServiceMatchingfailed for: AppleM2ScalerCSCDriver`, 0 swaps, no system-shell
+check-in. Fix without a kernel rebuild: `loader.c` hands xnu a 1125x2436
+`boot_args.Video` window of the panel — base FB + 168 rows (vertically
+centred, page-aligned: 168×5120 = 210 pages), stride 5120, left-aligned (155 px
+strip on the right). QEMU regression passes (8/8 CPUs, root, PID 1, heartbeat)
+and prints `AppleCLCD 1125x2436 stride 5120 at 0xfd801000 … presented as
+1125x2436`. Phone image: `build/ios_ufsroot_hs_ipx.img` (not booted yet).
