@@ -238,10 +238,10 @@ nvt_write_partition(const struct nvt_partition *p)
 	}
 	while (remaining != 0) {
 		unsigned chunk = remaining > NVT_XFER_MAX ? NVT_XFER_MAX : remaining;
-		nvt_set_page(sram);
-		nvt.tx[0] = (uint8_t)(sram & 0x7fu);
-		memcpy(nvt.tx + 1, fw + bin, chunk);
-		nvt_message(nvt.tx, NULL, chunk + 1u);
+		/* nvt_write adds the SPI write bit (0x80) to the SRAM offset. */
+		if (!nvt_write(sram, fw + bin, chunk)) {
+			return false;
+		}
 		remaining -= chunk;
 		bin += chunk;
 		sram += chunk;
