@@ -370,6 +370,19 @@ nvt_boot_firmware(void)
 	if (!nvt_read(NVT_CHIP_ID, id, sizeof(id))) id[3] = id[4] = id[5] = 0xff;
 	printf("LAPIS NVT: firmware boot timeout state=%02x version=%02x%02x chip=%02x%02x%02x\n",
 	    status, ver[0], ver[1], id[3], id[4], id[5]);
+	{
+		uint8_t ilm_head[4] = { 0 }, dlm_head[4] = { 0 };
+		uint8_t ilm_crc[4] = { 0 }, dlm_crc[4] = { 0 };
+		(void)nvt_read(parts[0].sram, ilm_head, sizeof(ilm_head));
+		(void)nvt_read(parts[1].sram, dlm_head, sizeof(dlm_head));
+		(void)nvt_read(0x3fbbcu, ilm_crc, sizeof(ilm_crc));
+		(void)nvt_read(0x3fbc0u, dlm_crc, sizeof(dlm_crc));
+		printf("LAPIS NVT: verify ILM=%08x/%08x CRC=%08x/%08x DLM=%08x/%08x CRC=%08x/%08x\n",
+		    nvt_le32(ilm_head), nvt_le32(lapis_nt38771_fw + parts[0].bin),
+		    nvt_le32(ilm_crc), parts[0].crc,
+		    nvt_le32(dlm_head), nvt_le32(lapis_nt38771_fw + parts[1].bin),
+		    nvt_le32(dlm_crc), parts[1].crc);
+	}
 	return false;
 }
 
