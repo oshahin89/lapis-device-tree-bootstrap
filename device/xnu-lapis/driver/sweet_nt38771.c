@@ -373,15 +373,20 @@ nvt_boot_firmware(void)
 	{
 		uint8_t ilm_head[4] = { 0 }, dlm_head[4] = { 0 };
 		uint8_t ilm_crc[4] = { 0 }, dlm_crc[4] = { 0 };
+		uint8_t boot_ready = 0, host_cmd = 0;
 		(void)nvt_read(parts[0].sram, ilm_head, sizeof(ilm_head));
 		(void)nvt_read(parts[1].sram, dlm_head, sizeof(dlm_head));
 		(void)nvt_read(0x3fbbcu, ilm_crc, sizeof(ilm_crc));
 		(void)nvt_read(0x3fbc0u, dlm_crc, sizeof(dlm_crc));
+		(void)nvt_read(NVT_BOOT_READY, &boot_ready, 1);
+		(void)nvt_read(NVT_EVENT_BUF + 0x50u, &host_cmd, 1);
 		printf("LAPIS NVT: verify ILM=%08x/%08x CRC=%08x/%08x DLM=%08x/%08x CRC=%08x/%08x\n",
 		    nvt_le32(ilm_head), nvt_le32(lapis_nt38771_fw + parts[0].bin),
 		    nvt_le32(ilm_crc), parts[0].crc,
 		    nvt_le32(dlm_head), nvt_le32(lapis_nt38771_fw + parts[1].bin),
 		    nvt_le32(dlm_crc), parts[1].crc);
+		printf("LAPIS NVT: control readback BOOT_RDY=%02x HOST_CMD=%02x\n",
+		    boot_ready, host_cmd);
 	}
 	return false;
 }
