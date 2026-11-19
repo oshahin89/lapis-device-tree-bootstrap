@@ -30,6 +30,8 @@ env:
   # The whole ios-sweet series and its stage scripts are gated on SWEET;
   # lapis differences come from the ADT (tools/lapis_mkadt.py) and boot-args.
   MACHINE_CONFIG: SWEET
+  LAPIS_NT38771_FIRMWARE: ${{ github.workspace }}/device/novatek_ts_fw_tm.bin
+  LAPIS_PROJECT_ROOT: ${{ github.workspace }}
 
 jobs:
   build:
