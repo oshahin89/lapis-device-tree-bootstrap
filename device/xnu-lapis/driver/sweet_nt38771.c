@@ -38,7 +38,7 @@ void sweet_nt38771_init(void);
 #define NVT_RESX_DECOUPLE       0x3f8d4u
 #define NVT_BOOT_READY           0x3f102u
 #define NVT_EVENT_BUF            0x31400u
-#define NVT_FW_VERSION           0x2f000u
+#define NVT_FW_INFO              (NVT_EVENT_BUF + 0x78u)
 #define NVT_XFER_MAX             (15u * 1024u)
 #define NVT_REPORT_BYTES         LAPIS_NVT_REPORT_BYTES
 #define NVT_REPORT_PERIOD_MS     10u
@@ -280,7 +280,7 @@ nvt_boot_firmware(void)
 		return false;
 	}
 	ver[0] = ver[1] = 0;
-	if (!nvt_read(NVT_FW_VERSION, ver, sizeof(ver))) {
+	if (!nvt_read(NVT_FW_INFO, ver, sizeof(ver))) {
 		printf("LAPIS NVT: firmware-version read failed\n");
 		return false;
 	}
@@ -354,7 +354,7 @@ nvt_boot_firmware(void)
 	delay(5000);
 	for (unsigned i = 0; i < 100; ++i) {
 		if (nvt_read(NVT_EVENT_BUF + 0x60u, &status, 1) && status == 0xa0) {
-			if (!nvt_read(NVT_FW_VERSION, ver, sizeof(ver)) ||
+			if (!nvt_read(NVT_FW_INFO, ver, sizeof(ver)) ||
 			    ver[0] != 0x29 || ver[1] != 0xd6) {
 				printf("LAPIS NVT: state ready but version mismatch (%02x%02x)\n",
 				    ver[0], ver[1]);
@@ -366,7 +366,7 @@ nvt_boot_firmware(void)
 		}
 		delay(10000);
 	}
-	if (!nvt_read(NVT_FW_VERSION, ver, sizeof(ver))) ver[0] = ver[1] = 0xff;
+	if (!nvt_read(NVT_FW_INFO, ver, sizeof(ver))) ver[0] = ver[1] = 0xff;
 	if (!nvt_read(NVT_CHIP_ID, id, sizeof(id))) id[3] = id[4] = id[5] = 0xff;
 	printf("LAPIS NVT: firmware boot timeout state=%02x version=%02x%02x chip=%02x%02x%02x\n",
 	    status, ver[0], ver[1], id[3], id[4], id[5]);
