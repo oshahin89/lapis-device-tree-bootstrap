@@ -269,59 +269,107 @@ nvt_boot_firmware(void)
 {
 	struct nvt_partition parts[18];
 	unsigned count = 0;
-	uint8_t id[6], ver[2], decouple[2], check[2], status = 0, running = 0;
+	uint8_t id[6] = { 0 }, ver[2], decouple[2], check[2];
+	uint8_t status = 0, running = 0;
 	bool already_running;
 
 	if (!nvt_read(NVT_CHIP_ID, id, sizeof(id)) ||
 	    (id[3] != 0x72 && id[3] != 0x71) || id[4] != 0x87 || id[5] != 0x03) {
-		printf("LAPIS NVT: NT38771 ID check failed\n");
+		printf("LAPIS NVT: chip ID check failed (%02x %02x %02x)\n",
+		    id[3], id[4], id[5]);
 		return false;
 	}
 	ver[0] = ver[1] = 0;
 	if (!nvt_read(NVT_FW_VERSION, ver, sizeof(ver))) {
+		printf("LAPIS NVT: firmware-version read failed\n");
 		return false;
 	}
 	already_running = (ver[0] == 0x29 && ver[1] == 0xd6 &&
 	    nvt_read(NVT_EVENT_BUF + 0x60u, &running, 1) && running == 0xa0);
 	if (already_running) {
-		printf("LAPIS NVT: firmware 0x29 already active\n");
+		printf("LAPIS NVT: firmware already active (ver=%02x%02x state=%02x)\n",
+		    ver[0], ver[1], running);
 		return true;
 	}
+	printf("LAPIS NVT: chip=%02x%02x%02x firmware-before=%02x%02x\n",
+	    id[3], id[4], id[5], ver[0], ver[1]);
 	if (!nvt_partition_table(parts, &count)) {
 		printf("LAPIS NVT: firmware table rejected\n");
 		return false;
 	}
-	if (!nvt_write_u8(NVT_RESET, 0x69)) return false;
+	printf("LAPIS NVT: firmware table accepted (%u partitions)\n", count);
+	if (!nvt_write_u8(NVT_RESET, 0x69)) {
+		printf("LAPIS NVT: bootloader reset write failed\n");
+		return false;
+	}
 	delay(500);
 	decouple[0] = 0xaa; decouple[1] = 0x55;
-	if (!nvt_write(NVT_RESX_DECOUPLE, decouple, sizeof(decouple))) return false;
-	if (!nvt_read(NVT_RESX_DECOUPLE, check, sizeof(check)) ||
-	    check[0] != decouple[0] || check[1] != decouple[1]) return false;
+	if (!nvt_write(NVT_RESX_DECOUPLE, decouple, sizeof(decouple))) {
+		printf("LAPIS NVT: RESX decouple write failed\n");
+		return false;
+	}
+	if (!nvt_read(NVT_RESX_DECOUPLE, check, sizeof(check))) {
+		printf("LAPIS NVT: RESX decouple read failed\n");
+		return false;
+	}
+	if (check[0] != decouple[0] || check[1] != decouple[1]) {
+		printf("LAPIS NVT: RESX mismatch wrote=aa55 read=%02x%02x\n",
+		    check[0], check[1]);
+		return false;
+	}
+	printf("LAPIS NVT: bootloader reset and RESX decouple verified\n");
 	delay(5000);
 	if (!nvt_crc_bank(0x3f7b4u, 0x3f7b8u, 0x3f7bcu,
-	    parts[0].sram, parts[0].size, parts[0].crc) ||
-	    !nvt_crc_bank(0x3fb84u, 0x3fb88u, 0x3fb8cu,
-	    parts[1].sram, parts[1].size, parts[1].crc)) return false;
+	    parts[0].sram, parts[0].size, parts[0].crc)) {
+		printf("LAPIS NVT: ILM CRC bank setup failed\n");
+		return false;
+	}
+	if (!nvt_crc_bank(0x3fb84u, 0x3fb88u, 0x3fb8cu,
+	    parts[1].sram, parts[1].size, parts[1].crc)) {
+		printf("LAPIS NVT: DLM CRC bank setup failed\n");
+		return false;
+	}
+	printf("LAPIS NVT: ILM/DLM CRC banks programmed\n");
 	for (unsigned i = 0; i < count; ++i) {
 		if (!nvt_write_partition(&parts[i])) {
-			printf("LAPIS NVT: firmware partition %u failed\n", i);
+			printf("LAPIS NVT: firmware partition %u failed (sram=%06x size=%u)\n",
+			    i, parts[i].sram, parts[i].size + 1u);
 			return false;
 		}
 	}
-	if (!nvt_write_u8(NVT_EVENT_BUF + 0x60u, 0) ||
-	    !nvt_write_u8(NVT_EVENT_BUF + 0x50u, 0xae) ||
-	    !nvt_write_u8(NVT_BOOT_READY, 1)) return false;
+	printf("LAPIS NVT: firmware partitions transferred (%u)\n", count);
+	if (!nvt_write_u8(NVT_EVENT_BUF + 0x60u, 0)) {
+		printf("LAPIS NVT: reset-state clear failed\n");
+		return false;
+	}
+	if (!nvt_write_u8(NVT_EVENT_BUF + 0x50u, 0xae)) {
+		printf("LAPIS NVT: FW CRC enable command failed\n");
+		return false;
+	}
+	if (!nvt_write_u8(NVT_BOOT_READY, 1)) {
+		printf("LAPIS NVT: BOOT_RDY write failed\n");
+		return false;
+	}
+	printf("LAPIS NVT: BOOT_RDY sent; waiting for reset state 0xa0\n");
 	delay(5000);
 	for (unsigned i = 0; i < 100; ++i) {
 		if (nvt_read(NVT_EVENT_BUF + 0x60u, &status, 1) && status == 0xa0) {
 			if (!nvt_read(NVT_FW_VERSION, ver, sizeof(ver)) ||
-			    ver[0] != 0x29 || ver[1] != 0xd6) return false;
-			printf("LAPIS NVT: firmware loaded, version 0x29\n");
+			    ver[0] != 0x29 || ver[1] != 0xd6) {
+				printf("LAPIS NVT: state ready but version mismatch (%02x%02x)\n",
+				    ver[0], ver[1]);
+				return false;
+			}
+			printf("LAPIS NVT: firmware loaded (version=%02x%02x state=%02x)\n",
+			    ver[0], ver[1], status);
 			return true;
 		}
 		delay(10000);
 	}
-	printf("LAPIS NVT: firmware boot timed out (state %#x)\n", status);
+	if (!nvt_read(NVT_FW_VERSION, ver, sizeof(ver))) ver[0] = ver[1] = 0xff;
+	if (!nvt_read(NVT_CHIP_ID, id, sizeof(id))) id[3] = id[4] = id[5] = 0xff;
+	printf("LAPIS NVT: firmware boot timeout state=%02x version=%02x%02x chip=%02x%02x%02x\n",
+	    status, ver[0], ver[1], id[3], id[4], id[5]);
 	return false;
 }
 
