@@ -1,4 +1,9 @@
-# Lapis iOS-port status (2026-11-12)
+# Lapis iOS-port status (updated 2026-11-19)
+
+**Latest user-reported milestone:** the iOS boot reached the lock screen
+(Run 6; see [the run log](lapis_ufs_cold_bringup_plan.md#49-run-6-reached-the-ios-lock-screen)).
+The previous recorded run showed the Apple logo and data-migration progress
+(Run 5). No image hash or detailed log for Run 6 is recorded yet.
 
 ## Working on the phone (each run flashed to `boot_b`, restored afterwards)
 
@@ -27,24 +32,21 @@ root `sha256sum /dev/block/by-name/boot_b` = `851a5435…ae4f5`.
 | Area | State | Notes |
 |---|---|---|
 | UFS root (needed for a real iOS root) | **not implemented** | LK leaves the host disabled; register dump and Linux sequence in [lapis_ufs_bringup.md](lapis_ufs_bringup.md) |
-| Touch | chip ID works; **firmware download not implemented** | the NT38771 is flashless; protocol, memory map and image layout in [nt38771_host_download.md](nt38771_host_download.md), [lapis_touch_bringup.md](lapis_touch_bringup.md) |
+| Touch | GPIO bit-bang driver prototype; **compiled, not device-tested** | opt-in `lapisnt=1`; stages the flashless firmware and polls reports through SweetHID. GitHub Actions run 44506319609 built XNU with all 85 patches; details and limits in [lapis_touch_bringup.md](lapis_touch_bringup.md) |
 | Keys (power, volume) | not started | runtime FDT has `gpio-keys` (volume down), `mediatek,mt6363-keys` (power/home on the PMIC) and `kp@1c00e000` |
 | pstore log channel | partial | survives warm resets, lost on PSCI cold reset and on Power + Vol-down |
 | USB, audio, Wi-Fi/BT, modem, camera, sensors, GPU | not started | none of ios-sweet/topaz/ruby has GPU, Wi-Fi, modem or camera either |
 | AMP scheduling (A78 as P cluster) | not started | all eight cores run as one SMP cluster |
 | iOS root (iPhone X 16.7.16) | **built** | 16 GiB HFS+ from the IPSW: launchd, dyld, SpringBoard, the 3.2 GiB dyld shared cache. `build/iosroot.img`, gitignored. Needs the UFS partition to deploy. |
-| iOS userland | blocked on storage | needs the UFS root and a user-supplied IPSW (see ruby's `LEGAL.md`) |
+| iOS userland | reaches the lock screen (user-reported Run 6) | touch input and remaining drivers are separate work |
 
-Pieces the assistant could not write in this project: the UFS host bring-up
-code, the NT38771 firmware-download code, and the key-driver work (its
-responses were stopped by an automated safety check). The studies above hold
-everything gathered for them.
+The NT38771 firmware-download and touch-input path now has an offline prototype, pending XNU compilation and device verification. UFS host bring-up and key input remain separate unfinished work.
 
 ## Tools
 
 | Tool | Purpose |
 |---|---|
-| `tools/lapis_xnu_patch_preflight.py` | strict patch-queue check (83 patches) |
+| `tools/lapis_xnu_patch_preflight.py` | strict patch-queue check (85 patches) |
 | `.github/workflows/xnu-lapis.yml` | CI kernel build (macos-15, Xcode 16.0) |
 | `tools/lapis_mkadt.py` | ADT (`--no-ufs`, `--with-a78`, `--debug`, `--qemu`, `--qemu-lapis-fb`, `--qemu-smp`) |
 | `tools/ios-sweet/` | vendored MIT `mkpayload`, `mkinit`, `sweet-init.S`, `mkiosroot.sh`, `sweet-root-tweaks.py` |

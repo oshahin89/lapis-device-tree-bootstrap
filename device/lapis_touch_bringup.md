@@ -1,8 +1,11 @@
 # Lapis touch bring-up (study, 2026-11-12)
 
-Offline study; no touch code exists and nothing was sent to the controller.
-Hardware facts are in [lapis_spi3_xnu_contract.md](lapis_spi3_xnu_contract.md)
-and [touch_module_analysis.md](touch_module_analysis.md).
+The first XNU driver prototype is in `device/xnu-lapis/driver/sweet_nt38771.c`
+and patch queue entries 0084–0085. The source stages the existing firmware,
+loads it over GPIO bit-banged SPI3, polls reports and forwards contacts through
+SweetHID. It is opt-in with `lapisnt=1`. GitHub Actions run [44506319609](https://github.com/oshahin89/lapis-device-tree-bootstrap/actions/runs/44506319609) built XNU successfully with all 85 patches applied and uploaded the `lapis-xnu-DEVELOPMENT` artifact. The firmware download and touch event have not been tried on the phone. Hardware facts are in
+[lapis_spi3_xnu_contract.md](lapis_spi3_xnu_contract.md) and
+[touch_module_analysis.md](touch_module_analysis.md).
 
 ## The controller is flashless
 
@@ -47,28 +50,26 @@ takes about 6–7 s, acceptable for a first test.
   (`nt38771_report_parser.c` already implements this and the slot state).
 - Coordinates 0–20479 × 0–44351 = 16 × native 1280 × 2772.
 
-## What is missing before code
+## Integration status and remaining work
 
 1. ~~The exact download sequence and register addresses.~~ Recovered from
    Novatek's GPL NT38771 source: [nt38771_host_download.md](nt38771_host_download.md);
    the lapis firmware image parses with the same partition logic
    (`tools/nt38771_fw_map.py`).
-2. Confirm the controller state at xnu entry with a read-only probe: after
-   switching pins 68–71 to GPIO, read the chip ID registers over bit-banged
-   SPI and display them (no writes to the controller).
-3. Decide the XNU input path: ios-sweet's `SweetHID` (`sweet_hid_touch()`,
-   which ruby's driver feeds) via `nt38771_sweet_hid_glue.c`; its logical
-   size is hard-coded for 1080×2400 and must take 1280×2772.
+2. ~~Confirm the controller state at XNU entry.~~ The bit-banged SPI probe
+   reads NT38771 ID `71 87 03` without touching GPIO90.
+3. Compile the new driver and confirm the patch-built SweetHID uses the
+   lapis 1125×2436 viewport. The integration opts in with `lapisnt=1` and
+   maps the panel's centered vertical crop before dispatching HID events.
 
 ## Proposed order
 
-1. Offline: recover the download sequence and NT38771 memory map; write a
-   host-side simulator of the transfers for review.
-2. Device, read-only: chip-ID probe over bit-banged SPI (pins 68–71 only).
-3. Device: firmware download + boot-ready check, display the FW version read
-   back (`0x29` expected).
-4. Device: report reading → `SweetHID`, then a touch test under the RAM-disk
-   init.
+1. Offline: XNU compilation succeeded in GitHub Actions; inspect warnings and
+   preserve the artifact as a compile product only.
+2. Device: only after a separately approved boot operation, enable
+   `lapisnt=1`; check firmware boot-ready and version `0x29`.
+3. Device: confirm report polling and try touch on the lock screen. Recovery
+   and image restore remain separate device-operation requirements.
 
 ## Chip-ID probe (2026-11-12) — the NT38771 answers
 
@@ -95,5 +96,5 @@ instead of rebooting; earlier `78c4381d…`/`6133de23…` rebooted via PSCI afte
 So at xnu entry the controller is powered and out of reset (no GPIO 90
 needed), and the bit-banged SPI3 framing from Novatek's source is right.
 Android's touch works normally after restoring `boot_b` (`NVT-ts` interrupts
-counting, `boot_b` `851a5435…`). Next: firmware download over the same
-transport, then read back the FW version (`0x29` expected).
+counting, `boot_b` `851a5435…`). The new driver prototype now attempts the
+firmware download and report path; both still need compile and device evidence.

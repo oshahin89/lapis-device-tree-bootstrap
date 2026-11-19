@@ -1,6 +1,6 @@
 # Lapis SPI3 / NT38771 XNU bring-up contract
 
-**Status: hardware contract only; no XNU driver implementation or verified controller register map yet.** This file records facts a future XNU SPI host and touch client must honor. It is not a bootable driver specification.
+**Status: measured hardware contract plus a GPIO bit-bang touch prototype compiled in GitHub Actions, not device-tested.** The prototype is in [`sweet_nt38771.c`](xnu-lapis/driver/sweet_nt38771.c), enabled with `lapisnt=1`; it deliberately avoids the uncertain SPI host clock tree and GPIO90. Run [44506319609](https://github.com/oshahin89/lapis-device-tree-bootstrap/actions/runs/44506319609) passed with all 85 patches and produced a compile artifact. This file records verified facts separately from prototype assumptions.
 
 ## Confirmed platform contract
 
@@ -30,21 +30,21 @@
 
 ## Parser implementation checkpoint
 
-[`nt38771_report_parser.c`](nt38771_report_parser.c) and its header contain a host-independent parser draft for the recovered 384-byte normal report area. It validates the report checksum, skips invalid individual contacts like the stock client, and returns active records plus a present-slot mask. [`nt38771_touch_state.c`](nt38771_touch_state.c) converts raw 16x coordinates into native 1280×2772 pixels and emits down/update events plus releases for slots absent from the next frame through a callback. [`nt38771_pipeline.c`](nt38771_pipeline.c) connects frame validation to slot updates and accepts the callback from its caller; it has no dependency on a particular XNU HID implementation. [`nt38771_sweet_hid_glue.c`](nt38771_sweet_hid_glue.c) remains an optional adapter to the Ruby reference's `sweet_hid_touch(finger, down, x, y)` API. The pipeline consumes the 384-byte payload at `CTP_SPI_READ` buffer offset 1. It does not handle touch-major or the optional FOD key. These files have no SPI, GPIO, MMIO or allocation code; they passed a host C syntax compile but are not integrated or linked into XNU. The next integration step is an XNU-side callback for the chosen 8796 HID/input path.
+[`nt38771_report_parser.c`](nt38771_report_parser.c) and its header contain a host-independent parser draft for the recovered 384-byte normal report area. It validates the report checksum, skips invalid individual contacts like the stock client, and returns active records plus a present-slot mask. [`nt38771_touch_state.c`](nt38771_touch_state.c) converts raw 16x coordinates into native 1280×2772 pixels and emits down/update events plus releases for slots absent from the next frame through a callback. [`nt38771_pipeline.c`](nt38771_pipeline.c) connects frame validation to slot updates and accepts the callback from its caller; it has no dependency on a particular XNU HID implementation. [`nt38771_sweet_hid_glue.c`](nt38771_sweet_hid_glue.c) remains an optional adapter to the Ruby reference's `sweet_hid_touch(finger, down, x, y)` API. The pipeline consumes the 384-byte payload at `CTP_SPI_READ` buffer offset 1. It does not handle touch-major or the optional FOD key. The parser/state files remain hardware-independent; patch 0084 stages and links them into XNU with the prototype driver. Patch 0085 adjusts SweetHID to the 1125×2436 iOS viewport. These integration patches passed strict patch preflight, and GitHub Actions run 44506319609 compiled the integration successfully; no device event has verified it.
 
-## Open issues before coding the host driver
+## Open issues before trusting the prototype on hardware
 
 - No exact Xiaomi MT6878/`mt6989-spi` controller source or public register programming guide has been found in this workspace, although the exact stock driver binary is now recovered. I checked the official `lapis-v-oss` branch's `drivers/spi/spi-mt65xx.c`: it contains generic MediaTek SPI code, but its compatible table does not match `mediatek,mt6989-spi`; the stock binary's embedded compile path points instead to `kernel_device_modules-6.1/drivers/spi/spi-mt65xx.c`. Generic/upstream code is reference material, not proof that this Android controller uses identical timing/register behavior.
 - The SPI controller node includes `gt9896s_*` pinctrl states for GPIO6/7, while its live child names GPIO3/90 for IRQ/reset. `/proc/interrupts` confirms GPIO3 is the active IRQ, but `/sys/kernel/debug` is not mounted, so the GPIO6/7 states' runtime role is unknown. Do not toggle GPIO6/7 for touch.
 - Read-only FDT data does not state SPI mode or word width. Avoid assuming mode 0 or issuing trial transfers; first recover the exact runtime configuration from source or the bound driver's state.
-- The NT38771 interrupt protocol, register map, frame format, reset delays and firmware-update sequence are not yet recovered. Keep this as a separate milestone from host-controller support.
+- The prototype uses register, report and firmware-download details recovered from the stock driver/source and chip probe; its exact timing and behavior still need XNU compile review and a controlled hardware test. It polls rather than using the interrupt pin and does not touch shared reset GPIO90.
 - Any first device boot needs a safe boot path. This phone rejects `fastboot boot`; do not test a new kernel by writing a boot-critical partition until a separately verified recovery path exists.
 
 ## GPIO bit-bang fallback: what the public MT6878 pinctrl source establishes
 
 The upstream MT6878 pinctrl implementation gives a useful *layout reference* for the GPIO block: GPIO base `0x10005000`; mode fields begin at offset `0x300`, DIR at `0x0`, DO at `0x100`, and DI at `0x200`, with the pin-field calculator handling register stride and bit position. Applying those formulas to pins 68–71 yields mode register `+0x380` at bit positions 16/20/24/28, DIR `+0x20` bits 4–7, DO `+0x120` bits 4–7, and DI `+0x220` bits 4–7. This is a derivation from upstream's MT6878 tables, not confirmation against the Xiaomi Android 16 pinctrl driver or a license to write these registers from XNU.
 
-The pin-function table independently maps GPIO68–71 to SPI3 CLK/CSB/MOSI/MISO on function 2. A GPIO bit-bang transport could therefore be explored as a way around the still-incomplete SPI clock tree, but it still needs the exact lapis pinctrl ownership/drive semantics, a safe CS policy, and proof that the XNU display/touch code can coordinate those pins. GPIO90 remains shared with the active display and is out of scope. No bit-bang transport code is added until those semantics are corroborated against the stock platform and an XNU baseline is available.
+The pin-function table independently maps GPIO68–71 to SPI3 CLK/CSB/MOSI/MISO on function 2. The prototype uses GPIO bit-bang as a way around the still-incomplete SPI clock tree; exact lapis pinctrl ownership/drive semantics and XNU coordination still need confirmation. GPIO90 remains shared with the active display and is out of scope. No bit-bang transport code is added until those semantics are corroborated against the stock platform and an XNU baseline is available.
 
 ## Safe development sequence
 
@@ -53,6 +53,6 @@ The pin-function table independently maps GPIO68–71 to SPI3 CLK/CSB/MOSI/MISO 
 3. Build host-side parsers for runtime FDT and captured Linux input/interrupt evidence; use synthetic data to validate coordinate and slot translation.
 4. Implement the XNU SPI abstraction with a mock backend first. Add hardware operations only after register semantics, reset ownership and IRQ polarity are source-confirmed.
 5. Add NT38771 frame parsing from captured or documented protocol data; validate malformed frames and contact-up/down behavior offline.
-6. Only after the XNU tree, boot chain and recovery procedure are buildable and reviewed, plan a separately authorized device boot experiment.
+6. Compile and review the prototype against the pinned XNU tree; then, only after the boot chain and recovery procedure are established, plan a separately authorized device boot experiment.
 
 No device state was changed while preparing this contract. No XNU code was built and no hardware transfer was sent.
