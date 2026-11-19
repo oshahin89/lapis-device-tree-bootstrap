@@ -1,6 +1,6 @@
 # Lapis device-tree and XNU bring-up
 
-This workspace contains offline hardware captures and a prototype XNU profile for the Redmi `lapis` (25080RABDG, MediaTek MT6878). The active phone was read-only captured on Android 16 / OS3.0.309.0, slot B. The project is still in offline bring-up; there is no LAPIS kernel image that is ready to boot.
+This workspace contains hardware captures and a prototype XNU profile for the Redmi `lapis` (25080RABDG, MediaTek MT6878). The project has reached the iOS lock screen on-device (user-reported; see [current status](device/lapis_status.md) and the [run log](device/lapis_ufs_cold_bringup_plan.md#49-run-6-reached-the-ios-lock-screen)); hardware bring-up remains in progress.
 
 ## Current state
 
