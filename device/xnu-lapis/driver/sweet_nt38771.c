@@ -21,6 +21,8 @@ extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern kern_return_t thread_terminate(thread_t);
 extern void sweet_hid_touch(int finger, int down, int x, int y);
 
+void sweet_nt38771_init(void);
+
 #define NVT_GPIO_PA             0x10005000u
 #define NVT_GPIO_MODE           0x380u
 #define NVT_GPIO_DIR            0x020u
