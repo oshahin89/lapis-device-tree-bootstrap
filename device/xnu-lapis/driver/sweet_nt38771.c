@@ -40,7 +40,7 @@ void sweet_nt38771_init(void);
 #define NVT_EVENT_BUF            0x31400u
 #define NVT_FW_VERSION           0x2f000u
 #define NVT_XFER_MAX             (15u * 1024u)
-#define NVT_REPORT_BYTES         385u
+#define NVT_REPORT_BYTES         LAPIS_NVT_REPORT_BYTES
 #define NVT_REPORT_PERIOD_MS     10u
 #define NVT_BAD_FRAME_LIMIT      50u
 
@@ -298,16 +298,16 @@ nvt_boot_firmware(void)
 	if (!nvt_read(NVT_RESX_DECOUPLE, check, sizeof(check)) ||
 	    check[0] != decouple[0] || check[1] != decouple[1]) return false;
 	delay(5000);
+	if (!nvt_crc_bank(0x3f7b4u, 0x3f7b8u, 0x3f7bcu,
+	    parts[0].sram, parts[0].size, parts[0].crc) ||
+	    !nvt_crc_bank(0x3fb84u, 0x3fb88u, 0x3fb8cu,
+	    parts[1].sram, parts[1].size, parts[1].crc)) return false;
 	for (unsigned i = 0; i < count; ++i) {
 		if (!nvt_write_partition(&parts[i])) {
 			printf("LAPIS NVT: firmware partition %u failed\n", i);
 			return false;
 		}
 	}
-	if (!nvt_crc_bank(0x3f7b4u, 0x3f7b8u, 0x3f7bcu,
-	    parts[0].sram, parts[0].size, parts[0].crc) ||
-	    !nvt_crc_bank(0x3fb84u, 0x3fb88u, 0x3fb8cu,
-	    parts[1].sram, parts[1].size, parts[1].crc)) return false;
 	if (!nvt_write_u8(NVT_EVENT_BUF + 0x60u, 0) ||
 	    !nvt_write_u8(NVT_EVENT_BUF + 0x50u, 0xae) ||
 	    !nvt_write_u8(NVT_BOOT_READY, 1)) return false;
@@ -390,7 +390,7 @@ nvt_thread(void *arg, wait_result_t wr)
 	    NVT_VIEW_WIDTH, NVT_VIEW_HEIGHT);
 	for (;;) {
 		if (!nvt_read(NVT_EVENT_BUF, nvt.report, NVT_REPORT_BYTES) ||
-		    lapis_nvt_process_frame(&nvt.state, nvt.report + 1,
+		    lapis_nvt_process_frame(&nvt.state, nvt.report,
 		    LAPIS_NVT_REPORT_BYTES, nvt_emit, NULL) != LAPIS_NVT_PARSE_OK) {
 			if (++bad >= NVT_BAD_FRAME_LIMIT) {
 				nvt_release_all();
