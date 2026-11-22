@@ -17,10 +17,13 @@
  * 3. v2: Xiaomi's aw86927.c (MiCode garnet-t-oss) misc_para_init, then three
  *    CONT plays as aw86927_haptic_cont_play (track on, on, off), GLBRD5
  *    sampled every 10 ms; SYSST 0x01, SYSINT 0x02, SYSST2 0x04, SYSER 0x05 shown.
+ * v3: Android's idle registers cloned instead (2nd play with boost).
+ *    v2 on the phone: GO ignored (state 0, no DONE).
  *    v1 on the phone: ID 0x9270 at once, 0 I2C errors, state 0 after GO, no buzz. Writes: GPIO 116 and the AW86927 only.
  */
 #include <stdint.h>
 #include "console.h"
+#include "aw86927_android.h"
 
 #define rsr(r) ({ uint64_t _v; __asm__ volatile("mrs %0, " r : "=r"(_v)); _v; })
 
@@ -193,7 +196,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "tvib v2: AW86927 init + CONT, state watched");
+	con_str("LAPIS", "tvib v3: Android's AW86927 config + CONT");
 	uint32_t id = chip_id();
 	if (id != 0x9270) {
 		/* reset pin -> GPIO output high (Android hw_reset: 0, 1 ms, 1, 8 ms) */
@@ -218,18 +221,25 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	con_hex2("CONTCFG", "1.6.7.9=", (uint32_t)aw_rd(0x18) << 24 | (uint32_t)aw_rd(0x1d) << 16 |
 		 (uint32_t)aw_rd(0x1e) << 8 | (uint32_t)aw_rd(0x20), "f0 lra=", (uint32_t)aw_rd(0x25) << 8 | (uint32_t)aw_rd(0x26));
 
-	/* aw86927_haptic_misc_para_init (DT-dependent fields left as they are) */
+	/* v3: clone Android's whole idle configuration, then read it back */
 	stop_standby();
+	uint32_t bad = 0, first_bad = 0;
+	for (unsigned i = 0; i < sizeof(aw_android) / sizeof(aw_android[0]); i++)
+		aw_wr(aw_android[i][0], aw_android[i][1]);
 	aw_wr(0x5b, 0x7d);				/* TMCFG unlock */
-	aw_wr(0x47, 0x5a);				/* SYSCTRL5 */
-	aw_bits(0x71, 0x80, 0x80);			/* ANACFG12 boost skip off */
-	aw_bits(0x74, 0x80, 0x80);			/* ANACFG15 adaptive ipeak */
-	aw_bits(0x75, 0x10, 0x00);			/* ANACFG16 BST_SRC 3ns */
-	aw_wr(0x48, 0xa0);				/* PWMCFG1 */
+	for (unsigned i = 0; i < sizeof(aw_android_trim) / sizeof(aw_android_trim[0]); i++)
+		aw_wr(aw_android_trim[i][0], aw_android_trim[i][1]);
 	aw_wr(0x5b, 0x00);				/* TMCFG lock */
-	aw_bits(0x46, 0x01, 0x01);			/* SYSCTRL4 gain bypass off */
-	aw_bits(0x46, 0x60, 0x00);			/* 24 kHz */
-	aw_bits(0x4c, 0x40, 0x00);			/* VBAT SW mode */
+	for (unsigned i = 0; i < sizeof(aw_android) / sizeof(aw_android[0]); i++) {
+		int v = aw_rd(aw_android[i][0]);
+		if (v != aw_android[i][1]) {
+			if (!bad)
+				first_bad = (uint32_t)aw_android[i][0] << 16 | (uint32_t)(v & 0xffff);
+			bad++;
+		}
+	}
+	con_hex2("CLONE", "mismatches=", bad, "first reg.val=", first_bad);
+	con_hex2("NOW", "pwmcfg2=", (uint32_t)aw_rd(0x49), "playcfg1=", (uint32_t)aw_rd(0x06));
 	show_status("INIT");
 	con_skip();
 
@@ -238,8 +248,8 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 		/* aw86927_haptic_cont_play */
 		stop_standby();
 		aw_bits(0x08, 0x03, 0x02);		/* PLAYCFG3 CONT */
-		aw_bits(0x06, 0x80, 0x00);		/* boost bypass */
-		aw_bits(0x1d, 0x80, n == 3 ? 0x00 : 0x80);	/* track on (3rd: off) */
+		aw_bits(0x06, 0x80, n == 2 ? 0x80 : 0x00);	/* bypass (2nd: boost) */
+		aw_bits(0x1d, 0x80, 0x80);		/* track on */
 		aw_bits(0x1d, 0x7f, 0x7f);		/* drv1 level */
 		aw_wr(0x1e, 0x36);			/* drv2 level */
 		aw_wr(0x20, 0xff);			/* drv2 time */
