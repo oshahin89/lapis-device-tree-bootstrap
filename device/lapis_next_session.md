@@ -62,3 +62,11 @@ CMDQ0 0xd00 = 0x00033902 / 0xd04 = 0x00390651: LK's last command was DCS long
 write 51 06 39 = brightness 0x639. Values did not move in 1 s.
 `tools/lapis_shim/tbl.c` (dual_v8, Volume down) sends DCS 0x51 through
 VM_CMD (VM_CMD_DATA0 0x208, START bit 16, INTSTA bit 5) at 5 levels.
+
+**Result (dual_v8, 2026-11-22): brightness changes on the phone.** All five
+levels visibly applied; VM_CMD_DONE came after 0xf4..0x1a1 polls of 10 us
+(2.4..4.2 ms, within a frame); START and INTSTA unchanged afterwards
+(0x1 / 0x800b0712). Recipe: VM_CMD_DATA0 0x208 = 0x51 | hi << 8 | lo << 16,
+VM_CMD_CON 0x200 = 0x00033923, clear INTSTA bit 5, START bit 16 0 -> 1, wait
+INTSTA bit 5, START bit 16 -> 0, VM_CMD_CON back to 0x21. Next: an XNU
+brightness hook (and screen off with level 0 or DCS 0x28/0x10).
