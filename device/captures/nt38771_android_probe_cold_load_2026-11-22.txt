@@ -1,0 +1,105 @@
+# tracer: nop
+#
+# entries-in-buffer/entries-written: 93/93   #P:8
+#
+#                                _-----=> irqs-off/BH-disabled
+#                               / _----=> need-resched
+#                              | / _---=> hardirq/softirq
+#                              || / _--=> preempt-depth
+#                              ||| / _-=> migrate-disable
+#                              |||| /     delay
+#           TASK-PID     CPU#  |||||  TIMESTAMP  FUNCTION
+#              | |         |   |||||     |         |
+              sh-10727   [006] d....    75.894489: nvt_ts_probe: (nvt_ts_probe+0x0/0x12f0 [nt38771]) a0=0x2713e800 a1=0x0
+              sh-10727   [006] d....    75.894594: nvt_gpio_config: (nvt_gpio_config+0x0/0x70 [nt38771]) a0=0x1702e800 a1=0xc45b890
+              sh-10727   [006] d....    75.894597: gpio_req: (gpio_request_one+0x0/0x158) gpio=299 flags=0x1
+              sh-10727   [006] d....    75.912814: nvt_ts_check_chip_ver_trim_loop: (nvt_ts_check_chip_ver_trim_loop+0x0/0x37c [nt38771]) a0=0x0 a1=0x0
+              sh-10727   [006] d....    75.912835: wa: (nvt_write_addr+0x0/0x110 [nt38771]) addr=0x3f0fe val=0x69
+              sh-10727   [006] d....    75.912837: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x7 b2=0xe1 b3=0x0 b4=0x0 b5=0x99
+              sh-10727   [006] d....    75.912889: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=2 b0=0x7e b1=0x69 b2=0x0 b3=0x0 b4=0xff b5=0x7
+              sh-10727   [006] d....    75.917917: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x7 b2=0xe0 b3=0x0 b4=0x0 b5=0x0
+              sh-10727   [006] d....    75.917938: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=7 b0=0x4 b1=0x0 b2=0x0 b3=0x0 b4=0x0 b5=0x0
+              sh-10727   [006] d....    75.917957: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=7 b0=0x4 b1=0x0 b2=0x0 b3=0x0 b4=0x0 b5=0x0
+   kworker/u16:1-10      [005] d....    76.960831: Boot_Update_Firmware: (Boot_Update_Firmware+0x0/0x50 [nt38771]) a0=0x1702e810 a1=0xc0
+   kworker/u16:1-10      [005] d....    76.960837: nvt_update_firmware: (nvt_update_firmware+0x0/0xdc0 [nt38771]) a0=0xf289cd93 a1=0x0
+   kworker/u16:1-10      [005] d....    76.961054: nvt_bootloader_reset: (nvt_bootloader_reset+0x0/0x5c [nt38771]) a0=0xeaf3ebad a1=0xb
+   kworker/u16:1-10      [005] d....    76.961060: wa: (nvt_write_addr+0x0/0x110 [nt38771]) addr=0x3f0fe val=0x69
+   kworker/u16:1-10      [005] d....    76.961062: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x7 b2=0xe1 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [005] d....    76.961104: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=2 b0=0x7e b1=0x69 b2=0x0 b3=0x0 b4=0xff b5=0x7
+   kworker/u16:1-10      [005] d....    76.966134: nvt_set_bld_crc_bank: (nvt_set_bld_crc_bank+0x0/0x110 [nt38771]) a0=0x3f7b4 a1=0x0
+   kworker/u16:1-10      [005] d....    76.966138: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x3f7b4
+   kworker/u16:1-10      [005] d....    76.966139: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x7 b2=0xef b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [005] d....    76.966159: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=4 b0=0x34 b1=0x0 b2=0x0 b3=0x0 b4=0x0 b5=0x0
+   kworker/u16:1-10      [005] d....    76.966173: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=4 b0=0x38 b1=0x67 b2=0x6a b3=0x1 b4=0x0 b5=0x0
+   kworker/u16:1-10      [005] d....    76.966188: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=5 b0=0x3c b1=0xb7 b2=0x9e b3=0x20 b4=0xb2 b5=0x0
+   kworker/u16:1-10      [005] d....    76.966205: nvt_set_bld_crc_bank: (nvt_set_bld_crc_bank+0x0/0x110 [nt38771]) a0=0x3fb84 a1=0x20000
+   kworker/u16:1-10      [005] d....    76.966205: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x3fb84
+   kworker/u16:1-10      [005] d....    76.966205: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x7 b2=0xf7 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [005] d....    76.966219: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=4 b0=0x4 b1=0x0 b2=0x0 b3=0x2 b4=0xb2 b5=0x0
+   kworker/u16:1-10      [005] d....    76.966233: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=4 b0=0x8 b1=0x47 b2=0x5d b3=0x0 b4=0xb2 b5=0x0
+   kworker/u16:1-10      [005] d....    76.966248: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=5 b0=0xc b1=0x36 b2=0x11 b3=0xff b4=0x5d b5=0x0
+   kworker/u16:1-10      [005] d....    76.966270: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x0
+   kworker/u16:1-10      [005] d....    76.966271: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x0 b2=0x0 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [005] d....    76.966288: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=15361 b0=0x0 b1=0x48 b2=0x0 b3=0x1 b4=0xa2 b5=0xea
+   kworker/u16:1-10      [005] d....    76.983697: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x3c00
+   kworker/u16:1-10      [005] d....    76.983701: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x0 b2=0x78 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [005] d....    76.983725: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=15361 b0=0x0 b1=0xe8 b2=0xfc b3=0x2e b4=0xa7 b5=0xdd
+   kworker/u16:1-10      [005] d....    76.996836: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x7800
+   kworker/u16:1-10      [005] d....    76.996841: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x0 b2=0xf0 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [005] d....    76.996863: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=15361 b0=0x0 b1=0x49 b2=0xff b3=0xfa b4=0xbd b5=0x3e
+   kworker/u16:1-10      [000] d....    77.010238: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0xb400
+   kworker/u16:1-10      [000] d....    77.010248: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x1 b2=0x68 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.010286: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=15361 b0=0x0 b1=0xeb b2=0x45 b3=0x96 b4=0x4b b5=0xea
+   kworker/u16:1-10      [000] d....    77.023495: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0xf000
+   kworker/u16:1-10      [000] d....    77.023506: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x1 b2=0xe0 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.023542: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=15361 b0=0x0 b1=0xf2 b2=0x56 b3=0xac b4=0x40 b5=0x0
+   kworker/u16:1-10      [000] d....    77.040485: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x12c00
+   kworker/u16:1-10      [000] d....    77.040497: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x2 b2=0x58 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.040542: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=15361 b0=0x0 b1=0x38 b2=0x6 b3=0x9a b4=0x2 b5=0x5a
+   kworker/u16:1-10      [000] d....    77.053666: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x16800
+   kworker/u16:1-10      [000] d....    77.053675: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x2 b2=0xd0 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.053706: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=617 b0=0x0 b1=0x18 b2=0xb b3=0x1d b4=0x8 b5=0x0
+   kworker/u16:1-10      [000] d....    77.054339: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x20000
+   kworker/u16:1-10      [000] d....    77.054347: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x4 b2=0x0 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.054383: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=15361 b0=0x0 b1=0x27 b2=0x3 b3=0x3 b4=0x2b b5=0x1e
+   kworker/u16:1-10      [000] d....    77.068618: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x23c00
+   kworker/u16:1-10      [000] d....    77.068629: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x4 b2=0x78 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.068666: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=8521 b0=0x0 b1=0x0 b2=0x0 b3=0x0 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.075988: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x31548
+   kworker/u16:1-10      [000] d....    77.075998: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x6 b2=0x2a b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.076032: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=10753 b0=0x48 b1=0x27 b2=0x0 b3=0x0 b4=0x15 b5=0x1c
+   kworker/u16:1-10      [000] d....    77.085274: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x16a68
+   kworker/u16:1-10      [000] d....    77.085285: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x2 b2=0xd4 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.085321: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=2701 b0=0x68 b1=0x3c b2=0xf b3=0xfa b4=0x31 b5=0xdd
+   kworker/u16:1-10      [000] d....    77.087769: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x2c120
+   kworker/u16:1-10      [000] d....    77.087780: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x5 b2=0x82 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.087813: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3139 b0=0x20 b1=0xfc b2=0x0 b3=0x44 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.090588: page: (nvt_set_page+0x0/0x78 [nt38771]) addr=0x25d48
+   kworker/u16:1-10      [000] d....    77.090604: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x4 b2=0xba b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.090638: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=257 b0=0x48 b1=0xb0 b2=0x2 b3=0x0 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.090964: nvt_fw_crc_enable: (nvt_fw_crc_enable+0x0/0xc0 [nt38771]) a0=0x0 a1=0xf
+   kworker/u16:1-10      [000] d....    77.090976: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x5 b2=0x68 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.091006: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=2 b0=0x60 b1=0x0 b2=0x0 b3=0x0 b4=0xff b5=0x5
+   kworker/u16:1-10      [000] d....    77.091024: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=2 b0=0x50 b1=0xae b2=0x0 b3=0x0 b4=0xff b5=0x5
+   kworker/u16:1-10      [000] d....    77.091043: nvt_boot_ready: (nvt_boot_ready+0x0/0x40 [nt38771]) a0=0x0 a1=0xf
+   kworker/u16:1-10      [000] d....    77.091048: wa: (nvt_write_addr+0x0/0x110 [nt38771]) addr=0x3f102 val=0x1
+   kworker/u16:1-10      [000] d....    77.091050: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x7 b2=0xe2 b3=0x0 b4=0x0 b5=0x37
+   kworker/u16:1-10      [000] d....    77.091067: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=2 b0=0x2 b1=0x1 b2=0x0 b3=0x0 b4=0xff b5=0x7
+   kworker/u16:1-10      [000] d....    77.096093: nvt_check_fw_reset_state: (nvt_check_fw_reset_state+0x0/0x170 [nt38771]) a0=0xa1 a1=0xf
+   kworker/u16:1-10      [000] d....    77.096104: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x5 b2=0x68 b3=0x0 b4=0x60 b5=0x0
+   kworker/u16:1-10      [000] d....    77.096142: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=6 b0=0x60 b1=0x0 b2=0x0 b3=0x0 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.107264: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=6 b0=0x60 b1=0x0 b2=0x4 b3=0x1 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.117413: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=6 b0=0x60 b1=0x0 b2=0x4 b3=0x1 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.127585: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=6 b0=0x60 b1=0x0 b2=0x4 b3=0x1 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.137743: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=6 b0=0x60 b1=0x0 b2=0x4 b3=0x1 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.147903: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=6 b0=0x60 b1=0x0 b2=0x4 b3=0x1 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.147988: nvt_get_fw_info: (nvt_get_fw_info+0x0/0x424 [nt38771]) a0=0x46 a1=0x80d3a70
+   kworker/u16:1-10      [000] d....    77.147994: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x5 b2=0x68 b3=0x0 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.148016: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=39 b0=0x78 b1=0x0 b2=0x0 b3=0x0 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.148253: nvt_get_fw_info: (nvt_get_fw_info+0x0/0x424 [nt38771]) a0=0x0 a1=0x0
+   kworker/u16:1-10      [000] d....    77.148261: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x5 b2=0x68 b3=0x0 b4=0x0 b5=0x0
+   kworker/u16:1-10      [000] d....    77.148293: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=39 b0=0x78 b1=0x0 b2=0x0 b3=0x0 b4=0x0 b5=0x0
+   irq/48-NVT-ts-10979   [000] d....    77.182658: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=109 b0=0x0 b1=0x0 b2=0x0 b3=0x0 b4=0x0 b5=0x0
+   kworker/u17:2-1113    [007] d....    78.062236: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=3 b0=0xff b1=0x5 b2=0x68 b3=0x0 b4=0x0 b5=0x0
+   kworker/u17:2-1113    [007] d....    78.062276: wr: (CTP_SPI_WRITE+0x0/0x1e0 [nt38771]) len=2 b0=0x50 b1=0x53 b2=0x0 b3=0x0 b4=0x0 b5=0x0
+   kworker/u17:2-1113    [007] d....    78.082337: rd: (CTP_SPI_READ+0x0/0x1fc [nt38771]) len=2 b0=0x50 b1=0xff b2=0x0 b3=0x0 b4=0x0 b5=0x0

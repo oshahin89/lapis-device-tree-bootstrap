@@ -276,6 +276,23 @@ nvt_boot_firmware(void)
 	uint8_t status = 0, running = 0;
 	bool already_running;
 
+	/*
+	 * Android's probe (nvt_ts_check_chip_ver_trim_loop, kprobe capture
+	 * 2026-11-22) runs before every cold load: bootloader reset 0x69, 5 ms,
+	 * write six zero bytes at 0x3F004 (chip_ver_trim), then read the ID.
+	 * Our earlier driver only read the ID; the rest of its sequence already
+	 * matched Android byte for byte, yet the firmware never booted.
+	 */
+	if (!nvt_write_u8(NVT_RESET, 0x69)) {
+		printf("LAPIS NVT: chip-check reset write failed\n");
+		return false;
+	}
+	delay(5000);
+	memset(id, 0, sizeof(id));
+	if (!nvt_write(NVT_CHIP_ID, id, sizeof(id))) {
+		printf("LAPIS NVT: chip-check zero write failed\n");
+		return false;
+	}
 	if (!nvt_read(NVT_CHIP_ID, id, sizeof(id)) ||
 	    (id[3] != 0x72 && id[3] != 0x71) || id[4] != 0x87 || id[5] != 0x03) {
 		printf("LAPIS NVT: chip ID check failed (%02x %02x %02x)\n",
@@ -296,6 +313,8 @@ nvt_boot_firmware(void)
 	}
 	printf("LAPIS NVT: chip=%02x%02x%02x fwinfo-before=%02x%02x\n",
 	    id[3], id[4], id[5], ver[0], ver[1]);
+	/* Android loads ~1 s after the chip check (probe -> Boot_Update_Firmware). */
+	nvt_wait_ms(1000);
 	if (!nvt_partition_table(parts, &count)) {
 		printf("LAPIS NVT: firmware table rejected\n");
 		return false;

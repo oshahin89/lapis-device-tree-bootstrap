@@ -130,3 +130,21 @@ Changes (driver + staging): plain bootloader reset (RESX decouple only with
 (`device/novatek_ts_fw_tm_hyperos4.bin`, sha256 df22cff3…), version check by
 complement, ready = state `0xA0..0xAF`. Needs a CI kernel build and a device
 boot with `lapisnt=1`.
+
+### v8 result and the probe capture (2026-11-22)
+
+v8 (kernel CI run 44999594414, plain reset, FW 0x2B): still `state=00`, with
+the ILM/DLM CRC (`b2209eb7` / `5dff1136`) and the chip's CRC flags
+(`CRC=0018`) identical to Android's own dmesg — the load is now byte-identical.
+(The console text the user saw on touches was not from touch: the driver had
+already stopped.)
+
+Android's **cold** load, captured by unbinding/rebinding `spi3.0` from `NVT-ts`
+with kprobes (`device/captures/nt38771_android_probe_cold_load_2026-11-22.txt`;
+touch kept working): `nvt_gpio_config` (only `gpio_request(299)`, the IRQ
+pin as input — no GPIO toggles), then `nvt_ts_check_chip_ver_trim_loop`:
+`0x69 → 0x3F0FE`, 5 ms, **write six zero bytes at `0x3F004`**, read the ID;
+~1 s later `Boot_Update_Firmware` does exactly our sequence (full ILM,
+`skip_update_ilm = 0`) and the firmware is up in ~50 ms ("Update firmware
+success! <186910 us>"). The chip check is the only remaining difference; the
+driver now does it (reset, zero write, ID read) and waits 1 s before loading.
