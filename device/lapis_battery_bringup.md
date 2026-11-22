@@ -1,0 +1,37 @@
+# Lapis battery and charging bring-up (2026-11-22)
+
+## Hardware (Android, read-only)
+
+| Part | Where | Notes |
+|---|---|---|
+| Fuel gauge | TI **bq28z610**, I2C0 `0x11c20000` (`mediatek,mt6989-i2c`, 400 kHz), address `0x55` | Android: 86 %, 4245 mV, +671 mA charging, 29.1 °C, full 6086 / design 6580 mAh, 168 cycles |
+| Main charger | MT6375 on I2C5 `0x11280000`, address `0x34` | not used yet: the gauge's current and status say whether it charges |
+
+bq28z610 standard commands (2 bytes, little endian): `0x06` temperature
+(0.1 K), `0x08` voltage (mV), `0x0A` BatteryStatus (bit 5 FC, bit 6 DSG),
+`0x0C` current (mA, signed, + = charging), `0x10`/`0x12` remaining / full
+charge capacity (mAh), `0x2A` cycle count, `0x2C` state of charge (%).
+
+## I2C controller
+
+Stock `i2c-mt65xx.ko`: `mt6989_compat` → `mt_i2c_regs_v2` (upstream
+offsets: SLAVE_ADDR `0x94`, CONTROL `0x10`, TRANSFER_LEN `0x14`, TRANSAC_LEN
+`0x18`, START `0x24`, EXT_CONF `0x28`, FIFO_ADDR_CLR `0x38`, TRANSFER_LEN_AUX
+`0x44`, FIFO_STAT `0xf4`), flags `aux_len_reg`, `auto_restart`. LK leaves
+I2C0 configured (CONTROL `0x38`, TIMING `0x20`).
+
+`tools/lapis_shim/tgauge.c` on the phone: v1 (`9de3fe75…`) — 0 errors, but
+values one byte off (SOC `5400`, voltage `C000`). v2 (`dfadebdd…`) raw FIFO:
+voltage `00 BD 10 00`, SOC `00 54 00 ..`, FIFO count = requested + 1 — the
+FIFO holds **one extra leading byte**; skip it, then little endian
+(`0x10BD` = 4285 mV, `0x54` = 84 %).
+
+## Driver (v16)
+
+`device/xnu-lapis/driver/sweet_lapis_battery.c` (+ patch/stage 0088): WRRD
+gauge reads (skip the leading FIFO byte when the count is n + 1, 3 retries,
+plausibility checks); SweetBattery gets a lapis source (default on,
+`lapisbattery=0` disables): SOC, voltage, current, temperature, cycle count,
+full capacity from the gauge; charging = current > 10 mA, external =
+charging or not DSG, full = FC or 100 %; polled every 10 s. A failed read
+keeps the last reading (static 100 % before the first).
