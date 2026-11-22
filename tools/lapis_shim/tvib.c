@@ -163,8 +163,48 @@ static int aw_wr_clean(uint8_t reg, uint8_t v)
 	return go_wait();
 }
 
+/*
+ * v5: v4 showed the value byte arriving as 0 (0x07 <- 0x81 / 0x82 both read
+ * back 0, 0x06 untouched). Variants of loading the FIFO:
+ *   0 plain 16-bit stores (as before)  1 10 us between the two stores
+ *   2 32-bit stores                    3 8-bit stores
+ *   4 three bytes reg, v, v (if the first data byte is lost, reg still gets v)
+ */
+static int wvar = -1;
+static uint32_t fifo_loaded;
+
+static int aw_wr_var(int var, uint8_t reg, uint8_t v)
+{
+	setup(0);
+	wr(TRANSFER_LEN_AUX, 0);
+	wr(TRANSFER_LEN, var == 4 ? 3 : 2);
+	wr(TRANSAC_LEN, 1);
+	if (var == 2) {
+		*(volatile uint32_t *)(I2C + DATA_PORT) = reg;
+		__asm__ volatile("dsb sy" ::: "memory");
+		*(volatile uint32_t *)(I2C + DATA_PORT) = v;
+		__asm__ volatile("dsb sy" ::: "memory");
+	} else if (var == 3) {
+		*(volatile uint8_t *)(I2C + DATA_PORT) = reg;
+		__asm__ volatile("dsb sy" ::: "memory");
+		*(volatile uint8_t *)(I2C + DATA_PORT) = v;
+		__asm__ volatile("dsb sy" ::: "memory");
+	} else {
+		wr(DATA_PORT, reg);
+		if (var == 1)
+			udelay(10);
+		wr(DATA_PORT, v);
+		if (var == 4)
+			wr(DATA_PORT, v);
+	}
+	fifo_loaded = rd(FIFO_STAT);
+	return go_wait();
+}
+
 static int aw_write(uint8_t reg, uint8_t v)
 {
+	if (wvar >= 0)
+		return aw_wr_var(wvar, reg, v);
 	return clean_writes ? aw_wr_clean(reg, v) : aw_wr(reg, v);
 }
 
@@ -226,7 +266,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "tvib v4: I2C write check + Android config + CONT");
+	con_str("LAPIS", "tvib v5: 5 I2C write variants + Android config");
 	uint32_t id = chip_id();
 	if (id != 0x9270) {
 		/* reset pin -> GPIO output high (Android hw_reset: 0, 1 ms, 1, 8 ms) */
@@ -251,17 +291,19 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	con_hex2("CONTCFG", "1.6.7.9=", (uint32_t)aw_rd(0x18) << 24 | (uint32_t)aw_rd(0x1d) << 16 |
 		 (uint32_t)aw_rd(0x1e) << 8 | (uint32_t)aw_rd(0x20), "f0 lra=", (uint32_t)aw_rd(0x25) << 8 | (uint32_t)aw_rd(0x26));
 
-	/* v4: one register (PLAYCFG2 gain, 0x07) written both ways, read back */
+	/* v5: PLAYCFG2 (0x07) written with each variant, read back */
 	stop_standby();
-	uint32_t f0 = rd(FIFO_STAT);
-	aw_wr(0x07, 0x81);
-	int r1 = aw_rd(0x07);
-	con_hex2("PLAIN", "0x07<-81 read=", (uint32_t)r1, "fifo before=", f0);
-	aw_wr_clean(0x07, 0x82);
-	int r2 = aw_rd(0x07);
-	con_hex2("CLEAN", "0x07<-82 read=", (uint32_t)r2, "fifo before=", last_fifo_before);
-	con_hex2("AFTER", "playcfg1=", (uint32_t)aw_rd(0x06), "sysctrl3=", (uint32_t)aw_rd(0x45));
-	clean_writes = (r2 == 0x82);
+	for (int var = 0; var <= 4; var++) {
+		uint8_t want = (uint8_t)(0x81 + var);
+		aw_wr_var(var, 0x07, want);
+		int r = aw_rd(0x07);
+		char lab[] = "W0";
+		lab[1] = (char)('0' + var);
+		con_hex2(lab, "want.got=", (uint32_t)want << 16 | (uint32_t)(r & 0xffff), "fifo loaded=", fifo_loaded);
+		if (r == want && wvar < 0)
+			wvar = var;
+	}
+	con_hex2("AFTER", "playcfg1=", (uint32_t)aw_rd(0x06), "using variant=", (uint32_t)wvar);
 
 	/* clone Android's idle configuration, each register read back at once */
 	uint32_t bad = 0, first_bad = 0;
