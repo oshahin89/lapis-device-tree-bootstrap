@@ -5,7 +5,8 @@
 # PROBE (optional, e.g. tvib): a shim probe run on Volume down instead; it ends
 # with "press Power = reboot to Android", so tests need no PC either.
 # LAPIS_CMDLINE (optional) goes into the boot header cmdline, which LK appends
-# to Android's kernel command line (e.g. boot-time trace events).
+# to Android's kernel command line (e.g. boot-time trace events). LK puts
+# "root=/dev/ram " over the first 20 characters, so start it with a pad word.
 # PAYLOAD is a SWEETXNU payload from tools/ios-sweet/mkpayload.py. Only writes
 # files; flash OUT.img from rooted Android with
 #   dd if=OUT.img of=/dev/block/by-name/boot_b bs=4M && sync
