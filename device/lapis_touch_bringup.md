@@ -283,3 +283,7 @@ at row 168: the shim loader passes the whole panel as `boot_args.Video`;
 lapis patch 0086 keeps AppleCLCD reporting 1125×2436 to userland and draws each
 layer through column/row maps (`floor(p × logical / panel)`, nearest
 neighbour); the NT38771 driver maps every panel touch through the same maps.
+
+**v14 on the phone** (`build/lapis_full_v14.img`, `05db7956…`, CI 45017085762):
+the user reports the iOS image now fills the screen, touch is accurate, and
+the UI does not feel noticeably slower than the windowed v13.

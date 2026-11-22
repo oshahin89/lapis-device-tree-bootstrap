@@ -32,7 +32,7 @@ root `sha256sum /dev/block/by-name/boot_b` = `851a5435…ae4f5`.
 | Area | State | Notes |
 |---|---|---|
 | UFS root (needed for a real iOS root) | **not implemented** | LK leaves the host disabled; register dump and Linux sequence in [lapis_ufs_bringup.md](lapis_ufs_bringup.md) |
-| Touch | **works on iOS** (v13, 2026-11-22: lock screen unlocks by swipe) | opt-in `lapisnt=1`; SPI3 controller driver; stages the flashless firmware and polls reports through SweetHID. GitHub Actions run 44506319609 built XNU with all 85 patches; details and limits in [lapis_touch_bringup.md](lapis_touch_bringup.md) |
+| Touch + display | **works on iOS** (v13 touch, v14 full-screen 1.138× scaled display, 2026-11-22) | opt-in `lapisnt=1`; SPI3 controller driver; stages the flashless firmware and polls reports through SweetHID. GitHub Actions run 44506319609 built XNU with all 85 patches; details and limits in [lapis_touch_bringup.md](lapis_touch_bringup.md) |
 | Keys (power, volume) | not started | runtime FDT has `gpio-keys` (volume down), `mediatek,mt6363-keys` (power/home on the PMIC) and `kp@1c00e000` |
 | pstore log channel | partial | survives warm resets, lost on PSCI cold reset and on Power + Vol-down |
 | USB, audio, Wi-Fi/BT, modem, camera, sensors, GPU | not started | none of ios-sweet/topaz/ruby has GPU, Wi-Fi, modem or camera either |
