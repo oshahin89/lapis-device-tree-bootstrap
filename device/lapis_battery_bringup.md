@@ -35,3 +35,10 @@ plausibility checks); SweetBattery gets a lapis source (default on,
 full capacity from the gauge; charging = current > 10 mA, external =
 charging or not DSG, full = FC or 100 %; polled every 10 s. A failed read
 keeps the last reading (static 100 % before the first).
+
+**v16 on the phone** (`080e04aa…`, CI 45027480867): iOS shows **86 %** from
+the gauge; log `SWEET BATTERY: lapis bq28z610 gauge, 86% 4305mV external=1
+charging=1`. With the charger plugged in, iOS did not show charging. v17
+logs every external/charging change (and current steps > 200 mA) and
+publishes `AdapterDetails` (18 W, FamilyCode `0xe0004004` dedicated USB
+charging port) while external, in case powerd/BatteryCenter need it.
