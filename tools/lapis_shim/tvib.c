@@ -17,6 +17,8 @@
  * 3. v2: Xiaomi's aw86927.c (MiCode garnet-t-oss) misc_para_init, then three
  *    CONT plays as aw86927_haptic_cont_play (track on, on, off), GLBRD5
  *    sampled every 10 ms; SYSST 0x01, SYSINT 0x02, SYSST2 0x04, SYSER 0x05 shown.
+ * v4: v3 cloned only 21 of 67 registers (PLAYCFG1 read 0 after): writes
+ *    checked plain vs clean (AUX 0, FIFO drained), clone verified per register.
  * v3: Android's idle registers cloned instead (2nd play with boost).
  *    v2 on the phone: GO ignored (state 0, no DONE).
  *    v1 on the phone: ID 0x9270 at once, 0 I2C errors, state 0 after GO, no buzz. Writes: GPIO 116 and the AW86927 only.
@@ -138,11 +140,39 @@ static int aw_wr(uint8_t reg, uint8_t v)
 	return go_wait();
 }
 
+static int clean_writes;
+static uint32_t last_fifo_before;
+
+/*
+ * v4: the plain write left 46 of 67 cloned registers wrong (v3 on the
+ * phone). The clean variant also zeroes TRANSFER_LEN_AUX (left at 1 by the
+ * last read), drains whatever the FIFO still reports, and clears it again.
+ */
+static int aw_wr_clean(uint8_t reg, uint8_t v)
+{
+	setup(0);
+	wr(TRANSFER_LEN_AUX, 0);
+	last_fifo_before = rd(FIFO_STAT);
+	for (int i = 0; i < 16 && (rd(FIFO_STAT) & 0xf); i++)
+		(void)rd(DATA_PORT);
+	wr(FIFO_ADDR_CLR, 1);
+	wr(TRANSFER_LEN, 2);
+	wr(TRANSAC_LEN, 1);
+	wr(DATA_PORT, reg);
+	wr(DATA_PORT, v);
+	return go_wait();
+}
+
+static int aw_write(uint8_t reg, uint8_t v)
+{
+	return clean_writes ? aw_wr_clean(reg, v) : aw_wr(reg, v);
+}
+
 static void aw_bits(uint8_t reg, uint8_t mask, uint8_t val)
 {
 	int v = aw_rd(reg);
 	if (v >= 0)
-		aw_wr(reg, (uint8_t)((v & ~mask) | (val & mask)));
+		aw_write(reg, (uint8_t)((v & ~mask) | (val & mask)));
 }
 
 static uint32_t chip_id(void)
@@ -174,7 +204,7 @@ static void watch(uint32_t ms)
 
 static void stop_standby(void)
 {
-	aw_wr(0x09, 0x02);				/* PLAYCFG4 STOP */
+	aw_write(0x09, 0x02);				/* PLAYCFG4 STOP */
 	for (int i = 0; i < 40; i++) {
 		int v = aw_rd(0x3f);
 		if (v >= 0 && (v & 0xf) == 0)
@@ -196,7 +226,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "tvib v3: Android's AW86927 config + CONT");
+	con_str("LAPIS", "tvib v4: I2C write check + Android config + CONT");
 	uint32_t id = chip_id();
 	if (id != 0x9270) {
 		/* reset pin -> GPIO output high (Android hw_reset: 0, 1 ms, 1, 8 ms) */
@@ -221,24 +251,35 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	con_hex2("CONTCFG", "1.6.7.9=", (uint32_t)aw_rd(0x18) << 24 | (uint32_t)aw_rd(0x1d) << 16 |
 		 (uint32_t)aw_rd(0x1e) << 8 | (uint32_t)aw_rd(0x20), "f0 lra=", (uint32_t)aw_rd(0x25) << 8 | (uint32_t)aw_rd(0x26));
 
-	/* v3: clone Android's whole idle configuration, then read it back */
+	/* v4: one register (PLAYCFG2 gain, 0x07) written both ways, read back */
 	stop_standby();
+	uint32_t f0 = rd(FIFO_STAT);
+	aw_wr(0x07, 0x81);
+	int r1 = aw_rd(0x07);
+	con_hex2("PLAIN", "0x07<-81 read=", (uint32_t)r1, "fifo before=", f0);
+	aw_wr_clean(0x07, 0x82);
+	int r2 = aw_rd(0x07);
+	con_hex2("CLEAN", "0x07<-82 read=", (uint32_t)r2, "fifo before=", last_fifo_before);
+	con_hex2("AFTER", "playcfg1=", (uint32_t)aw_rd(0x06), "sysctrl3=", (uint32_t)aw_rd(0x45));
+	clean_writes = (r2 == 0x82);
+
+	/* clone Android's idle configuration, each register read back at once */
 	uint32_t bad = 0, first_bad = 0;
-	for (unsigned i = 0; i < sizeof(aw_android) / sizeof(aw_android[0]); i++)
-		aw_wr(aw_android[i][0], aw_android[i][1]);
-	aw_wr(0x5b, 0x7d);				/* TMCFG unlock */
-	for (unsigned i = 0; i < sizeof(aw_android_trim) / sizeof(aw_android_trim[0]); i++)
-		aw_wr(aw_android_trim[i][0], aw_android_trim[i][1]);
-	aw_wr(0x5b, 0x00);				/* TMCFG lock */
 	for (unsigned i = 0; i < sizeof(aw_android) / sizeof(aw_android[0]); i++) {
+		aw_write(aw_android[i][0], aw_android[i][1]);
 		int v = aw_rd(aw_android[i][0]);
 		if (v != aw_android[i][1]) {
 			if (!bad)
-				first_bad = (uint32_t)aw_android[i][0] << 16 | (uint32_t)(v & 0xffff);
+				first_bad = (uint32_t)aw_android[i][0] << 24 | (uint32_t)aw_android[i][1] << 16 |
+					    (uint32_t)(v & 0xffff);
 			bad++;
 		}
 	}
-	con_hex2("CLONE", "mismatches=", bad, "first reg.val=", first_bad);
+	aw_write(0x5b, 0x7d);				/* TMCFG unlock */
+	for (unsigned i = 0; i < sizeof(aw_android_trim) / sizeof(aw_android_trim[0]); i++)
+		aw_write(aw_android_trim[i][0], aw_android_trim[i][1]);
+	aw_write(0x5b, 0x00);				/* TMCFG lock */
+	con_hex2("CLONE", "mismatches=", bad, "first reg.want.got=", first_bad);
 	con_hex2("NOW", "pwmcfg2=", (uint32_t)aw_rd(0x49), "playcfg1=", (uint32_t)aw_rd(0x06));
 	show_status("INIT");
 	con_skip();
@@ -251,10 +292,10 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 		aw_bits(0x06, 0x80, n == 2 ? 0x80 : 0x00);	/* bypass (2nd: boost) */
 		aw_bits(0x1d, 0x80, 0x80);		/* track on */
 		aw_bits(0x1d, 0x7f, 0x7f);		/* drv1 level */
-		aw_wr(0x1e, 0x36);			/* drv2 level */
-		aw_wr(0x20, 0xff);			/* drv2 time */
+		aw_write(0x1e, 0x36);			/* drv2 level */
+		aw_write(0x20, 0xff);			/* drv2 time */
 		(void)aw_rd(0x02);			/* clear SYSINT */
-		aw_wr(0x09, 0x01);			/* GO */
+		aw_write(0x09, 0x01);			/* GO */
 		watch(300);
 		show_status("PLAYED");
 		con_hex2("STATES", "max=", (uint32_t)st_max, "seen mask=", st_mask);
