@@ -2,14 +2,14 @@
 # Build the lapis XNU boot shim (default) or the register-dump probe as a raw
 # arm64 Image (no payload).
 #   tools/lapis_shim/build.sh OUTDIR dual [PROBE]   (PROBE: tvib, tdsi: behind Volume down)
-#   tools/lapis_shim/build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi|tbl|tamp]
+#   tools/lapis_shim/build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi|tbl|tamp|taud]
 # Pack the shim with a SWEETXNU payload into a boot_b copy with
 #   tools/lapis_boot_pack.py STOCK OUT.img --image OUTDIR/Image --append PAYLOAD
 # and the probe with
 #   tools/lapis_boot_pack.py STOCK OUT.img --image OUTDIR/Image
 set -euo pipefail
 cd "$(dirname "$0")"
-OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi|tbl|tamp]}")
+OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi|tbl|tamp|taud]}")
 WHAT=${2:-shim}
 case "$WHAT" in
 	shim)    MAIN=shim.c; EXTRA="loader.c ufsinit.c" ;;
@@ -28,6 +28,7 @@ case "$WHAT" in
 	tdsi)    MAIN=tdsi.c; EXTRA="" ;;
 	tbl)     MAIN=tbl.c; EXTRA="" ;;
 	tamp)    MAIN=tamp.c; EXTRA="" ;;
+	taud)    MAIN=taud.c; EXTRA="" ;;
 	tufs)    MAIN=tufs.c; EXTRA="reboot.c ufsinit.c" ;;
 	pstest)  MAIN=pstest.c; EXTRA="pstore.c reboot.c" ;;
 	*) echo "unknown target $WHAT" >&2; exit 2 ;;
