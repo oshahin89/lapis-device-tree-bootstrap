@@ -75,3 +75,7 @@ reads here had no extra FIFO byte (count 1).
 (`0x3A` / `0x1E`), only those bits, each write read back, any mismatch
 stops all charger writes (`lapischarger=2` read-only, `=0` off). The FIFO
 skip is now "count = n + 1".
+
+**v18 on the phone** (`build/lapis_chg_v18.img`, `d96b8c99…`, CI
+45031540416): the user reports **charging works and the charging icon stays
+on** under iOS.
