@@ -110,6 +110,22 @@ APLL2 PLL registers (apmixedsys, not regmap), and the DSP's own AFE writes.
   `tools/lapis_shim/tfa9865_init.h`. The "music" profile adds a few more
   (0x2130 = 1, reg 0 bit 4, 0x2030 = 0, 0x7ce1 = 1, 0x50f0, 0x5b41 ...).
 
+## taud v1 on the phone (dual_v11, 2026-11-22): the AFE is reachable
+
+After a reboot from Android the audio side keeps Android's state:
+- audio PWR_CON 0x1c001e18 = 0xc200000d (both acks, ON, ON_2ND, RST_B; ISO and
+  CLK_DIS clear): **already powered**; SRAM ack clear, bus protect clear,
+  peri audio gates 0x18 = 0 (open).
+- topckgen keeps Android's audio muxes: 0xb0 = 0x03050602 (aud_engen2 = 2),
+  0xc0 = 0x0d040101 (aud_2 = apll2), 0xd0 = 0x0203000d (audio_h = 3), 0x320 =
+  0x3fff.
+- **APLL2 is off**: CON0 0x34c = 0x84000000 (en bit 0 clear), CON3 0x358 =
+  0x80000002 (ISO set, PWR_ON clear); PCW 0x350 = 0x78fd5264 (x 26 MHz / 2^24
+  / 16 = 196.608 MHz, the 48 kHz family). APLL1 CON0 0x338 = 0x84000000.
+- AFE reads fine: 0x00 = 0x80, 0x04 = 0x550000, 0x10 = 0x361f, 0x14 = 0,
+  0x38 = 0, 0xba0 = 0, I2SOUT4 0x13c0 = 0x009ff800 / 0x13c4 = 0x800984a5,
+  memif 0x4640 = 0x330068, DL_24CH 0x4e10 = 0x100048.
+
 ## Plan
 
 1. Which amp is fitted (Android: bound I2C drivers, `/proc/asound`, firmware).
