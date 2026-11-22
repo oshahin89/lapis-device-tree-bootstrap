@@ -12,6 +12,7 @@
 #if defined(ARM64_BOARD_CONFIG_SWEET)
 #include <sys/param.h>
 #include <sys/systm.h>
+#include <kern/clock.h>
 #include <machine/machine_routines.h>
 #include <pexpert/pexpert.h>
 
