@@ -265,3 +265,12 @@ tspi code: clocks checked/opened, pins 68–71 → function 2, PIO 32-byte packe
 software CS, 9.45 MHz) instead of GPIO bit-bang, and reads 108-byte reports
 (`LAPIS_NVT_REPORT_BYTES` 108, Android's `CTP_SPI_READ` length 109). The 520
 captured Android frames still parse (518 contacts).
+
+## v13 on the phone — touch works (2026-11-22)
+
+`build/lapis_nt38771_touch_v13.img` (`f75226b1…`, CI 45014817268, boot-args
+`lapisnt=1 sweetfb_noconsole=1`): the user reports **touch works on the iOS
+lock screen and the swipe-up unlocks it**. The three fixes that got here:
+event buffer `0x2B400`, big-endian X/Y in 108-byte reports, and the SPI3
+controller instead of GPIO bit-bang (the running firmware answers `0xFE` to
+slow bit-banged reads).
