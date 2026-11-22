@@ -38,3 +38,25 @@ the SWEETXNU payload behind it, then the stock Android Image.
 - iOS path: `dual_wdt_off()` (same store as start.S), then the normal shim.
 - Holding Volume up from power-on may make LK pick recovery; press it only once
   the line shows.
+
+## Probes without a PC (dual_v2 and later)
+
+`tools/lapis_dual_image.sh PAYLOAD OUT.img PROBE` builds a shim probe
+(`tvib`, `tdsi`, … — any probe whose END returns under `LAPIS_DUAL_PROBE`) into the
+dual shim: the prompt reads "Vol+ = iOS  Vol- = test  (else Android)", and
+Volume down (GPIO 54, active low, 3 reads) runs the probe after stopping the
+watchdog. When the probe ends, a shim error or an exception, the screen says
+"press Power = reboot to Android": Power (TOPSTATUS bit 1) pressed and released
+→ TOPRGU reboot mode 0 + PSCI SYSTEM_RESET → LK → the shim → Android.
+QEMU (`DUAL_TEST=1|2 build.sh … dual PROBE` forces the XNU / probe path) ran
+all three paths. `build/lapis_dual_v2.img` = v18 payload + `tvib`
+(`9999675a…`).
+
+## iOS log without a PC
+
+From rooted Android (Termux), the sweetlog tail of the last iOS boot:
+
+    su -c 'dd if=/dev/block/sdc92 of=/sdcard/Download/sweetlog.bin bs=4096 skip=4193279 count=1025'
+
+then send `sweetlog.bin`; decode with
+`reference/xnu-topaz-baseline/tools/sweet-log.py`.

@@ -67,6 +67,9 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	pair("CTRL", 0x0c, 0x14);
 	pair("STATE", 0x74, 0x84);
 	pair("STATE", 0x88, 0x8c);
+#ifdef LAPIS_DUAL_PROBE
+	return;			/* shim.c: Power reboots to Android */
+#endif
 	con_str("END", "Power+Vol-down to recover");
 	for (;;)
 		__asm__ volatile("wfe");

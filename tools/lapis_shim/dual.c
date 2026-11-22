@@ -7,7 +7,8 @@
  * the header's res2 (0x20), its length in res3 (0x28) and the offset of a
  * free 64 KiB area for chain_stub in res4 (0x30).
  *
- * dual_pick_ios() shows one line and watches Volume up (MT6363 TOPSTATUS 0x1e
+ * dual_pick() shows one line and watches Volume up (and, when built with a
+ * probe, Volume down: GPIO 54, active low) (MT6363 TOPSTATUS 0x1e
  * bit 3, clear while down; read through PMIF SWINF channel 2 like tpmic.c)
  * for about two seconds. Only PMIC reads are sent; any PMIF error counts as
  * "not pressed". Before XNU, dual_wdt_off() stops LK's watchdog the way
@@ -79,21 +80,80 @@ static int volup_down(void)
 	return v >= 0 && !(v & VOLUP_BIT);
 }
 
-int dual_pick_ios(void)
+#define GPIO54_DI	0x10005210UL	/* Volume down, gpio-keys, active low */
+#define VOLDN_BIT	(1u << 22)
+#define POWER_BIT	(1u << 1)	/* TOPSTATUS, clear while down */
+
+static int voldn_down(void)
 {
-#ifdef LAPIS_DUAL_TEST_IOS
-	return 1;	/* QEMU test of the XNU path only */
+	return !(rd(GPIO54_DI) & VOLDN_BIT);
+}
+
+static int power_down(void)
+{
+	int v = pmic_read(TOPSTATUS);
+	return v >= 0 && !(v & POWER_BIT);
+}
+
+int dual_pick(void)
+{
+#ifdef LAPIS_DUAL_TEST
+	return LAPIS_DUAL_TEST;	/* QEMU tests: 1 XNU path, 2 probe path */
 #endif
 	/* No screen clear: one line over LK's logo, which Android replaces. */
+#ifdef LAPIS_DUAL_PROBE
+	con_str("LAPIS", "Vol+ = iOS  Vol- = test  (else Android)");
+#else
 	con_str("LAPIS", "Vol+ now = iOS   (else Android)");
-	uint32_t run = 0;
+#endif
+	uint32_t up = 0, dn = 0;
 	for (uint32_t t = 0; t < WINDOW_MS; t += POLL_MS) {
-		run = volup_down() ? run + 1 : 0;
-		if (run >= NEED_DOWN)
-			return 1;
+		up = volup_down() ? up + 1 : 0;
+		if (up >= NEED_DOWN)
+			return DUAL_IOS;
+#ifdef LAPIS_DUAL_PROBE
+		dn = voldn_down() ? dn + 1 : 0;
+		if (dn >= NEED_DOWN)
+			return DUAL_PROBE;
+#else
+		(void)dn;
+		(void)voldn_down;
+#endif
 		udelay(POLL_MS * 1000u);
 	}
-	return 0;
+	return DUAL_ANDROID;
+}
+
+/*
+ * A normal reboot (TOPRGU reboot mode 0), so LK starts boot_b again and the
+ * shim's default is Android. PSCI SYSTEM_RESET as Linux does; WDT_SWRST if
+ * that returns.
+ */
+void dual_reboot(void)
+{
+	uint32_t m = rd(0x1c00a024UL);
+	wr(0x1c00a024UL, m & ~(0x0fu | 0x820u));
+	register uint64_t x0 __asm__("x0") = 0x84000009ULL;	/* PSCI SYSTEM_RESET */
+	__asm__ volatile("smc #0" : "+r"(x0) : : "x1", "x2", "x3", "x4", "x5", "x6", "x7",
+	    "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17", "memory");
+	for (;;) {
+		wr(0x1c00a014UL, 0x1209u);	/* WDT_SWRST */
+		udelay(5000);
+	}
+}
+
+/* End of a probe or a shim error: Power (pressed and released) reboots to Android. */
+void dual_power_reboot(void)
+{
+	con_str("DUAL", "press Power = reboot to Android");
+	uint32_t n = 0;
+	while (n < NEED_DOWN) {
+		n = power_down() ? n + 1 : 0;
+		udelay(POLL_MS * 1000u);
+	}
+	while (power_down())
+		udelay(POLL_MS * 1000u);
+	dual_reboot();
 }
 
 void dual_wdt_off(void)

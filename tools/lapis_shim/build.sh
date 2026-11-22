@@ -1,6 +1,7 @@
 #!/bin/bash
 # Build the lapis XNU boot shim (default) or the register-dump probe as a raw
 # arm64 Image (no payload).
+#   tools/lapis_shim/build.sh OUTDIR dual [PROBE]   (PROBE: tvib, tdsi: behind Volume down)
 #   tools/lapis_shim/build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi]
 # Pack the shim with a SWEETXNU payload into a boot_b copy with
 #   tools/lapis_boot_pack.py STOCK OUT.img --image OUTDIR/Image --append PAYLOAD
@@ -12,7 +13,9 @@ OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|dual|regdump|pstest|tchip|t
 WHAT=${2:-shim}
 case "$WHAT" in
 	shim)    MAIN=shim.c; EXTRA="loader.c ufsinit.c" ;;
-	dual)    MAIN=shim.c; EXTRA="loader.c ufsinit.c dual.c"; DEFS=-DLAPIS_DUAL ;;
+	dual)    MAIN=shim.c; EXTRA="loader.c ufsinit.c dual.c"; DEFS="-DLAPIS_DUAL ${DUAL_TEST:+-DLAPIS_DUAL_TEST=$DUAL_TEST}"
+		 PROBE=${3:-}
+		 [ -n "$PROBE" ] && DEFS="$DEFS -DLAPIS_DUAL_PROBE" ;;
 	regdump) MAIN=regdump.c; EXTRA="pstore.c" ;;
 	tchip)   MAIN=tchip.c; EXTRA="reboot.c" ;;
 	tnvt)    MAIN=tnvt.c; EXTRA="" ;;
@@ -49,6 +52,12 @@ for f in $MAIN console.c $EXTRA; do
 	$CC $CFLAGS -c $f -o "$OUT/${f%.*}.o"
 	objs+=("$OUT/${f%.*}.o")
 done
+if [ -n "${PROBE:-}" ]; then
+	# a probe behind Volume down in the dual shim: its shim_main / exc_report renamed
+	[ -f "$PROBE.c" ] || { echo "unknown probe $PROBE" >&2; exit 2; }
+	$CC $CFLAGS -Dshim_main=probe_main -Dexc_report=probe_exc_report -c $PROBE.c -o "$OUT/probe_$PROBE.o"
+	objs+=("$OUT/probe_$PROBE.o")
+fi
 # LK loads us at 0x40000000 but the code must not depend on it: no absolute
 # relocations in C objects (the header's image_size in start.o is the only one).
 abs=$(aarch64-linux-gnu-readelf -r "${objs[@]:1}" | grep -c ABS64 || true)

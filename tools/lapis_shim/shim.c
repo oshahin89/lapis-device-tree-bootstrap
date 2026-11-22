@@ -23,9 +23,16 @@ static void __attribute__((noreturn)) park(void)
 void shim_main(uint64_t dtb)
 {
 #ifdef LAPIS_DUAL
-	if (!dual_pick_ios())
+	int pick = dual_pick();
+	if (pick == DUAL_ANDROID)
 		dual_chain_android(dtb);
 	dual_wdt_off();
+#ifdef LAPIS_DUAL_PROBE
+	if (pick == DUAL_PROBE) {
+		probe_main(dtb, 1u << 2);
+		dual_power_reboot();
+	}
+#endif
 #endif
 	con_clear(BLUE);
 	con_str("LAPIS", "XNU boot shim");
@@ -60,6 +67,9 @@ void shim_main(uint64_t dtb)
 	const char *why = loader_boot();
 	con_skip();
 	con_str("ERROR", why);
+#ifdef LAPIS_DUAL
+	dual_power_reboot();
+#endif
 	park();
 }
 
@@ -70,5 +80,8 @@ void exc_report(uint64_t slot, uint64_t esr, uint64_t elr, uint64_t far)
 	con_hex("ESR", esr);
 	con_hex("ELR", elr);
 	con_hex("FAR", far);
+#ifdef LAPIS_DUAL
+	dual_power_reboot();
+#endif
 	park();
 }
