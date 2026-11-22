@@ -4,7 +4,9 @@
  * NOCLK (status 0x7e8f) and APLL2 CON0 read 0x04000000 after the enable.
  * v2 on the phone: I2S pads toggle (42 BCK, 43 LRCK, 44 data), amps still
  * 0x7e8f; Android's boot trace shows no container writes at all, so v3 skips
- * them. v2 shows each APLL2 step, enables its tuner, and counts I2S pad toggles.
+ * them. v3 on the phone: Android's playing amps read 0x10 = 0x7e8f too (normal),
+ * but 0x12 = 0x1709 and 0x01 = 0x0084 where ours read 0x4001 / 0x0080; v4
+ * sets 0x01 bit 2 and measures LRCK against the counter. v2 shows each APLL2 step, enables its tuner, and counts I2S pad toggles.
  * 3 s of 1 kHz at about -12 dBFS from both speakers, AP-only path:
  * AFE SRAM ring -> memif DL0 -> interconnect -> I2S OUT4 -> TFA9865 x2.
  *
@@ -189,7 +191,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "ttone v3: amps at reset values + Android start");
+	con_str("LAPIS", "ttone v4: amp 01 bit 2 + LRCK frequency");
 
 	/* 1. APLL2 (mtk_pll_prepare in the stock clk-common.ko: CON3 PWR_ON,
 	 * ISO off, CON0 bit 0, tuner enable 0x00c bit 1, 20 us) */
@@ -251,6 +253,13 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	 * traces), so the amps keep their reset values; only show a few. */
 	con_hex2("AMP 34", "20=", (uint32_t)tfa_rd(0x34, 0x20), "21=", (uint32_t)tfa_rd(0x34, 0x21));
 	con_hex2("AMP 34", "22=", (uint32_t)tfa_rd(0x34, 0x22), "06=", (uint32_t)tfa_rd(0x34, 0x06));
+	/* v4: Android's amps read 0x01 = 0x0084 at stream start, ours 0x0080 */
+	for (uint32_t a = 0x34; a <= 0x37; a += 3) {
+		int r1 = tfa_rd(a, 0x01);
+		if (r1 >= 0)
+			tfa_wr(a, 0x01, (uint16_t)(r1 | 0x04));
+	}
+	con_hex2("AMP 34", "01=", (uint32_t)tfa_rd(0x34, 0x01), "00=", (uint32_t)tfa_rd(0x34, 0x00));
 	con_hex2("AMPS", "configured, i2c errors=", n_err, "rev=", (uint32_t)tfa_rd(0x34, 0x03));
 	amps("AMP", 0xf250);
 
@@ -270,20 +279,23 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	udelay(20000);
 	con_hex2("DL0", "cur=", cur0, "20 ms later=", rd(AFE + 0x444c));
 	con_hex2("AFE", "4460=", rd(AFE + 0x4460), "13c0=", rd(AFE + 0x13c0));
-	/* do the I2S pins move? GPIO DI reflects the pad in function mode too */
-	uint32_t prev = rd(GPIO + 0x210), tog[4] = { 0, 0, 0, 0 };
-	for (int i = 0; i < 200000; i++) {
+	/* LRCK (GPIO 43) and BCK (42) toggles over 100 ms of counter time:
+	 * LRCK should give 2 x 48000 / 10 = 9600; the loop rate shows how far
+	 * BCK aliases. */
+	uint64_t f = rsr("cntfrq_el0"), t0 = rsr("cntvct_el0"), tend = t0 + f / 10;
+	uint32_t prev = rd(GPIO + 0x210), tog42 = 0, tog43 = 0, tog44 = 0, loops = 0;
+	while (rsr("cntvct_el0") < tend) {
 		uint32_t now = rd(GPIO + 0x210), x = now ^ prev;
-		for (int b = 0; b < 4; b++)
-			if (x & (1u << (10 + b)))
-				tog[b]++;
+		tog42 += (x >> 10) & 1;
+		tog43 += (x >> 11) & 1;
+		tog44 += (x >> 12) & 1;
 		prev = now;
+		loops++;
 	}
-	con_hex2("STAT", "34 10=", (uint32_t)tfa_rd(0x34, 0x10), "13=", (uint32_t)tfa_rd(0x34, 0x13));
-	con_hex2("STAT", "34 11=", (uint32_t)tfa_rd(0x34, 0x11), "12=", (uint32_t)tfa_rd(0x34, 0x12));
-	con_hex2("STAT", "34 e0=", (uint32_t)tfa_rd(0x34, 0xe0), "f0=", (uint32_t)tfa_rd(0x34, 0xf0));
-	con_hex2("PINS", "toggles 42=", tog[0], "43=", tog[1]);
-	con_hex2("PINS", "toggles 44=", tog[2], "45=", tog[3]);
+	con_hex2("STAT", "34 10=", (uint32_t)tfa_rd(0x34, 0x10), "12=", (uint32_t)tfa_rd(0x34, 0x12));
+	con_hex2("STAT", "37 12=", (uint32_t)tfa_rd(0x37, 0x12), "34 01=", (uint32_t)tfa_rd(0x34, 0x01));
+	con_hex2("100MS", "lrck43 toggles=", tog43, "samples=", loops);
+	con_hex2("100MS", "bck42 toggles=", tog42, "data44=", tog44);
 	con_hex2("MODES", "gpio 40..47=", rd(GPIO + 0x350), 0, 0);
 	udelay(2000000);
 	con_hex2("AMP 37", "00=", (uint32_t)tfa_rd(0x37, 0x00), "10=", (uint32_t)tfa_rd(0x37, 0x10));
