@@ -57,6 +57,45 @@ amps' revision registers.
 - debugfs (`mtksocaudio`) is not there on this user build; next capture is
   the regmap write trace during playback start.
 
+## Playback start, traced on Android (`device/captures/android_audio_regmap_trace2_2026-11-22.txt`)
+
+Private tracing instance, events regmap_reg_write + clk_enable / set_rate /
+set_parent, music started inside the window. Thread `writer` (audioserver),
+594.354 .. 594.397 s, in order (topckgen = syscon 0x10000000, CLK_CFG
+set/clr pairs, 0x8 = CLK_CFG_UPDATE):
+
+1. infracfg 0x10001000 +0xc88 = 0x40; clk afe_audio_f26m_ck; AFE +0x10
+   (AUDIO_TOP_CON?) = 0x361d (syscon view of the AFE); clk top_audio_h_sel.
+2. AFE: 0x38 = 0x374, 0xba0 = 0x80070404, 0xbd4 / 0xc54 = 0x7fff0412,
+   0x1204 = 0xb8, **I2S OUT4 block 0x13c0 = 0x109ff802, 0x13c4 = 0x80098465,
+   0x13c8 = 0x0410c462, 0x13cc = 0x15f80000, 0x13d0 = 0x00a00100,
+   0x13e4 = 0x1800**, I2S IN4 0x1580 = 0x109ff800, 0x1590 = 0x0a000445,
+   0x1690 = 0x88b2a008, memif base/end 0x4624/0x4634 = 0x11059000/0x1105afff
+   and 0x4df4/0x4e04 = 0x1105b000/0x1105cfff (AFE SRAM), 0x7848/0x784c/0x785c
+   (HW SRC), 0x10/0x0/0x4/0x8/0xc = 0, 0x14 = 1.
+3. memif 0x4640 = 0x2330068 -> 0x2330a68 -> 0x2330a69 (enable).
+4. Clocks: apll2 on, top_aud_2_sel <- apll2_ck (CLK_CFG 0xc8/0xc4 0x100),
+   top_aud_engen2_sel <- apll2_d4 (0xb8/0xb4), top_audio_h_sel <- apll2_ck
+   (0xd8/0xd4 0x30000), update bits 0x4000 / 0x200 / 0x80000; afe_apll2_ck,
+   afe_apll_tuner2; top_apll_SI1_m_sel, top_aud_1_sel, top_apll12_div_SI1
+   (topckgen 0x320 = 0x23ffd: I2S MCK divider).
+5. AFE 0x38 = 0x375, 0x14 = 9; **I2S OUT4 enable 0x13c0 = 0x109ff803**, I2S
+   IN4 0x1580 = 0x109ff801.
+6. Amps (6-0037 then 6-0034): reg 0x00 = 0xf250, 0xf258, 0xf250, 0xe0 = 1,
+   0xe1 = 1; later 0x00 = 0xf258 both. (Only regmap writes; the container
+   profile goes out through the driver's raw I2C path, not seen here.)
+7. AFE 0x4640 -> 0x2030a09; interconnect 0x2f04 = 0x400000, 0x2f24 = 0x800000;
+   memif 0x4df0/0x4e00 = 0, 0x4e10 = 0x100a48 -> 0x100a4a (DL_24CH on);
+   0x2390/0x23b0, 0x1a0/0x1a4, 0x1c0/0x1c4, 0x3704/0x3724, 0x7854, 0xba0;
+   memif 0x51c4/0x51d4 = 0x1105d000/0x1105d9ff; HW SRC 0x7840 + 80
+   coefficient writes to 0x7868; 0x2598/0x25b8; 0xba0 = 0x70485; IRQ 0x210/0x214.
+
+Not in the trace: the audio power domain (scpsys, done at pm_runtime before),
+APLL2 PLL registers (apmixedsys, not regmap), and the DSP's own AFE writes.
+
+**I2S4 pins** (AFE pinctrl, pinmux = pin << 8 | mode): I2SIN4 GPIO 42, 43,
+45 mode 2 (BCK, LRCK, DI), I2SOUT4 data GPIO 44 mode 2; off = mode 0.
+
 ## Plan
 
 1. Which amp is fitted (Android: bound I2C drivers, `/proc/asound`, firmware).
