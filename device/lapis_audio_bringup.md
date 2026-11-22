@@ -138,6 +138,23 @@ After a reboot from Android the audio side keeps Android's state:
   a 1 kHz ring in AFE SRAM 0x11060000 played by DL0 -> I2SOUT4, amps from the
   container, 3 s.
 
+## Tone attempts
+
+- ttone v1 (dual_v12): DL0 advanced exactly 48 kHz (3840 B / 20 ms), amps
+  configured with 0 I2C errors, reg 0 = 0xf258, status 0x10 = 0x7e8f before
+  and during play, no sound. APLL2 CON0 read 0x04000000 after the enable.
+- ttone v2 (dual_v13): APLL2 CON3 0x80000002 -> 0x80000001, CON0 0x84000000
+  -> 0x04000000 (bit 0 never reads back), tuner_en 0x00c 0x38 -> 0x3a; **the I2S
+  pads toggle** (200k samples: GPIO 42 101k, 43 12.8k, 44 49k, 45 0 = amp data
+  in), modes 40..47 = 0x11222200. Still 0x7e8f, no sound.
+- Boot-time I2C trace on Android (`device/captures/android_i2c6_boot_2026-11-23.txt`,
+  boot header cmdline `trace_event=i2c:i2c_write,i2c:i2c_reply tp_printk`
+  behind a pad word: LK overwrites the first 20 characters): the tfa98xx
+  probe only reads 0x03 (0x9866), 0x06 (0x0507), 0x01 (0x0080); together with
+  the playback trace, **Android writes none of the container lists**. Events
+  stop at ~3.6 s (Android resets tracing).
+- ttone v3 (dual_v16): amps left at reset values, Android's start only.
+
 ## Plan
 
 1. Which amp is fitted (Android: bound I2C drivers, `/proc/asound`, firmware).

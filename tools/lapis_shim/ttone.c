@@ -2,7 +2,9 @@
  * lapis speaker test tone (shim alternate main, build.sh ttone; dual: Volume
  * down). v1 on the phone: DL0 ran at exactly 48 kHz but the amps kept
  * NOCLK (status 0x7e8f) and APLL2 CON0 read 0x04000000 after the enable.
- * v2 shows each APLL2 step, enables its tuner, and counts I2S pad toggles.
+ * v2 on the phone: I2S pads toggle (42 BCK, 43 LRCK, 44 data), amps still
+ * 0x7e8f; Android's boot trace shows no container writes at all, so v3 skips
+ * them. v2 shows each APLL2 step, enables its tuner, and counts I2S pad toggles.
  * 3 s of 1 kHz at about -12 dBFS from both speakers, AP-only path:
  * AFE SRAM ring -> memif DL0 -> interconnect -> I2S OUT4 -> TFA9865 x2.
  *
@@ -26,7 +28,7 @@
  */
 #include <stdint.h>
 #include "console.h"
-#include "tfa9865_init.h"
+#include "tfa9865_init.h"	/* unused since v3, kept for a later try */
 #include "ttone_data.h"
 
 #define rsr(r) ({ uint64_t _v; __asm__ volatile("mrs %0, " r : "=r"(_v)); _v; })
@@ -150,7 +152,7 @@ static int tfa_wr(uint32_t a, uint8_t reg, uint16_t v)
 }
 
 /* bitfield = reg << 8 | pos << 4 | (len - 1) */
-static void tfa_bf(uint32_t a, uint16_t bf, uint16_t val)
+static void __attribute__((unused)) tfa_bf(uint32_t a, uint16_t bf, uint16_t val)
 {
 	uint8_t reg = (uint8_t)(bf >> 8);
 	uint32_t pos = (bf >> 4) & 0xf, len = (bf & 0xf) + 1;
@@ -187,7 +189,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "ttone v2: APLL2 steps + I2S pin activity");
+	con_str("LAPIS", "ttone v3: amps at reset values + Android start");
 
 	/* 1. APLL2 (mtk_pll_prepare in the stock clk-common.ko: CON3 PWR_ON,
 	 * ISO off, CON0 bit 0, tuner enable 0x00c bit 1, 20 us) */
@@ -245,12 +247,10 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	gpio_high(188);
 	gpio_high(189);
 	udelay(5000);
-	for (uint32_t a = 0x34; a <= 0x37; a += 3) {
-		for (unsigned i = 0; i < sizeof(tfa_init) / sizeof(tfa_init[0]); i++)
-			tfa_bf(a, tfa_init[i][0], tfa_init[i][1]);
-		for (unsigned i = 0; i < sizeof(tfa_music) / sizeof(tfa_music[0]); i++)
-			tfa_bf(a, tfa_music[i][0], tfa_music[i][1]);
-	}
+	/* v3: Android writes none of the container lists (boot and playback
+	 * traces), so the amps keep their reset values; only show a few. */
+	con_hex2("AMP 34", "20=", (uint32_t)tfa_rd(0x34, 0x20), "21=", (uint32_t)tfa_rd(0x34, 0x21));
+	con_hex2("AMP 34", "22=", (uint32_t)tfa_rd(0x34, 0x22), "06=", (uint32_t)tfa_rd(0x34, 0x06));
 	con_hex2("AMPS", "configured, i2c errors=", n_err, "rev=", (uint32_t)tfa_rd(0x34, 0x03));
 	amps("AMP", 0xf250);
 
@@ -279,6 +279,9 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 				tog[b]++;
 		prev = now;
 	}
+	con_hex2("STAT", "34 10=", (uint32_t)tfa_rd(0x34, 0x10), "13=", (uint32_t)tfa_rd(0x34, 0x13));
+	con_hex2("STAT", "34 11=", (uint32_t)tfa_rd(0x34, 0x11), "12=", (uint32_t)tfa_rd(0x34, 0x12));
+	con_hex2("STAT", "34 e0=", (uint32_t)tfa_rd(0x34, 0xe0), "f0=", (uint32_t)tfa_rd(0x34, 0xf0));
 	con_hex2("PINS", "toggles 42=", tog[0], "43=", tog[1]);
 	con_hex2("PINS", "toggles 44=", tog[2], "45=", tog[3]);
 	con_hex2("MODES", "gpio 40..47=", rd(GPIO + 0x350), 0, 0);
