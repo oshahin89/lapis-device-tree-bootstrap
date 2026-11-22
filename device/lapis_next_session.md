@@ -37,3 +37,18 @@ screen off on lock (brightness 0 / DCS 0x28) in SweetFramebuffer's power-off.
 
 USB (device mode for SSH/logs), audio (tfa98xx amp on I2C6), Wi-Fi/BT
 (MT6878 connsys), cameras, sensors, GPU — each a project of its own.
+
+## Vibration result (2026-11-22, dual_v6 / tvib v5) — **buzzes**
+
+- AW86927 at I2C2 0x5a answers at once (ID 0x9270); GPIO 116 needs no reset.
+- **I2C2 DATA_PORT must be loaded with 8-bit stores.** A 16-bit store puts
+  two bytes into the FIFO (value + 0x00): `fifo loaded` 0x84 for two 16-bit
+  stores vs 0x42 for two 8-bit ones, and the chip got `reg, 0x00`, so every
+  write landed as 0 (v1..v4). This is also the "extra leading byte" seen on
+  reads. (I2C5 charger writes in XNU work with 16-bit stores.)
+- With 8-bit stores: Android's idle config (captured from haptic_hv sysfs
+  `reg`, `tools/lapis_shim/aw86927_android.h`) clones with 8 mismatches, all
+  read-only (LRA F0 0x25.. etc.), then CONT play exactly as the driver does
+  (PLAYCFG1 0x57 bypass, PLAYCFG3 0x02, CONTCFG6 0xff, CONTCFG7 0x36,
+  CONTCFG9 0xff, GO) reaches GLBRD5 = 6 (CONT_GO) and the user felt it.
+- Next: an XNU driver (`lapis_vibrate(ms)`), then an iOS-side haptics hook.
