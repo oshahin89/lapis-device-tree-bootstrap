@@ -241,3 +241,27 @@ range and dropped, the rest are nonsense — hence no touch. The checksum rule
 was right (−Σ payload[0..63] = payload[64], 520/520). A lift is a frame of
 `ff` records. Parser fixed; offline the 520 captured frames parse into 518
 contacts at X 15098–16824, Y 2064–43580 (a vertical swipe at the centre).
+
+### v12 diagnostics and tspi v3 (2026-11-22)
+
+**v12** (CI 45013084557, poll-loop counters): after `touch polling started`,
+`polls=300 rdfail=0 badsum=290 ok=10 emits=0 frame=fe fefe fefe fe | fe` —
+the first ~100 ms of frames are valid, then **every byte reads `0xFE`**. The
+firmware runs but its SPI side stops answering the driver's bit-banged
+384-byte reads (CS held > 12 ms each, back to back at 100 Hz). Android reads
+108 bytes over the controller (~90 µs) only on IRQ.
+
+**tspi v3** (`build/tspi_probe_v3.img`, `190f3c6d…`): after the controller
+load, polls 108-byte reports at offset 0 of `0x2B400` every 10 ms for 10 min
+and redraws live counters, the first contact (big-endian X/Y, native = /16) and
+the frame head on screen. Console gained `con_row()/con_set_row()`.
+
+**tspi v3 on the phone:** after the controller load, `good` keeps climbing and
+X/Y follow the finger — **touch reports work over the SPI3 controller**. So
+the `0xFE` frames under xnu came from the bit-banged reads.
+
+**Driver v13:** `sweet_nt38771.c` now talks through the SPI3 controller (the
+tspi code: clocks checked/opened, pins 68–71 → function 2, PIO 32-byte packets,
+software CS, 9.45 MHz) instead of GPIO bit-bang, and reads 108-byte reports
+(`LAPIS_NVT_REPORT_BYTES` 108, Android's `CTP_SPI_READ` length 109). The 520
+captured Android frames still parse (518 contacts).

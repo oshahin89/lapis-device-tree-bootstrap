@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define LAPIS_NVT_REPORT_BYTES       384U
+#define LAPIS_NVT_REPORT_BYTES       108U  /* Android: CTP_SPI_READ len 109 */
 #define LAPIS_NVT_CHECKSUM_BYTES      64U
 #define LAPIS_NVT_CHECKSUM_OFFSET     64U
 #define LAPIS_NVT_CONTACTS            10U
@@ -34,7 +34,7 @@ struct lapis_nvt_report {
 };
 
 /*
- * Parse the 384 report bytes copied by CTP_SPI_READ into buf[1..384].
+ * Parse the 108 report bytes copied by CTP_SPI_READ into buf[1..108].
  * A checksum failure rejects the whole frame. Invalid individual contacts
  * are skipped, matching the stock client's per-record validation behavior.
  * FOD key events are intentionally left to a separate platform layer.

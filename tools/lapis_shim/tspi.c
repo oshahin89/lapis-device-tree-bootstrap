@@ -283,7 +283,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	(void)dtb; (void)entry_el;
 
 	con_clear(BLUE);
-	con_str("LAPIS", "tspi v2: SPI3 controller, event buf 0x2B400");
+	con_str("LAPIS", "tspi v3: SPI3 load + live touch reports");
 	con_skip();
 
 	/* 1. clocks */
@@ -393,6 +393,56 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	con_str("KEY ", (state >= 0xa0 && state <= 0xaf) ?
 		"FIRMWARE BOOTED over the SPI controller" :
 		"still not booted with the controller");
+	if (state < 0xa0 || state > 0xaf)
+		goto out;
+
+	/* v3: live report polling like Android's IRQ read (108 bytes at offset 0
+	 * of the event page), every 10 ms, for 10 minutes. Contact record =
+	 * id<<3|state, X hi/lo, Y hi/lo (big-endian), size; checksum = -sum of
+	 * payload[0..63] at payload[64]. Touch the screen and watch the lines. */
+	con_skip();
+	con_str("TOUCH", "polling 108-byte reports every 10 ms; touch the screen");
+	int live = con_row();
+	uint32_t polls = 0, good = 0, bad = 0, touched = 0;
+	uint32_t lx = 0, ly = 0, lid = 0;
+	uint8_t rep[108], head[6] = { 0 };
+	for (uint64_t t_end = ticks() + rsr("cntfrq_el0") * 600; ticks() < t_end; ) {
+		nvt_read(NVT_EVENT_BUF, rep, sizeof(rep));
+		polls++;
+		uint8_t sum = 0;
+		for (int i = 0; i < 64; i++)
+			sum = (uint8_t)(sum + rep[i]);
+		if (rep[64] == (uint8_t)(0u - sum)) {
+			good++;
+			for (int c = 0; c < 10; c++) {
+				const uint8_t *r = rep + c * 6;
+				uint32_t s = r[0] & 7, id = r[0] >> 3;
+				if (s >= 1 && s <= 4 && id >= 1 && id <= 10) {
+					touched++;
+					lid = r[0];
+					lx = ((uint32_t)r[1] << 8) | r[2];
+					ly = ((uint32_t)r[3] << 8) | r[4];
+					break;
+				}
+			}
+		} else {
+			bad++;
+		}
+		for (int i = 0; i < 6; i++)
+			head[i] = rep[i];
+		if (polls % 10 == 0) {		/* ~10 screen updates per second */
+			con_set_row(live);
+			con_hex2("POLL", "good=", good, "bad=", bad);
+			con_hex2("CONTACT", "frames=", touched, "id/st=", lid);
+			con_hex2("XY", "x=", lx, "y=", ly);
+			con_hex2("NATIVE", "x=", lx / 16, "y=", ly / 16);
+			con_hex2("HEAD", "", ((uint32_t)head[0] << 24) | ((uint32_t)head[1] << 16) |
+				 ((uint32_t)head[2] << 8) | head[3],
+				 "", ((uint32_t)head[4] << 8) | head[5]);
+		}
+		udelay(10000);
+	}
+	con_str("TOUCH", "10 minutes over");
 out:
 	con_str("DONE", "Power+Vol-down to recover");
 	for (;;)

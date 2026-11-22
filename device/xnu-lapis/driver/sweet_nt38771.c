@@ -1,9 +1,10 @@
 /*
  * Lapis NT38771 touch driver.
  *
- * First implementation uses the already measured GPIO bit-bang path on
- * SPI3. It deliberately leaves GPIO90 alone (shared panel/touch reset) and
- * uses the controller's documented SPI reset register. Enable with lapisnt=1.
+ * Talks to the NT38771 through the SPI3 controller (PIO, 9.45 MHz), as
+ * Android does; the earlier GPIO bit-bang made the running firmware answer
+ * 0xFE after ~100 ms. GPIO90 (shared panel/touch reset) is never touched.
+ * Enable with lapisnt=1.
  */
 #if defined(ARM64_BOARD_CONFIG_SWEET)
 #include <sys/param.h>
@@ -23,15 +24,50 @@ extern void sweet_hid_touch(int finger, int down, int x, int y);
 
 void sweet_nt38771_init(void);
 
+/* SPI3 controller (mediatek,mt6989-spi), driven like the stock spi-mt65xx
+ * PIO path; proven on the phone by tools/lapis_shim/tspi.c. */
 #define NVT_GPIO_PA             0x10005000u
-#define NVT_GPIO_MODE           0x380u
-#define NVT_GPIO_DIR            0x020u
-#define NVT_GPIO_DO             0x120u
-#define NVT_GPIO_DI             0x220u
-#define NVT_CLK                 (1u << 4) /* GPIO68 */
-#define NVT_CS                  (1u << 5) /* GPIO69 */
-#define NVT_MOSI                (1u << 6) /* GPIO70 */
-#define NVT_MISO                (1u << 7) /* GPIO71 */
+#define NVT_GPIO_MODE           0x380u   /* pins 64..71, 4 bits each */
+#define NVT_TOPCK_PA            0x10000000u
+#define NVT_PERAO_PA            0x11036000u
+#define NVT_SPI_PA              0x11013000u
+#define TOPCK_CFG_UPDATE        0x004u
+#define TOPCK_CFG_4             0x050u
+#define TOPCK_CFG_4_SET         0x054u
+#define TOPCK_CFG_4_CLR         0x058u
+#define PERAO_CG0_STA           0x010u
+#define PERAO_CG0_CLR           0x028u
+#define SPI_CFG1                0x04u
+#define SPI_TX_DATA             0x10u
+#define SPI_RX_DATA             0x14u
+#define SPI_CMD                 0x18u
+#define SPI_STATUS1             0x20u
+#define SPI_PAD_SEL             0x24u
+#define SPI_CFG2                0x28u
+#define SPI_CFG3                0x40u
+#define SPI_CFG5                0x68u
+#define CMD_ACT                 (1u << 0)
+#define CMD_RST                 (1u << 2)
+#define CMD_DEASSERT            (1u << 5)
+#define CMD_SAMPLE_SEL          (1u << 6)
+#define CMD_CS_POL              (1u << 7)
+#define CMD_CPHA                (1u << 8)
+#define CMD_CPOL                (1u << 9)
+#define CMD_RX_DMA              (1u << 10)
+#define CMD_TX_DMA              (1u << 11)
+#define CMD_TXMSBF              (1u << 12)
+#define CMD_RXMSBF              (1u << 13)
+#define CMD_RX_ENDIAN           (1u << 14)
+#define CMD_TX_ENDIAN           (1u << 15)
+#define CMD_FINISH_IE           (1u << 16)
+#define CMD_PAUSE_IE            (1u << 17)
+#define CMD_CS_PIN_SEL          (1u << 18)
+#define CMD_NONIDLE             (1u << 19)
+#define CMD_LOOP                (1u << 21)
+#define CMD_TICKDLY_MSK         (7u << 22)
+#define SPI_TICK_DLY            2u       /* FDT mediatek,tickdly */
+#define SPI_SCK_TICKS           11u      /* 208 MHz / 22 = 9.45 MHz */
+#define SPI_FIFO                32u
 
 #define NVT_CHIP_ID             0x3f004u
 #define NVT_RESET               0x3f0feu
@@ -57,8 +93,9 @@ struct nvt_partition {
 };
 
 static struct {
-	vm_offset_t gpio;
+	vm_offset_t gpio, spi, topck, perao;
 	bool started;
+	unsigned spi_timeouts;
 	struct lapis_nvt_touch_state state;
 	uint16_t hid_slots;
 	uint16_t hid_x[LAPIS_NVT_CONTACTS], hid_y[LAPIS_NVT_CONTACTS];
@@ -70,20 +107,23 @@ static struct {
 static int nvt_sleep_chan;
 
 static uint32_t
-nvt_rd(uint32_t off)
+nvt_mmio_rd(vm_offset_t base, uint32_t off)
 {
-	uint32_t v = *(volatile uint32_t *)(nvt.gpio + off);
+	uint32_t v = *(volatile uint32_t *)(base + off);
 	__asm__ volatile("dmb oshld" ::: "memory");
 	return v;
 }
 
 static void
-nvt_wr(uint32_t off, uint32_t value)
+nvt_mmio_wr(vm_offset_t base, uint32_t off, uint32_t value)
 {
 	__asm__ volatile("dmb oshst" ::: "memory");
-	*(volatile uint32_t *)(nvt.gpio + off) = value;
+	*(volatile uint32_t *)(base + off) = value;
 	__asm__ volatile("dsb osh" ::: "memory");
 }
+
+#define spi_rd(off)      nvt_mmio_rd(nvt.spi, (off))
+#define spi_wr(off, v)   nvt_mmio_wr(nvt.spi, (off), (v))
 
 static void
 nvt_wait_ms(unsigned ms)
@@ -94,46 +134,80 @@ nvt_wait_ms(unsigned ms)
 	thread_block(THREAD_CONTINUE_NULL);
 }
 
+/* mtk_spi_prepare_message: mode 0, MSB first, active-low software CS. */
 static void
-nvt_spi_delay(void)
+nvt_spi_prepare(void)
 {
-	delay(2); /* 250 kHz conservative bit-bang clock */
+	uint32_t c = spi_rd(SPI_CMD);
+	c |= CMD_NONIDLE | CMD_CS_PIN_SEL | CMD_TXMSBF | CMD_RXMSBF;
+	c &= ~(CMD_LOOP | CMD_CPHA | CMD_CPOL | CMD_RX_ENDIAN | CMD_TX_ENDIAN |
+	    CMD_CS_POL | CMD_SAMPLE_SEL | CMD_TX_DMA | CMD_RX_DMA |
+	    CMD_DEASSERT | CMD_FINISH_IE | CMD_PAUSE_IE | CMD_TICKDLY_MSK);
+	c |= SPI_TICK_DLY << 22;
+	spi_wr(SPI_CMD, c);
+	spi_wr(SPI_PAD_SEL, 0);
+	spi_wr(SPI_CFG2, ((SPI_SCK_TICKS - 1u) << 16) | (SPI_SCK_TICKS - 1u));
+	spi_wr(SPI_CFG3, 0);    /* full duplex, single bit */
 }
 
+/* sw_cs: CS_POL set = asserted; release = clear + controller reset. */
 static void
-nvt_set_lines(uint32_t set, uint32_t clear)
+nvt_spi_cs(bool assert)
 {
-	uint32_t v = nvt_rd(NVT_GPIO_DO);
-	nvt_wr(NVT_GPIO_DO, (v & ~clear) | set);
-	nvt_spi_delay();
-}
-
-static uint8_t
-nvt_spi_byte(uint8_t out)
-{
-	uint8_t in = 0;
-	for (int bit = 7; bit >= 0; --bit) {
-		nvt_set_lines((out & (1u << bit)) ? NVT_MOSI : 0,
-		    (out & (1u << bit)) ? 0 : NVT_MOSI);
-		nvt_set_lines(NVT_CLK, 0);
-		in = (uint8_t)((in << 1) | ((nvt_rd(NVT_GPIO_DI) & NVT_MISO) != 0));
-		nvt_set_lines(0, NVT_CLK);
+	uint32_t c = spi_rd(SPI_CMD);
+	if (assert) {
+		spi_wr(SPI_CMD, c | CMD_CS_POL);
+		return;
 	}
-	return in;
+	spi_wr(SPI_CMD, c & ~CMD_CS_POL);
+	spi_wr(SPI_CMD, spi_rd(SPI_CMD) | CMD_RST);
+	spi_wr(SPI_CMD, spi_rd(SPI_CMD) & ~(CMD_RST | CMD_CS_PIN_SEL));
 }
 
+/* One FIFO packet (<= 32 bytes), full duplex, polled. */
+static void
+nvt_spi_packet(const uint8_t *tx, uint8_t *rx, unsigned n)
+{
+	uint32_t cfg1 = spi_rd(SPI_CFG1) & ~0xffffff00u;
+	spi_wr(SPI_CFG1, cfg1 | ((n - 1u) << 16));
+	spi_wr(SPI_CFG5, 0);
+	for (unsigned i = 0; i < n; i += 4) {
+		uint32_t w = 0;
+		for (unsigned k = 0; k < 4 && i + k < n; k++) {
+			w |= (uint32_t)tx[i + k] << (8 * k);
+		}
+		spi_wr(SPI_TX_DATA, w);
+	}
+	spi_wr(SPI_CMD, spi_rd(SPI_CMD) | CMD_ACT);
+	uint64_t start = mach_absolute_time(), limit;
+	nanoseconds_to_absolutetime(10 * NSEC_PER_MSEC, &limit);
+	while (spi_rd(SPI_STATUS1) == 0) {
+		if (mach_absolute_time() - start > limit) {
+			nvt.spi_timeouts++;
+			break;
+		}
+	}
+	for (unsigned i = 0; i < n; i += 4) {
+		uint32_t w = spi_rd(SPI_RX_DATA);
+		for (unsigned k = 0; k < 4 && i + k < n; k++) {
+			if (rx != NULL) {
+				rx[i + k] = (uint8_t)(w >> (8 * k));
+			}
+		}
+	}
+}
+
+/* One CS assertion for the whole message, in 32-byte packets. */
 static void
 nvt_message(const uint8_t *tx, uint8_t *rx, unsigned len)
 {
-	nvt_set_lines(0, NVT_CS);
-	nvt_spi_delay();
-	for (unsigned i = 0; i < len; ++i) {
-		uint8_t byte = nvt_spi_byte(tx[i]);
-		if (rx != NULL) {
-			rx[i] = byte;
-		}
+	nvt_spi_prepare();
+	nvt_spi_cs(true);
+	for (unsigned pos = 0; pos < len; pos += SPI_FIFO) {
+		unsigned n = len - pos > SPI_FIFO ? SPI_FIFO : len - pos;
+		nvt_spi_packet(tx + pos, rx != NULL ? rx + pos : NULL, n);
 	}
-	nvt_set_lines(NVT_CS, NVT_MOSI);
+	nvt_spi_cs(false);
 }
 
 static void
@@ -480,19 +554,40 @@ nvt_release_all(void)
 }
 
 static bool
-nvt_gpio_init(void)
+nvt_spi_init(void)
 {
-	uint32_t mode, dir, dout;
+	uint32_t cfg4, cg0, mode;
 	nvt.gpio = ml_io_map(NVT_GPIO_PA, 0x1000);
-	if (nvt.gpio == 0) return false;
-	mode = nvt_rd(NVT_GPIO_MODE);
-	dir = nvt_rd(NVT_GPIO_DIR);
-	dout = nvt_rd(NVT_GPIO_DO);
-	/* Idle CS high/CLK low before changing mux; never touch GPIO90. */
-	nvt_wr(NVT_GPIO_DO, (dout & ~(NVT_CLK | NVT_MOSI)) | NVT_CS);
-	nvt_wr(NVT_GPIO_DIR, (dir & ~NVT_MISO) | NVT_CLK | NVT_CS | NVT_MOSI);
-	nvt_wr(NVT_GPIO_MODE, mode & 0x0000ffffu);
-	delay(1000);
+	nvt.topck = ml_io_map(NVT_TOPCK_PA, 0x1000);
+	nvt.perao = ml_io_map(NVT_PERAO_PA, 0x1000);
+	nvt.spi = ml_io_map(NVT_SPI_PA, 0x1000);
+	if (!nvt.gpio || !nvt.topck || !nvt.perao || !nvt.spi) {
+		return false;
+	}
+	/* LK already leaves these open; make sure: spi3_sel = univpll/12, pdn off,
+	 * pericfg_ao spi3 gate open. */
+	cfg4 = nvt_mmio_rd(nvt.topck, TOPCK_CFG_4);
+	if (((cfg4 >> 8) & 0x87u) != 0x01u) {
+		nvt_mmio_wr(nvt.topck, TOPCK_CFG_4_CLR, (7u << 8) | (1u << 15));
+		nvt_mmio_wr(nvt.topck, TOPCK_CFG_4_SET, 1u << 8);
+		nvt_mmio_wr(nvt.topck, TOPCK_CFG_UPDATE, 1u << 17);
+		delay(100);
+	}
+	nvt_mmio_wr(nvt.perao, PERAO_CG0_CLR, 1u << 15);
+	delay(100);
+	cfg4 = nvt_mmio_rd(nvt.topck, TOPCK_CFG_4);
+	cg0 = nvt_mmio_rd(nvt.perao, PERAO_CG0_STA);
+	if (((cfg4 >> 8) & 0x87u) != 0x01u || (cg0 & (1u << 15))) {
+		printf("LAPIS NVT: SPI3 clock closed (cfg4=%08x cg0=%08x)\n", cfg4, cg0);
+		return false;
+	}
+	/* GPIO 68..71 -> function 2 (SPI3); GPIO90 is never touched. */
+	mode = nvt_mmio_rd(nvt.gpio, NVT_GPIO_MODE);
+	nvt_mmio_wr(nvt.gpio, NVT_GPIO_MODE, (mode & 0x0000ffffu) | 0x22220000u);
+	spi_wr(SPI_CMD, spi_rd(SPI_CMD) | CMD_RST);
+	spi_wr(SPI_CMD, spi_rd(SPI_CMD) & ~(CMD_RST | CMD_CS_PIN_SEL));
+	printf("LAPIS NVT: SPI3 controller up (cfg4=%08x mode %08x->%08x)\n",
+	    cfg4, mode, nvt_mmio_rd(nvt.gpio, NVT_GPIO_MODE));
 	return true;
 }
 
@@ -501,7 +596,7 @@ nvt_thread(void *arg, wait_result_t wr)
 {
 	unsigned bad = 0;
 	(void)arg; (void)wr;
-	if (!nvt_gpio_init() || !nvt_boot_firmware()) goto out;
+	if (!nvt_spi_init() || !nvt_boot_firmware()) goto out;
 	lapis_nvt_touch_state_init(&nvt.state);
 	printf("LAPIS NVT: touch polling started (%ux%u viewport)\n",
 	    NVT_VIEW_WIDTH, NVT_VIEW_HEIGHT);

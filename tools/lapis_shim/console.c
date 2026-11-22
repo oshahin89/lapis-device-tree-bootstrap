@@ -99,3 +99,14 @@ void con_hex2(const char *label, const char *a, uint32_t va, const char *b, uint
 	}
 	row++;
 }
+
+/* Current text row, and moving to one (redraw a status line in place). */
+int con_row(void)
+{
+	return row;
+}
+
+void con_set_row(int r)
+{
+	row = r;
+}
