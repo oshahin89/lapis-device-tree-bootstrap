@@ -14,8 +14,10 @@
  *
  * 1. shows GPIO 116 and I2C2; 2. reads the chip ID, and if it does not
  * answer, raises GPIO 116 (output high) like hw_reset and reads again;
- * 3. if the ID is 0x9270: three 300 ms CONT buzzes, 1 s apart (aw8692x
- * cont_config + play_go, then stop). Writes: GPIO 116 and the AW86927 only.
+ * 3. v2: Xiaomi's aw86927.c (MiCode garnet-t-oss) misc_para_init, then three
+ *    CONT plays as aw86927_haptic_cont_play (track on, on, off), GLBRD5
+ *    sampled every 10 ms; SYSST 0x01, SYSINT 0x02, SYSST2 0x04, SYSER 0x05 shown.
+ *    v1 on the phone: ID 0x9270 at once, 0 I2C errors, state 0 after GO, no buzz. Writes: GPIO 116 and the AW86927 only.
  */
 #include <stdint.h>
 #include "console.h"
@@ -146,16 +148,53 @@ static uint32_t chip_id(void)
 	return (h < 0 || l < 0) ? 0xffffffffu : ((uint32_t)h << 8 | (uint32_t)l);
 }
 
+static int st_max, st_seen;
+static uint32_t st_mask;
+
+/* GLBRD5 every 10 ms for ms: the highest state, a bitmask of states seen */
+static void watch(uint32_t ms)
+{
+	st_max = -1;
+	st_mask = 0;
+	st_seen = 0;
+	for (uint32_t t = 0; t < ms; t += 10) {
+		int v = aw_rd(0x3f);
+		if (v >= 0) {
+			st_seen++;
+			st_mask |= 1u << (v & 0xf);
+			if ((v & 0xf) > st_max)
+				st_max = v & 0xf;
+		}
+		udelay(10000);
+	}
+}
+
+static void stop_standby(void)
+{
+	aw_wr(0x09, 0x02);				/* PLAYCFG4 STOP */
+	for (int i = 0; i < 40; i++) {
+		int v = aw_rd(0x3f);
+		if (v >= 0 && (v & 0xf) == 0)
+			return;
+		udelay(2000);
+	}
+	aw_bits(0x45, 0x20, 0x20);			/* SYSCTRL3 force standby */
+	aw_bits(0x45, 0x20, 0x00);
+}
+
+static void show_status(const char *label)
+{
+	uint32_t a = (uint32_t)aw_rd(0x01) << 24 | (uint32_t)aw_rd(0x04) << 16 |
+		     (uint32_t)aw_rd(0x05) << 8 | (uint32_t)(aw_rd(0x02) & 0xff);
+	con_hex2(label, "sysst.st2.ser.int=", a, "glbrd5=", (uint32_t)aw_rd(0x3f));
+}
+
 void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "tvib v1: AW86927 on I2C2, 3 short buzzes");
-	con_hex2("GPIO116", "mode=", mrd(GPIO + G116_MODE), "dir=", mrd(GPIO + G116_DIR));
-	con_hex2("GPIO116", "do=", mrd(GPIO + G116_DO), "di=", mrd(GPIO + G116_DI));
-	con_hex2("I2C2", "control=", rd(CONTROL), "timing=", rd(TIMING));
+	con_str("LAPIS", "tvib v2: AW86927 init + CONT, state watched");
 	uint32_t id = chip_id();
-	con_hex2("CHIP", "id=", id, "errors=", n_err);
 	if (id != 0x9270) {
 		/* reset pin -> GPIO output high (Android hw_reset: 0, 1 ms, 1, 8 ms) */
 		mwr(GPIO + G116_MODE, mrd(GPIO + G116_MODE) & ~(0xfu << 16));
@@ -165,41 +204,51 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 		mwr(GPIO + G116_DO, mrd(GPIO + G116_DO) | G116_BIT);
 		udelay(10000);
 		id = chip_id();
-		con_hex2("CHIP2", "id=", id, "errors=", n_err);
 	}
+	con_hex2("CHIP", "id=", id, "errors=", n_err);
 	if (id != 0x9270) {
 		con_str("FAIL", "no AW86927 answering at 0x5a");
 		goto out;
 	}
-	con_hex2("REGS", "glbrd5=", (uint32_t)aw_rd(0x3f), "anacfg20=", (uint32_t)aw_rd(0x79));
-	con_hex2("REGS", "playcfg3=", (uint32_t)aw_rd(0x08), "contcfg6=", (uint32_t)aw_rd(0x1d));
+	show_status("BEFORE");
+	con_hex2("PLAYCFG", "1.2.3.4=", (uint32_t)aw_rd(0x06) << 24 | (uint32_t)aw_rd(0x07) << 16 |
+		 (uint32_t)aw_rd(0x08) << 8 | (uint32_t)aw_rd(0x09), "efcfg6=", (uint32_t)aw_rd(0x61));
+	con_hex2("SYSCTRL", "3.4.5=", (uint32_t)aw_rd(0x45) << 16 | (uint32_t)aw_rd(0x46) << 8 |
+		 (uint32_t)aw_rd(0x47), "pwmcfg1=", (uint32_t)aw_rd(0x48));
+	con_hex2("CONTCFG", "1.6.7.9=", (uint32_t)aw_rd(0x18) << 24 | (uint32_t)aw_rd(0x1d) << 16 |
+		 (uint32_t)aw_rd(0x1e) << 8 | (uint32_t)aw_rd(0x20), "f0 lra=", (uint32_t)aw_rd(0x25) << 8 | (uint32_t)aw_rd(0x26));
+
+	/* aw86927_haptic_misc_para_init (DT-dependent fields left as they are) */
+	stop_standby();
+	aw_wr(0x5b, 0x7d);				/* TMCFG unlock */
+	aw_wr(0x47, 0x5a);				/* SYSCTRL5 */
+	aw_bits(0x71, 0x80, 0x80);			/* ANACFG12 boost skip off */
+	aw_bits(0x74, 0x80, 0x80);			/* ANACFG15 adaptive ipeak */
+	aw_bits(0x75, 0x10, 0x00);			/* ANACFG16 BST_SRC 3ns */
+	aw_wr(0x48, 0xa0);				/* PWMCFG1 */
+	aw_wr(0x5b, 0x00);				/* TMCFG lock */
+	aw_bits(0x46, 0x01, 0x01);			/* SYSCTRL4 gain bypass off */
+	aw_bits(0x46, 0x60, 0x00);			/* 24 kHz */
+	aw_bits(0x4c, 0x40, 0x00);			/* VBAT SW mode */
+	show_status("INIT");
 	con_skip();
 
 	for (int n = 1; n <= 3; n++) {
-		udelay(1000000);
-		/* aw8692x_cont_config: CONT mode, BST bypass, VBAT HW comp */
-		aw_bits(0x08, 0x03, 0x02);
-		aw_bits(0x06, 0x80, 0x00);
-		aw_bits(0x4c, 0x40, 0x40);
-		aw_bits(0x1d, 0x80, 0x00);		/* track off (DT default) */
+		udelay(700000);
+		/* aw86927_haptic_cont_play */
+		stop_standby();
+		aw_bits(0x08, 0x03, 0x02);		/* PLAYCFG3 CONT */
+		aw_bits(0x06, 0x80, 0x00);		/* boost bypass */
+		aw_bits(0x1d, 0x80, n == 3 ? 0x00 : 0x80);	/* track on (3rd: off) */
 		aw_bits(0x1d, 0x7f, 0x7f);		/* drv1 level */
 		aw_wr(0x1e, 0x36);			/* drv2 level */
-		aw_wr(0x20, 0xff);			/* drv2 time: long, stopped below */
-		int ana = aw_rd(0x79);
-		if (ana >= 0 && ana <= 0x3f)
-			aw_wr(0x09, 0x01);		/* GO */
-		udelay(100000);
-		int st_run = aw_rd(0x3f);
-		udelay(200000);
-		aw_wr(0x09, 0x02);			/* STOP */
-		int st_end = -1;
-		for (int i = 0; i < 100; i++) {
-			udelay(2000);
-			st_end = aw_rd(0x3f);
-			if (st_end >= 0 && (st_end & 0xf) == 0)
-				break;
-		}
-		con_hex2("BUZZ", "state_running=", (uint32_t)st_run, "state_after=", (uint32_t)st_end);
+		aw_wr(0x20, 0xff);			/* drv2 time */
+		(void)aw_rd(0x02);			/* clear SYSINT */
+		aw_wr(0x09, 0x01);			/* GO */
+		watch(300);
+		show_status("PLAYED");
+		con_hex2("STATES", "max=", (uint32_t)st_max, "seen mask=", st_mask);
+		stop_standby();
 	}
 	con_hex2("DONE", "errors=", n_err, 0, 0);
 out:
