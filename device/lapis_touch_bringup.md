@@ -148,3 +148,24 @@ pin as input — no GPIO toggles), then `nvt_ts_check_chip_ver_trim_loop`:
 `skip_update_ilm = 0`) and the firmware is up in ~50 ms ("Update firmware
 success! <186910 us>"). The chip check is the only remaining difference; the
 driver now does it (reset, zero write, ID read) and waits 1 s before loading.
+
+### v9 and the shim timing probe (2026-11-22)
+
+- **v9** (CI 45001613395, adds Android's chip check): unchanged — state `00`,
+  ILM/DLM CRC and bootloader flags `0x0018` identical to Android's. The xnu
+  load is now register-for-register Android's sequence.
+- **`tools/lapis_shim/tnvt.c`** (`build.sh OUT tnvt`, image `build/tnvt_probe*.img`):
+  the same sequence from the shim with a fast bit-bang (two DO writes per bit,
+  MMU off ≈ 350 ns/write → **5.7 ms/KiB**). v1: full load, firmware not booted.
+  v2 (phone): `PARTS count=15`, `LOAD reset->rdy = 0x315` (789 ms),
+  DMA-CRC flag `0xE7` (≠ `0x02`, so the resident-ILM skip did not engage),
+  state `00`, fwinfo `9901`. QEMU runs of both confirm the probe walks all 15
+  partitions.
+
+Status: loads of ~4–5 s (xnu driver) and ~0.8 s (shim) never boot; Android's
+SPI-controller load (~130 ms reset→BOOT_RDY) does, with the same bytes. The one
+difference left is the transport/speed. **Next: drive SPI3's real controller**
+(`0x11013000`, `mediatek,mt6989-spi`, clocks `<66 124 66 17 64 12>` =
+parent/sel/spi — map them via the clk-mt6878 sources in `reference/`, then a
+shim probe that only reads the chip ID through the controller, then the fast
+load). Console text over the GUI: boot-arg `sweetfb_noconsole=1` (patch 0067).
