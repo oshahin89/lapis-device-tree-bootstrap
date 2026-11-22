@@ -221,3 +221,23 @@ firmware runs after a controller load of ~200 ms. Restored stock `boot_b`
 fix alone may be enough — the old load's bytes were right), and boot it with
 `lapisnt=1`. If the bit-bang load still doesn't boot, move the driver onto the
 SPI3 controller sequence proven by tspi.
+
+### v10 on the phone and the report byte order (2026-11-22)
+
+**v10** (CI 45007429910 with `0x2B400`; boot-args `lapisnt=1
+sweetfb_noconsole=1`, image `8f4a91d1…`). sweetlog: `chip=718703`, 15
+partitions, `firmware loaded (version=2bd4 state=a0)`, `touch polling started`
+— **the firmware boots under xnu, even with the bit-bang load**. But no touch
+on the lock screen, and no later NVT lines (the poll loop logs nothing).
+
+**Android's real frames** (kprobe at `CTP_SPI_READ+0x1a8`, where `x19` is the
+caller's buffer after the payload copy; finger swipe;
+`device/captures/nt38771_android_touch_frames_2026-11-22.txt`): Android reads
+109 bytes (address + 108) at offset 0 of the event page `0x2B400` per IRQ.
+Contact record `0a 3c 02 60 bc 09` = id 1 / state 2, X `0x3c02`, Y `0x60bc`,
+size 9 — **X/Y are big-endian**. Read big-endian, all 518 contacts fit
+0..20479 × 0..44351; read little-endian (our parser), 396 of them are out of
+range and dropped, the rest are nonsense — hence no touch. The checksum rule
+was right (−Σ payload[0..63] = payload[64], 520/520). A lift is a frame of
+`ff` records. Parser fixed; offline the 520 captured frames parse into 518
+contacts at X 15098–16824, Y 2064–43580 (a vertical swipe at the centre).
