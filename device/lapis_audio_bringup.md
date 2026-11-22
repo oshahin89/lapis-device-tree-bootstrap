@@ -1,6 +1,6 @@
 # lapis audio bring-up
 
-Started 2026-11-22. Nothing plays yet; this is the hardware map.
+Started 2026-11-22. **2026-11-23: a 1 kHz tone plays from the speakers in the shim (ttone v4, dual_v17).**
 
 ## From the runtime device tree (`device/runtime_fdt.dtb`)
 
@@ -154,6 +154,23 @@ After a reboot from Android the audio side keeps Android's state:
   the playback trace, **Android writes none of the container lists**. Events
   stop at ~3.6 s (Android resets tracing).
 - ttone v3 (dual_v16): amps left at reset values, Android's start only.
+
+- ttone v4 (dual_v17): **sound.** The missing piece was amp register 0x01
+  bit 2 (Android's amps read 0x0084, reset value 0x0080). LRCK (GPIO 43)
+  measured 0x2580 = 9600 toggles in 100 ms = **48.000 kHz exactly**, BCK and
+  data toggling; amp 0x12 = 0x09a9 while playing (Android 0x1709 with music),
+  0x10 = 0x7e8f (normal). APLL2 CON0 still reads 0x04000000 after the enable,
+  yet the rate is right.
+
+Working recipe (tools/lapis_shim/ttone.c): APLL2 CON3 PWR_ON / ISO off, CON0
+bit 0, tuner_en 0x00c bit 1; topckgen 0x320 = 0x23ffd; AFE 0x0..0x10 = 0,
+0x14 = 9, 0x38 = 0x375, 0x1204 = 0xb8, I2S OUT4 0x13c4/c8/cc/d0/e4 + 0x13c0 =
+0x109ff802, I2S IN4 0x1590 / 0x1580 = 0x109ff800, 0x1690 = 0x88b2a008, GPIO
+42..45 mode 2; ring in AFE SRAM, DL0 base/end 0x4444/0x4454, CON 0x4460 = 0xa00
+(48 kHz, stereo, 16 bit); 0x2f04 |= 1, 0x2f24 |= 2; amps: reset GPIO 188/189
+high, 0x01 |= 0x04, 0x00 = 0xf250, enable I2S (0x13c0 = 0x109ff803, 0x1580 =
+0x109ff801) and DL0 (CON bit 28), 0x00 = 0xf258, 0xf250, 0xe0 = 1, 0xe1 = 1,
+0x00 = 0xf258. Stop: 0x00 = 0xf250, DL0 bit 28 off, I2S enables off.
 
 ## Plan
 
