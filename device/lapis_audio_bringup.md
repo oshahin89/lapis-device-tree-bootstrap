@@ -96,6 +96,20 @@ APLL2 PLL registers (apmixedsys, not regmap), and the DSP's own AFE writes.
 **I2S4 pins** (AFE pinctrl, pinmux = pin << 8 | mode): I2SIN4 GPIO 42, 43,
 45 mode 2 (BCK, LRCK, DI), I2SOUT4 data GPIO 44 mode 2; off = mode 0.
 
+## Amp configuration
+
+- I2C trace on adapter 6 during the first playback after a reboot
+  (`device/captures/android_i2c6_playback_start_2026-11-22.txt`): the driver
+  only reads status and writes reg 0x00 = 0xf250, 0xf258, 0xf250, 0xe0 = 1,
+  0xe1 = 1, later 0x00 = 0xf258. The profile is loaded at boot, not per stream.
+- The `rw` sysfs node always reads from register 0 (a 256-register dump came
+  back 0xf258 everywhere), so cloning like the vibrator does not work.
+- The container decodes cleanly instead: the RCV / SPK device lists (0x314..,
+  0x409..) are 39 identical bitfield writes `{value u16, bitfield u16}`,
+  bitfield = reg << 8 | pos << 4 | (len - 1) (e.g. 0x20c3 = reg 0x20 [15:12] = 2);
+  `tools/lapis_shim/tfa9865_init.h`. The "music" profile adds a few more
+  (0x2130 = 1, reg 0 bit 4, 0x2030 = 0, 0x7ce1 = 1, 0x50f0, 0x5b41 ...).
+
 ## Plan
 
 1. Which amp is fitted (Android: bound I2C drivers, `/proc/asound`, firmware).
