@@ -52,3 +52,13 @@ USB (device mode for SSH/logs), audio (tfa98xx amp on I2C6), Wi-Fi/BT
   (PLAYCFG1 0x57 bypass, PLAYCFG3 0x02, CONTCFG6 0xff, CONTCFG7 0x36,
   CONTCFG9 0xff, GO) reaches GLBRD5 = 6 (CONT_GO) and the user felt it.
 - Next: an XNU driver (`lapis_vibrate(ms)`), then an iOS-side haptics hook.
+
+## Brightness: DSI0 state (tdsi on the phone, 2026-11-22)
+
+START 0x00 = 1, INTSTA 0x0c = 0x800b0712, CON_CTRL 0x10 = 0x01000000,
+MODE_CTRL 0x14 = 2 (video), TXRX 0x18 = 0x0011003c, PSCTRL 0x1c = 0x2c050500,
+VACT 0x2c = 0xad4 (2772), VM_CMD_CON 0x200 = 0x21 (EN | TS_VFP_EN), data 0,
+CMDQ0 0xd00 = 0x00033902 / 0xd04 = 0x00390651: LK's last command was DCS long
+write 51 06 39 = brightness 0x639. Values did not move in 1 s.
+`tools/lapis_shim/tbl.c` (dual_v8, Volume down) sends DCS 0x51 through
+VM_CMD (VM_CMD_DATA0 0x208, START bit 16, INTSTA bit 5) at 5 levels.
