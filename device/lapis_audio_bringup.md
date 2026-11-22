@@ -31,6 +31,21 @@ card `mt6878-mt6369`. I2C6 = i2c@11e01000 (also gate-ic rt4831 0x11, wl2866d
 0x28, typec-audioswitch 0x42). `tools/lapis_shim/tamp.c` (dual_v9) reads the
 amps' revision registers.
 
+## Amps answer (tamp v2 on the phone, 2026-11-22)
+
+- I2C6 pins SCL 137 / SDA 138 are already mode 1. LK leaves CONTROL = 0: no
+  ACK-error detection, so v1 saw 0xffff "complete" for absent devices. With
+  CONTROL |= 0x20 (ACKERR_DET): before reset release 0x28 (wl2866d) and 0x42
+  (typec switch) answer; 0x11 and 0x75 do not.
+- Amp reset GPIO 188 / 189: LK leaves them input, low = in reset
+  (tfa98xx reset-polarity 0). Driven high (mode 0, output 1, 5 ms): **both
+  amps answer**. 0x34 and 0x37 alike: REV 0x03 = 0x9866, 0x00 = 0xf261,
+  0x01 = 0x0080, 0x10 = 0x7e8f, 0x13 = 0x0000.
+- `device/tfa98xx_hyperos4.cnt` (1532 B, container "PM3_01", customer "Mi",
+  application "0b65_08"): devices RCV / SPK, patch `TFA9865MN2B0_dummy.patch`
+  (no DSP code), profiles music / voip / voice / rec / left / right /
+  standby / powerdown, as bitfield writes.
+
 ## Plan
 
 1. Which amp is fitted (Android: bound I2C drivers, `/proc/asound`, firmware).
