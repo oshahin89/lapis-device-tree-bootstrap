@@ -8,7 +8,7 @@ diff --git a/bsd/conf/files b/bsd/conf/files
 diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.cpp
 --- a/iokit/Kernel/arm/SweetBattery.cpp
 +++ b/iokit/Kernel/arm/SweetBattery.cpp
-@@ -15,6 +15,16 @@
+@@ -15,6 +15,17 @@
  /* bsd/dev/sweet_spmi.c */
  extern "C" int sweet_spmi_init(void);
  extern "C" int sweet_spmi_read(unsigned sid, unsigned addr, uint8_t *out);
@@ -16,6 +16,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +struct lapis_battery_sample {
 +	unsigned percent, mv, remaining_mah, full_mah, cycles, status;
 +	int ma, temp_c100;
++	int vbus;       /* MT6375 power-good: 1 / 0, -1 unknown */
 +};
 +extern "C" int lapis_battery_init(void);
 +extern "C" int lapis_battery_read(struct lapis_battery_sample *s);
@@ -25,7 +26,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
  
  class SweetBattery : public IOPMPowerSource {
  	OSDeclareDefaultStructors(SweetBattery);
-@@ -27,7 +37,13 @@
+@@ -27,7 +38,13 @@
  	IOWorkLoop *fLoop;
  	IOTimerEventSource *fTimer;
  	bool fTimerAdded, fRunning, fReal;
@@ -39,7 +40,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
  	void putNumber(const char *key, UInt32 value);
  	void putBool(const char *key, bool value);
  	void publish(unsigned percent, unsigned mv, int ma, bool external,
-@@ -52,6 +68,13 @@
+@@ -52,6 +69,13 @@
  	fLoop = NULL;
  	fTimer = NULL;
  	fTimerAdded = fRunning = fReal = false;
@@ -53,7 +54,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
  	if (dictionary) {
  		OSCollectionIterator *it = OSCollectionIterator::withCollection(dictionary);
  		if (!it) {
-@@ -102,10 +125,10 @@
+@@ -102,10 +126,10 @@
      bool capable, bool charging, bool full, bool measured, bool currentValid)
  {
  	/* Use consistent mAh units (DT nominal=5020). powerd computes C*100/M. */
@@ -66,7 +67,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
  	setExternalConnected(external);
  	setExternalChargeCapable(capable);
  	setIsCharging(charging);
-@@ -115,21 +138,56 @@
+@@ -115,21 +139,56 @@
  	setVoltage(mv);
  	setAmperage(ma);
  	setTimeRemaining(-1); /* Unknown; never publish zero minutes on error. */
@@ -127,7 +128,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
  
  	/* IOPMCopyBatteryInfo's per-source compatibility dictionary. */
  	OSDictionary *legacy = OSDictionary::withCapacity(7);
-@@ -137,7 +195,7 @@
+@@ -137,7 +196,7 @@
  		const char *keys[] = {kIOBatteryCurrentChargeKey, kIOBatteryCapacityKey,
  		    kIOBatteryVoltageKey, kIOBatteryAmperageKey, kIOBatteryCycleCountKey,
  		    kIOBatteryFlagsKey};
@@ -136,7 +137,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
  		    (UInt32)(kIOBatteryInstalled | (external ? kIOBatteryChargerConnect : 0) |
  		    (charging ? kIOBatteryCharge : 0))};
  		for (unsigned i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
-@@ -154,7 +212,8 @@
+@@ -154,7 +213,8 @@
  	int mode = measured ? 1 : 0;
  	if (mode != fLastMode) {
  		IOLog("SWEET BATTERY: %s, %u%% %umV external=%d charging=%d\n",
@@ -146,7 +147,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
  		    percent, mv, external, charging);
  		fLastMode = mode;
  	}
-@@ -203,9 +262,47 @@
+@@ -203,9 +263,48 @@
  	return 100;
  }
  
@@ -167,8 +168,9 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +	fMaxMah = (s.full_mah >= 1000 && s.full_mah <= 20000) ? s.full_mah : LAPIS_BATTERY_DESIGN_MAH;
 +	fCycles = s.cycles;
 +	fTempC100 = s.temp_c100;
-+	bool charging = s.ma > 10;
-+	bool external = charging || !(s.status & LAPIS_BQ_STATUS_DSG);
++	/* external: the charger's own power-good when known, else the gauge */
++	bool external = s.vbus >= 0 ? s.vbus == 1 : (s.ma > 10 || !(s.status & LAPIS_BQ_STATUS_DSG));
++	bool charging = s.vbus >= 0 ? external : s.ma > 10;
 +	bool full = external && ((s.status & LAPIS_BQ_STATUS_FC) || s.percent >= 100);
 +	publish(s.percent, s.mv, s.ma, external, external, charging && !full, full, true, true);
 +	int ma = s.ma, dm = ma - fLapisLastMa;
@@ -194,7 +196,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
  	uint8_t type, present, usb, path, charger, error, temperature;
  	uint16_t rawVoltage;
  	bool valid = fReal &&
-@@ -252,7 +349,7 @@
+@@ -252,7 +351,7 @@
  	SweetBattery *self = OSDynamicCast(SweetBattery, owner);
  	if (self && self->fRunning) {
  		self->poll();
@@ -203,7 +205,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
  	}
  }
  
-@@ -265,17 +362,20 @@
+@@ -265,17 +364,20 @@
  	int real = 0;
  	(void)PE_parse_boot_argn("sweetbattery", &real, sizeof(real));
  	fReal = real == 1 && sweet_spmi_init() == 0;
