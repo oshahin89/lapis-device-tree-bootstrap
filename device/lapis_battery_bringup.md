@@ -42,3 +42,14 @@ charging=1`. With the charger plugged in, iOS did not show charging. v17
 logs every external/charging change (and current steps > 200 mA) and
 publishes `AdapterDetails` (18 W, FamilyCode `0xe0004004` dedicated USB
 charging port) while external, in case powerd/BatteryCenter need it.
+
+**v17 on the phone** (`81fcf95d…`, CI 45029405768): the charging icon now
+appears (AdapterDetails) but comes and goes. Log: with the charger in, the
+gauge current swings between about +114 mA and −538 mA (BatteryStatus mostly
+`0x40` DSG) — the charger supplies only a few hundred mA, about the system
+load, so the net current hovers around zero and "external" (derived from the
+current) flips. Under Android the charger driver programs the MT6375 (I2C5
+`0x34`) for ~3 A; under iOS nobody does. Next: read VBUS / power-good from
+the MT6375 for "external" (read-only), then raise its input-current limit
+and charge current to moderate values (writes; registers from the stock
+`mt6375-charger` module).
