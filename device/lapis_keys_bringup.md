@@ -46,3 +46,6 @@ every 20 ms reads PMIC `0x1e` (PMIF channel 2), GPIO 54 and keypad `KP_MEM1`
 bit 0, debounces (two equal reads) and calls `sweet_hid_key()` (0 power,
 1 vol+, 2 vol−). Sources reading "down" at start are ignored. On by default,
 `lapiskeys=0` disables; logs the first 30 changes (`LAPIS KEYS:`).
+
+**v15 on the phone** (`build/lapis_keys_v15.img`, `e50eed70…`, CI 45023785265):
+the user reports **all buttons work on iOS** (Power, Volume up, Volume down).
