@@ -53,7 +53,8 @@ The NT38771 firmware-download and touch-input path now has an offline prototype,
 | `tools/ios-sweet/` | vendored MIT `mkpayload`, `mkinit`, `sweet-init.S`, `mkiosroot.sh`, `sweet-root-tweaks.py` |
 | `tools/lapis_mkroot_hfs.sh` | HFS+ root image (sudo, hfsprogs) |
 | `tools/lapis_shim/` | LK boot shim + probes (`build.sh OUT shim\|regdump\|pstest\|tchip`), `qemu_shim.py` |
-| `tools/lapis_boot_pack.py` | pack into a boot_b copy (`--probe` / `--image --append`) |
+| `tools/lapis_dual_image.sh` | **official**: payload → one boot_b with Android by default, iOS on Vol-up ([lapis_dual_boot.md](lapis_dual_boot.md)) |
+| `tools/lapis_boot_pack.py` | pack into a boot_b copy (`--probe` / `--image --append [--android]`) |
 | `tools/lapis_lz4.py` | LZ4 legacy codec for the stock kernel format |
 | `tools/nt38771_fw_map.py` | parse the NT38771 firmware partition table |
 | `tools/lapis_ipsw_extract.py` | pull DeviceTree + 3 dmgs from an iPhone X IPSW |

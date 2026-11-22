@@ -1,7 +1,7 @@
 # Lapis test session plan (prepared 2026-11-22 evening, for 2026-11-23)
 
 Working on iOS now: touch, full-screen display, buttons, battery + charging
-(v18 `build/lapis_chg_v18.img`, `d96b8c99…`). Each probe below is flashed
+(v18 `build/lapis_chg_v18.img`, `d96b8c99…`; since 2026-11-22 shipped as the dual image `build/lapis_dual_v1.img`, `1073ab60…`, see [lapis_dual_boot.md](lapis_dual_boot.md)). Each probe below is flashed
 to `boot_b` on top of stock HyperOS 4 `boot.img` (`a01d0f11…`); recover
 with Power + Vol-down, then `fastboot flash boot_b device/hyperos4_readback/boot.img`.
 

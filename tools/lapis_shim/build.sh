@@ -1,17 +1,18 @@
 #!/bin/bash
 # Build the lapis XNU boot shim (default) or the register-dump probe as a raw
 # arm64 Image (no payload).
-#   tools/lapis_shim/build.sh OUTDIR [shim|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi]
+#   tools/lapis_shim/build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi]
 # Pack the shim with a SWEETXNU payload into a boot_b copy with
 #   tools/lapis_boot_pack.py STOCK OUT.img --image OUTDIR/Image --append PAYLOAD
 # and the probe with
 #   tools/lapis_boot_pack.py STOCK OUT.img --image OUTDIR/Image
 set -euo pipefail
 cd "$(dirname "$0")"
-OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi]}")
+OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi]}")
 WHAT=${2:-shim}
 case "$WHAT" in
 	shim)    MAIN=shim.c; EXTRA="loader.c ufsinit.c" ;;
+	dual)    MAIN=shim.c; EXTRA="loader.c ufsinit.c dual.c"; DEFS=-DLAPIS_DUAL ;;
 	regdump) MAIN=regdump.c; EXTRA="pstore.c" ;;
 	tchip)   MAIN=tchip.c; EXTRA="reboot.c" ;;
 	tnvt)    MAIN=tnvt.c; EXTRA="" ;;
@@ -27,7 +28,7 @@ case "$WHAT" in
 	*) echo "unknown target $WHAT" >&2; exit 2 ;;
 esac
 CC=aarch64-linux-gnu-gcc
-CFLAGS="-I$OUT -O2 -ffreestanding -nostdlib -fno-pic -mgeneral-regs-only -mstrict-align -fno-stack-protector -Wall -Wextra -Werror"
+CFLAGS="${DEFS:-} -I$OUT -O2 -ffreestanding -nostdlib -fno-pic -mgeneral-regs-only -mstrict-align -fno-stack-protector -Wall -Wextra -Werror"
 mkdir -p "$OUT"
 if [ "$WHAT" = tnvt ] || [ "$WHAT" = tspi ]; then
 	# the NT38771 firmware Android runs (HyperOS 4 TianMa 0x2B), as a C array
@@ -52,6 +53,7 @@ done
 # relocations in C objects (the header's image_size in start.o is the only one).
 abs=$(aarch64-linux-gnu-readelf -r "${objs[@]:1}" | grep -c ABS64 || true)
 [ "$abs" = 0 ] || { echo "error: $abs absolute relocations in C objects" >&2; exit 1; }
+[ "$WHAT" = dual ] && WHAT=shim_dual
 $CC $CFLAGS -static -T shim.ld -Wl,--build-id=none -Wl,--no-warn-rwx-segments -Wl,-N \
 	"${objs[@]}" -o "$OUT/$WHAT.elf"
 aarch64-linux-gnu-objcopy -O binary "$OUT/$WHAT.elf" "$OUT/Image"

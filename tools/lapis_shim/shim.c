@@ -8,6 +8,9 @@
 #include "console.h"
 #include "loader.h"
 #include "ufsinit.h"
+#ifdef LAPIS_DUAL
+#include "dual.h"
+#endif
 
 #define rsr(r) ({ uint64_t _v; __asm__ volatile("mrs %0, " r : "=r"(_v)); _v; })
 
@@ -19,6 +22,11 @@ static void __attribute__((noreturn)) park(void)
 
 void shim_main(uint64_t dtb)
 {
+#ifdef LAPIS_DUAL
+	if (!dual_pick_ios())
+		dual_chain_android(dtb);
+	dual_wdt_off();
+#endif
 	con_clear(BLUE);
 	con_str("LAPIS", "XNU boot shim");
 	con_skip();

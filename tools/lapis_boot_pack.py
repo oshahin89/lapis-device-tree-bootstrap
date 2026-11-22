@@ -86,13 +86,40 @@ def assemble(stock, kernel):
     return bytes(img)
 
 
-def build_image(stock, image, blob):
+STUB_AREA = 0x10000
+
+
+def stock_image(stock):
+    """The stock boot image's own decompressed Linux arm64 Image."""
+    raw = lz4.decompress(parse(stock)["kernel"])
+    if raw[0x38:0x3C] != b"ARMd":
+        sys.exit("stock kernel is not a Linux arm64 Image")
+    return raw
+
+
+def build_image(stock, image, blob, android=None):
     if image[0x38:0x3C] != b"ARMd":
         sys.exit("--image is not a Linux arm64 Image")
     raw = bytearray(image)
     if blob:
         raw += b"\0" * (-len(raw) % 0x1000)
         raw += blob
+    if android:
+        # tools/lapis_shim/dual.c: Android's Image at a 2 MiB boundary, then a
+        # free area for chain_stub, which copies the Image down to the shim's
+        # load address. The area must lie beyond everything that Image covers
+        # there (its image_size, bss included) and beyond its own source.
+        android = bytes(android) + b"\0" * (-len(android) % 16)
+        a_size, = struct.unpack_from("<Q", android, 16)
+        raw += b"\0" * (-len(raw) % 0x200000)
+        a_off = len(raw)
+        raw += android
+        raw += b"\0" * (-len(raw) % 0x1000)
+        stub_off = len(raw)
+        if stub_off < a_size:
+            sys.exit("stub area would be overwritten by Android's kernel")
+        raw += b"\0" * STUB_AREA
+        struct.pack_into("<QQQ", raw, 0x20, a_off, len(android), stub_off)
     struct.pack_into("<Q", raw, 16, len(raw))             # image_size covers the payload
     return assemble(stock, lz4.compress(bytes(raw))), bytes(raw)
 
@@ -158,6 +185,8 @@ def main():
     g.add_argument("--probe", help="small payload placed at Image+0x1000 of the stock kernel")
     g.add_argument("--image", help="replacement arm64 Image (e.g. the lapis shim)")
     ap.add_argument("--append", help="with --image: blob appended at the next 4 KiB boundary")
+    ap.add_argument("--android", action="store_true",
+                    help="with --image: also carry STOCK's own Android kernel (dual boot, lapis_shim dual)")
     ap.add_argument("--expect-stock-sha256")
     a = ap.parse_args()
     if a.append and not a.image:
@@ -177,11 +206,16 @@ def main():
     else:
         image = open(a.image, "rb").read()
         blob = open(a.append, "rb").read() if a.append else b""
-        out, raw = build_image(stock, image, blob)
+        android = stock_image(stock) if a.android else None
+        out, raw = build_image(stock, image, blob, android)
+        if android and raw[struct.unpack_from("<Q", raw, 0x20)[0]:][:len(android)] != android:
+            sys.exit("verify: Android Image not where the header says")
         o = verify_layout(stock, out)
         if lz4.decompress(o["kernel"]) != raw:
             sys.exit("verify: decompressed kernel differs from Image + payload")
-        what = (f"decompressed kernel == Image ({len(image)} B) + payload ({len(blob)} B), "
+        what = (f"decompressed kernel == Image ({len(image)} B) + payload ({len(blob)} B)"
+                + (f" + Android Image ({len(android)} B at {struct.unpack_from('<Q', raw, 0x20)[0]:#x})" if android else "")
+                + ", "
                 f"image_size {len(raw):#x}")
         how = "whole Image compressed"
     with open(a.out, "wb") as f:
