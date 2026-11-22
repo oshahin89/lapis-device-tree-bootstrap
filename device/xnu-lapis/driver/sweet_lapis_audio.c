@@ -22,6 +22,7 @@
 #include <pexpert/pexpert.h>
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
+extern kern_return_t thread_terminate(thread_t);
 
 #define AU_GPIO_PA          0x10005000UL
 #define AU_TOPCK_PA         0x10000000UL
