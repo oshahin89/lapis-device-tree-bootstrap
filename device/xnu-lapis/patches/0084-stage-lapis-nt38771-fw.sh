@@ -1,5 +1,8 @@
 #!/bin/bash
 # Embed the device's TianMa NT38771 firmware in the ephemeral XNU build tree.
+# HyperOS 4 ships FW 0x2B (/vendor/firmware/novatek_ts_fw_tm.bin, what Android
+# runs: /proc/tp_info "[Vendor]:TianMa [FW]:0x2b"); the older 0x29 copy from the
+# previous ROM never left the bootloader under xnu.
 # The firmware is already present in the checked-out workspace; do not fetch
 # or redistribute another copy.
 set -euo pipefail
@@ -10,7 +13,7 @@ root=${LAPIS_PROJECT_ROOT:-}
 [[ -n "$root" && -f "$root/device/nt38771_report_parser.c" ]] || {
     echo 'LAPIS_PROJECT_ROOT does not point at the lapis workspace' >&2; exit 1;
 }
-expected=7722bb9c4f0df6abba2297309ac09036e499956dcc0ee66133a976a2def180fd
+expected=df22cff3490d1aa50a5cde5b2476fdf75daae90f768dca867db620b3eee965d0
 actual=$(shasum -a 256 "$fw" | awk '{print $1}')
 [[ "$actual" == "$expected" ]] || { echo "unexpected NT38771 firmware SHA-256: $actual" >&2; exit 1; }
 python3 - "$fw" <<'PY'
@@ -21,7 +24,7 @@ src = Path(sys.argv[1]).read_bytes()
 dst = Path('bsd/dev/lapis_nt38771_fw_data.h')
 if dst.exists():
     raise SystemExit(f'refusing to overwrite {dst}')
-if len(src) != 196608 or src[0x2f000:0x2f002] != bytes((0x29, 0xd6)):
+if len(src) != 196608 or src[0x2f000] + src[0x2f001] != 0xff:
     raise SystemExit('NT38771 firmware size/version check failed')
 with dst.open('w') as out:
     out.write('/* Generated from the checked-in lapis TianMa firmware. */\n')

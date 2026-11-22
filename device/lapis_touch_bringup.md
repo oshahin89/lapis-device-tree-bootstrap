@@ -98,3 +98,35 @@ needed), and the bit-banged SPI3 framing from Novatek's source is right.
 Android's touch works normally after restoring `boot_b` (`NVT-ts` interrupts
 counting, `boot_b` `851a5435…`). The new driver prototype now attempts the
 firmware download and report path; both still need compile and device evidence.
+
+## Why the firmware never started under xnu (2026-11-22)
+
+**Device log** of the last `lapisnt=1` boot (sweetlog): chip `71 87 03`,
+15 partitions written, SRAM readback **and the chip's hardware CRC match the
+image** (ILM `a2010048` / CRC `be81adde`, DLM `2b030327` / `bbb53bd5`),
+`BOOT_RDY=01`, `HOST_CMD=ae` — yet the reset state stays `0x00`. So the write
+path is right; the boot is not.
+
+**Android's actual sequence**, captured with kprobes on the shipped
+`nt38771.ko` (`CTP_SPI_WRITE/READ`, `nvt_set_page`, `nvt_write_addr`,
+`nvt_*` boot functions) in a private tracefs instance (the main buffer is
+consumed by another reader): `device/captures/nt38771_android_*_2026-11-22.txt`.
+
+- Screen-on reload: `0x69 → 0x3F0FE`, 5 ms; DMA-CRC check of the resident ILM
+  (BLD bank `0x3F108/0x3F10C/0x3F110`, `0x3F10F ← 1`, poll `0x3F129`) → ILM
+  skipped; ILM/DLM CRC banks; DLM + Info-3/4/5 + Header written;
+  `+0x60 ← 0`, `+0x50 ← 0xAE`; `0x3F102 ← 1`; state reached in ~70 ms.
+- Full load (factory self-test, MP firmware incl. ILM): `0x69` only, banks,
+  all partitions, `BOOT_RDY` → the firmware **boots to `0xA0`** (Android's
+  dmesg: `buf[1]=0xA0`; the self-test then fails waiting for a later MP state —
+  harmless, Android reloads its normal firmware; touch kept working).
+- The shipped module has **no RESX-decouple function** (only
+  `nvt_bootloader_reset`); Novatek's GPL revision has `AA 55 → 0x3F8D4`.
+- Android waits for state `0xA1` and accepts a range; HyperOS 4 runs
+  **FW 0x2B** (`/proc/tp_info`: `[Vendor]:TianMa [FW]:0x2b`), our image was 0x29.
+
+Changes (driver + staging): plain bootloader reset (RESX decouple only with
+`lapisnt_resx=1`), firmware = HyperOS 4 TianMa 0x2B
+(`device/novatek_ts_fw_tm_hyperos4.bin`, sha256 df22cff3…), version check by
+complement, ready = state `0xA0..0xAF`. Needs a CI kernel build and a device
+boot with `lapisnt=1`.

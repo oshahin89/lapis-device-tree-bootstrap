@@ -41,6 +41,9 @@ void sweet_nt38771_init(void);
 #define NVT_FW_INFO              (NVT_EVENT_BUF + 0x78u)
 #define NVT_XFER_MAX             (15u * 1024u)
 #define NVT_REPORT_BYTES         LAPIS_NVT_REPORT_BYTES
+/* Reset-complete states (Novatek RESET_STATE_INIT .. RESET_STATE_MAX). */
+#define NVT_STATE_INIT           0xa0u
+#define NVT_STATE_MAX            0xafu
 #define NVT_REPORT_PERIOD_MS     10u
 #define NVT_BAD_FRAME_LIMIT      50u
 
@@ -189,7 +192,7 @@ nvt_partition_table(struct nvt_partition *parts, unsigned *count)
 	unsigned info_count = 0;
 	uint32_t pos;
 
-	if (fw_size != 196608 || fw[0x2f000] != 0x29 || fw[0x2f001] != 0xd6 ||
+	if (fw_size != 196608 || (unsigned)fw[0x2f000] + fw[0x2f001] != 0xffu ||
 	    end < 0x30 || end > fw_size || (fw[0x20] & 0x02u) || (fw[0x28] & 0x10u)) {
 		return false;
 	}
@@ -285,7 +288,7 @@ nvt_boot_firmware(void)
 		return false;
 	}
 	already_running = ((unsigned)ver[0] + ver[1] == 0xffu &&
-	    nvt_read(NVT_EVENT_BUF + 0x60u, &running, 1) && running == 0xa0);
+	    nvt_read(NVT_EVENT_BUF + 0x60u, &running, 1) && running >= NVT_STATE_INIT && running <= NVT_STATE_MAX);
 	if (already_running) {
 		printf("LAPIS NVT: firmware already active (fwinfo=%02x%02x state=%02x)\n",
 		    ver[0], ver[1], running);
@@ -298,26 +301,35 @@ nvt_boot_firmware(void)
 		return false;
 	}
 	printf("LAPIS NVT: firmware table accepted (%u partitions)\n", count);
+	/*
+	 * Bootloader reset. Android's shipped nt38771.ko (HyperOS 4) only writes
+	 * 0x69 to swrst_sif and waits 5 ms: it has no RESX-decouple helper, and
+	 * its full ILM load boots to 0xA0 that way (kprobe capture 2026-11-22).
+	 * Novatek's GPL revision adds an AA55 RESX decouple at 0x3F8D4; with it
+	 * our firmware never left the bootloader. Keep it as an experiment only.
+	 */
 	if (!nvt_write_u8(NVT_RESET, 0x69)) {
 		printf("LAPIS NVT: bootloader reset write failed\n");
 		return false;
 	}
-	delay(500);
-	decouple[0] = 0xaa; decouple[1] = 0x55;
-	if (!nvt_write(NVT_RESX_DECOUPLE, decouple, sizeof(decouple))) {
-		printf("LAPIS NVT: RESX decouple write failed\n");
-		return false;
+	{
+		int resx = 0;
+		(void)PE_parse_boot_argn("lapisnt_resx", &resx, sizeof(resx));
+		if (resx) {
+			delay(500);
+			decouple[0] = 0xaa; decouple[1] = 0x55;
+			if (!nvt_write(NVT_RESX_DECOUPLE, decouple, sizeof(decouple)) ||
+			    !nvt_read(NVT_RESX_DECOUPLE, check, sizeof(check)) ||
+			    check[0] != decouple[0] || check[1] != decouple[1]) {
+				printf("LAPIS NVT: RESX decouple failed (read %02x%02x)\n",
+				    check[0], check[1]);
+				return false;
+			}
+			printf("LAPIS NVT: bootloader reset + RESX decouple (lapisnt_resx=1)\n");
+		} else {
+			printf("LAPIS NVT: bootloader reset (plain, as Android)\n");
+		}
 	}
-	if (!nvt_read(NVT_RESX_DECOUPLE, check, sizeof(check))) {
-		printf("LAPIS NVT: RESX decouple read failed\n");
-		return false;
-	}
-	if (check[0] != decouple[0] || check[1] != decouple[1]) {
-		printf("LAPIS NVT: RESX mismatch wrote=aa55 read=%02x%02x\n",
-		    check[0], check[1]);
-		return false;
-	}
-	printf("LAPIS NVT: bootloader reset and RESX decouple verified\n");
 	delay(5000);
 	if (!nvt_crc_bank(0x3f7b4u, 0x3f7b8u, 0x3f7bcu,
 	    parts[0].sram, parts[0].size, parts[0].crc)) {
@@ -353,7 +365,8 @@ nvt_boot_firmware(void)
 	printf("LAPIS NVT: BOOT_RDY sent; waiting for reset state 0xa0\n");
 	delay(5000);
 	for (unsigned i = 0; i < 100; ++i) {
-		if (nvt_read(NVT_EVENT_BUF + 0x60u, &status, 1) && status == 0xa0) {
+		if (nvt_read(NVT_EVENT_BUF + 0x60u, &status, 1) &&
+		    status >= NVT_STATE_INIT && status <= NVT_STATE_MAX) {
 			if (!nvt_read(NVT_FW_INFO, ver, sizeof(ver)) ||
 			    (unsigned)ver[0] + ver[1] != 0xffu) {
 				printf("LAPIS NVT: state ready but fwinfo invalid (%02x%02x)\n",
