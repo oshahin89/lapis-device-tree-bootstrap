@@ -23,6 +23,7 @@
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern void sweet_hid_key(int key, int down);
+extern void lapis_haptic_pulse(unsigned ms);  /* sweet_lapis_haptic.c: a click per press */
 extern kern_return_t thread_terminate(thread_t);
 
 void sweet_lapis_keys_init(void);
@@ -168,6 +169,9 @@ keys_thread(void *arg, wait_result_t wr)
 				if (now[k] != keys.down[k] && now[k] == keys.pending[k]) {
 					keys.down[k] = now[k];
 					sweet_hid_key(k, now[k]);
+					if (now[k]) {
+						lapis_haptic_pulse(15);
+					}
 					if (keys.logged < KEYS_LOG_LINES) {
 						keys.logged++;
 						printf("LAPIS KEYS: %s %s\n", names[k], now[k] ? "down" : "up");
