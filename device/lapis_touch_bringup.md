@@ -274,3 +274,12 @@ lock screen and the swipe-up unlocks it**. The three fixes that got here:
 event buffer `0x2B400`, big-endian X/Y in 108-byte reports, and the SPI3
 controller instead of GPIO bit-bang (the running firmware answers `0xFE` to
 slow bit-banged reads).
+
+## Full-screen display (v14, 2026-11-22)
+
+The iPhone X display (1125×2436) has the panel's aspect ratio (1280×2772) to
+0.02%, so it is now scaled up 1.138× instead of shown as a left-aligned window
+at row 168: the shim loader passes the whole panel as `boot_args.Video`;
+lapis patch 0086 keeps AppleCLCD reporting 1125×2436 to userland and draws each
+layer through column/row maps (`floor(p × logical / panel)`, nearest
+neighbour); the NT38771 driver maps every panel touch through the same maps.

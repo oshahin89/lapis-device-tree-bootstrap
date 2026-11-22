@@ -83,10 +83,10 @@ void sweet_nt38771_init(void);
 #define NVT_REPORT_PERIOD_MS     10u
 #define NVT_BAD_FRAME_LIMIT      50u
 
-/* iPhone X boot_args.Video window presented by the lapis loader. */
+/* The iPhone X display (1125x2436) that SWEET's AppleCLCD presents, scaled
+ * to the whole 1280x2772 panel (lapis patch 0086, loader passes the panel). */
 #define NVT_VIEW_WIDTH           1125u
 #define NVT_VIEW_HEIGHT          2436u
-#define NVT_VIEW_TOP             168u
 
 struct nvt_partition {
 	uint32_t bin, sram, size, crc;
@@ -522,17 +522,16 @@ nvt_emit(void *context, uint8_t slot, int down, uint16_t x, uint16_t y)
 		    slot, down, x, y);
 	}
 	if (down) {
-		/* The framebuffer viewport is x=0..1124, physical y=168..2603. */
-		if (x >= NVT_VIEW_WIDTH || y < NVT_VIEW_TOP ||
-		    y >= NVT_VIEW_TOP + NVT_VIEW_HEIGHT) {
-			if (nvt.hid_slots & bit) {
-				sweet_hid_touch(slot, 0, nvt.hid_x[slot], nvt.hid_y[slot]);
-				nvt.hid_slots &= (uint16_t)~bit;
-			}
-			return;
+		/* Panel pixel -> the logical pixel shown there (same maps as
+		 * AppleCLCD's scaled present: floor(p * logical / panel)). */
+		if (x >= LAPIS_NVT_DISPLAY_WIDTH) {
+			x = LAPIS_NVT_DISPLAY_WIDTH - 1u;
 		}
-		nvt.hid_x[slot] = x;
-		nvt.hid_y[slot] = y - NVT_VIEW_TOP;
+		if (y >= LAPIS_NVT_DISPLAY_HEIGHT) {
+			y = LAPIS_NVT_DISPLAY_HEIGHT - 1u;
+		}
+		nvt.hid_x[slot] = (uint16_t)((uint32_t)x * NVT_VIEW_WIDTH / LAPIS_NVT_DISPLAY_WIDTH);
+		nvt.hid_y[slot] = (uint16_t)((uint32_t)y * NVT_VIEW_HEIGHT / LAPIS_NVT_DISPLAY_HEIGHT);
 		nvt.hid_slots |= bit;
 		sweet_hid_touch(slot, 1, nvt.hid_x[slot], nvt.hid_y[slot]);
 	} else if (nvt.hid_slots & bit) {
