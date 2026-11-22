@@ -46,6 +46,17 @@ amps' revision registers.
   (no DSP code), profiles music / voip / voice / rec / left / right /
   standby / powerdown, as bitfield writes.
 
+## Android mixer routing (tinymix, `device/captures/android_audio_mixer_2026-11-22.txt`)
+
+- Speakers: **I2SOUT4_CH1/CH2 <- DL_24CH_CH1/CH2** (the ADSP playback path,
+  `adsp_playback_sharemem_scenario` On), `I2SOUT4_HD_Mux` = Low_Jitter,
+  I2SOUT4 2 channels. Echo reference: I2SIN4_CH1/2 -> UL3.
+- HW_SRC_0 takes DL4 + DL_24CH -> UL_CM0 (ADSP side).
+- For the shim we bypass the ADSP: an AP memif (DL0..DL8) -> I2SOUT4 through
+  the same interconnect.
+- debugfs (`mtksocaudio`) is not there on this user build; next capture is
+  the regmap write trace during playback start.
+
 ## Plan
 
 1. Which amp is fitted (Android: bound I2C drivers, `/proc/asound`, firmware).
