@@ -430,11 +430,23 @@ nvt_boot_firmware(void)
 	return false;
 }
 
+/* Poll-loop counters, printed every ~3 s while they change (v12 diagnostics). */
+static struct {
+	unsigned polls, rd_fail, bad_sum, ok, emits;
+} nvt_diag;
+
 static void
 nvt_emit(void *context, uint8_t slot, int down, uint16_t x, uint16_t y)
 {
 	uint16_t bit = (uint16_t)(1u << slot);
+	static unsigned logged;
 	(void)context;
+	nvt_diag.emits++;
+	if (logged < 40) {
+		logged++;
+		printf("LAPIS NVT: emit slot=%u down=%d native=%u,%u\n",
+		    slot, down, x, y);
+	}
 	if (down) {
 		/* The framebuffer viewport is x=0..1124, physical y=168..2603. */
 		if (x >= NVT_VIEW_WIDTH || y < NVT_VIEW_TOP ||
@@ -493,16 +505,39 @@ nvt_thread(void *arg, wait_result_t wr)
 	lapis_nvt_touch_state_init(&nvt.state);
 	printf("LAPIS NVT: touch polling started (%ux%u viewport)\n",
 	    NVT_VIEW_WIDTH, NVT_VIEW_HEIGHT);
+	unsigned last_emits = ~0u, prints = 0;
 	for (;;) {
-		if (!nvt_read(NVT_EVENT_BUF, nvt.report, NVT_REPORT_BYTES) ||
-		    lapis_nvt_process_frame(&nvt.state, nvt.report,
-		    LAPIS_NVT_REPORT_BYTES, nvt_emit, NULL) != LAPIS_NVT_PARSE_OK) {
+		bool rd = nvt_read(NVT_EVENT_BUF, nvt.report, NVT_REPORT_BYTES);
+		int res = rd ? lapis_nvt_process_frame(&nvt.state, nvt.report,
+		    LAPIS_NVT_REPORT_BYTES, nvt_emit, NULL) : LAPIS_NVT_PARSE_BAD_ARGUMENT;
+		nvt_diag.polls++;
+		if (!rd) {
+			nvt_diag.rd_fail++;
+		} else if (res == LAPIS_NVT_PARSE_BAD_CHECKSUM) {
+			nvt_diag.bad_sum++;
+		} else if (res == LAPIS_NVT_PARSE_OK) {
+			nvt_diag.ok++;
+		}
+		if (res != LAPIS_NVT_PARSE_OK) {
 			if (++bad >= NVT_BAD_FRAME_LIMIT) {
 				nvt_release_all();
 				bad = 0;
 			}
 		} else {
 			bad = 0;
+		}
+		/* every ~3 s: always the first 5 times, later only when touches came */
+		if (nvt_diag.polls % 300u == 0 && prints < 200 &&
+		    (prints < 5 || nvt_diag.emits != last_emits)) {
+			prints++;
+			last_emits = nvt_diag.emits;
+			printf("LAPIS NVT: polls=%u rdfail=%u badsum=%u ok=%u emits=%u "
+			    "frame=%02x %02x%02x %02x%02x %02x | %02x sum@64=%02x\n",
+			    nvt_diag.polls, nvt_diag.rd_fail, nvt_diag.bad_sum,
+			    nvt_diag.ok, nvt_diag.emits,
+			    nvt.report[0], nvt.report[1], nvt.report[2],
+			    nvt.report[3], nvt.report[4], nvt.report[5],
+			    nvt.report[6], nvt.report[64]);
 		}
 		nvt_wait_ms(NVT_REPORT_PERIOD_MS);
 	}
