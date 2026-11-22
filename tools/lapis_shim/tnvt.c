@@ -175,7 +175,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	(void)dtb; (void)entry_el;
 
 	con_clear(BLUE);
-	con_str("LAPIS", "tnvt: NT38771 fast bit-bang download (timing test)");
+	con_str("LAPIS", "tnvt v2: NT38771 fast load + Android ILM-skip path (timing test)");
 	con_skip();
 
 	/* pins 68..71 to GPIO: CS high, CLK/MOSI low outputs, MISO input */
@@ -215,13 +215,28 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	}
 	udelay(1000000);		/* Android: ~1 s from chip check to load */
 
+	con_hex2("PARTS", "count=", count, "ilm_size=", parts[0].size + 1);
+
 	/* the load, timed from the bootloader reset to BOOT_RDY */
 	uint64_t tr = ticks();
 	nvt_write_u8(NVT_RESET, 0x69);
 	udelay(5000);
+	/* Android's screen-on path: DMA-CRC the ILM already in SRAM (BLD bank
+	 * 0x3F108/0x3F10C/0x3F110, 0x3F10F <- 1, poll 0x3F129); flag 0x02 =
+	 * resident and intact, so the ILM write (~92 KiB of the ~130) is skipped. */
+	crc_bank(0x3f108, 0x3f10c, 0x3f110, &parts[0]);
+	nvt_write_u8(0x3f10f, 0x01);
+	uint8_t dma_flag = 0;
+	for (int i = 0; i < 20; i++) {
+		nvt_read(0x3f129, &dma_flag, 1);
+		if (dma_flag == 0x02 || dma_flag == 0x03)
+			break;
+		udelay(1000);
+	}
+	int skip_ilm = dma_flag == 0x02;
 	crc_bank(0x3f7b4, 0x3f7b8, 0x3f7bc, &parts[0]);
 	crc_bank(0x3fb84, 0x3fb88, 0x3fb8c, &parts[1]);
-	for (unsigned i = 0; i < count; i++) {
+	for (unsigned i = skip_ilm ? 1 : 0; i < count; i++) {
 		uint32_t left = parts[i].size ? parts[i].size + 1 : 0;
 		uint32_t bin = parts[i].bin, sram = parts[i].sram;
 		while (left) {
@@ -251,7 +266,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 		udelay(10000);
 	}
 	nvt_read(NVT_EVENT_BUF + 0x78, fwi, 2);
-	con_hex2("LOAD", "reset->rdy_ms=", load_ms, "parts=", count);
+	con_hex2("LOAD", "reset->rdy_ms=", load_ms, "dma_flag/skip=", ((uint32_t)dma_flag << 8) | (uint32_t)skip_ilm);
 	con_hex2("STATE", "state=", state, "ok_after_ms=", t_ok);
 	con_hex2("FWINFO", "ver/~ver=", ((uint32_t)fwi[0] << 8) | fwi[1],
 		 "st1..3=", ((uint32_t)st[1] << 16) | (st[2] << 8) | st[3]);
