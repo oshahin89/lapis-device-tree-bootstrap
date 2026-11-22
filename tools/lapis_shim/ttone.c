@@ -1,6 +1,9 @@
 /*
  * lapis speaker test tone (shim alternate main, build.sh ttone; dual: Volume
- * down). 3 s of 1 kHz at about -12 dBFS from both speakers, AP-only path:
+ * down). v1 on the phone: DL0 ran at exactly 48 kHz but the amps kept
+ * NOCLK (status 0x7e8f) and APLL2 CON0 read 0x04000000 after the enable.
+ * v2 shows each APLL2 step, enables its tuner, and counts I2S pad toggles.
+ * 3 s of 1 kHz at about -12 dBFS from both speakers, AP-only path:
  * AFE SRAM ring -> memif DL0 -> interconnect -> I2S OUT4 -> TFA9865 x2.
  *
  * Where each value comes from (device/lapis_audio_bringup.md):
@@ -184,16 +187,22 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "ttone v1: 3 s of 1 kHz on both speakers");
+	con_str("LAPIS", "ttone v2: APLL2 steps + I2S pin activity");
 
-	/* 1. APLL2 */
+	/* 1. APLL2 (mtk_pll_prepare in the stock clk-common.ko: CON3 PWR_ON,
+	 * ISO off, CON0 bit 0, tuner enable 0x00c bit 1, 20 us) */
+	con_hex2("APLL2", "con0=", rd(APMIX + 0x34c), "con1=", rd(APMIX + 0x350));
+	con_hex2("APLL2", "con3=", rd(APMIX + 0x358), "tuner_en 00c=", rd(APMIX + 0x00c));
 	wr(APMIX + 0x358, rd(APMIX + 0x358) | 1u);
 	udelay(1);
 	wr(APMIX + 0x358, rd(APMIX + 0x358) & ~2u);
 	udelay(1);
+	con_hex2("APLL2", "pwr on con3=", rd(APMIX + 0x358), "con0=", rd(APMIX + 0x34c));
 	wr(APMIX + 0x34c, rd(APMIX + 0x34c) | 1u);
+	con_hex2("APLL2", "en con0=", rd(APMIX + 0x34c), 0, 0);
+	wr(APMIX + 0x00c, rd(APMIX + 0x00c) | 2u);
 	udelay(30);
-	con_hex2("APLL2", "con0=", rd(APMIX + 0x34c), "con3=", rd(APMIX + 0x358));
+	con_hex2("APLL2", "con0=", rd(APMIX + 0x34c), "00c=", rd(APMIX + 0x00c));
 	wr(TOPCK + 0x320, 0x23ffd);
 
 	/* 2. AFE clocks and top control, as Android's playback start */
@@ -261,7 +270,19 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	udelay(20000);
 	con_hex2("DL0", "cur=", cur0, "20 ms later=", rd(AFE + 0x444c));
 	con_hex2("AFE", "4460=", rd(AFE + 0x4460), "13c0=", rd(AFE + 0x13c0));
-	udelay(3000000);
+	/* do the I2S pins move? GPIO DI reflects the pad in function mode too */
+	uint32_t prev = rd(GPIO + 0x210), tog[4] = { 0, 0, 0, 0 };
+	for (int i = 0; i < 200000; i++) {
+		uint32_t now = rd(GPIO + 0x210), x = now ^ prev;
+		for (int b = 0; b < 4; b++)
+			if (x & (1u << (10 + b)))
+				tog[b]++;
+		prev = now;
+	}
+	con_hex2("PINS", "toggles 42=", tog[0], "43=", tog[1]);
+	con_hex2("PINS", "toggles 44=", tog[2], "45=", tog[3]);
+	con_hex2("MODES", "gpio 40..47=", rd(GPIO + 0x350), 0, 0);
+	udelay(2000000);
 	con_hex2("AMP 37", "00=", (uint32_t)tfa_rd(0x37, 0x00), "10=", (uint32_t)tfa_rd(0x37, 0x10));
 
 	/* 7. stop */
