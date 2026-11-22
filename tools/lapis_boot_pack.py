@@ -69,10 +69,17 @@ def parse(img):
                 orig=orig, vbmeta=img[vbo:vbo + vbs], footer=f)
 
 
-def assemble(stock, kernel):
+CMDLINE_OFF, CMDLINE_LEN = 44, 1536      # boot header v4 cmdline (LK appends it)
+
+
+def assemble(stock, kernel, cmdline=b""):
     s = parse(stock)
     hdr = bytearray(stock[:PAGE])
     struct.pack_into("<I", hdr, 8, len(kernel))
+    if cmdline:
+        if len(cmdline) >= CMDLINE_LEN or any(hdr[CMDLINE_OFF:CMDLINE_OFF + CMDLINE_LEN]):
+            sys.exit("--cmdline: too long, or the stock header already has one")
+        hdr[CMDLINE_OFF:CMDLINE_OFF + len(cmdline)] = cmdline
     body = bytes(hdr) + bytes(kernel) + b"\0" * (pad(len(kernel)) - len(kernel)) + s["trailer"]
     orig = len(body)
     if orig + len(s["vbmeta"]) > len(stock) - FOOTER:
@@ -97,7 +104,7 @@ def stock_image(stock):
     return raw
 
 
-def build_image(stock, image, blob, android=None):
+def build_image(stock, image, blob, android=None, cmdline=b""):
     if image[0x38:0x3C] != b"ARMd":
         sys.exit("--image is not a Linux arm64 Image")
     raw = bytearray(image)
@@ -121,7 +128,7 @@ def build_image(stock, image, blob, android=None):
         raw += b"\0" * STUB_AREA
         struct.pack_into("<QQQ", raw, 0x20, a_off, len(android), stub_off)
     struct.pack_into("<Q", raw, 16, len(raw))             # image_size covers the payload
-    return assemble(stock, lz4.compress(bytes(raw))), bytes(raw)
+    return assemble(stock, lz4.compress(bytes(raw)), cmdline), bytes(raw)
 
 
 def build(stock, payload):
@@ -167,9 +174,12 @@ def verify(stock, out, payload, raw0_stock):
     return len(diff)
 
 
-def verify_layout(stock, out):
+def verify_layout(stock, out, cmdline=b""):
     a, b = parse(stock), parse(out)
-    if stock[:8] + stock[12:PAGE] != out[:8] + out[12:PAGE]:
+    o = bytearray(out[:PAGE])
+    if cmdline and o[CMDLINE_OFF:CMDLINE_OFF + len(cmdline)] == cmdline:
+        o[CMDLINE_OFF:CMDLINE_OFF + len(cmdline)] = bytes(len(cmdline))
+    if stock[:8] + stock[12:PAGE] != bytes(o[:8]) + bytes(o[12:PAGE]):
         sys.exit("verify: header changed beyond kernel_size")
     if a["trailer"] != b["trailer"] or a["vbmeta"] != b["vbmeta"]:
         sys.exit("verify: boot signature or vbmeta changed")
@@ -187,6 +197,8 @@ def main():
     ap.add_argument("--append", help="with --image: blob appended at the next 4 KiB boundary")
     ap.add_argument("--android", action="store_true",
                     help="with --image: also carry STOCK's own Android kernel (dual boot, lapis_shim dual)")
+    ap.add_argument("--cmdline", default="",
+                    help="with --image: text for the boot header cmdline (LK appends it to bootargs)")
     ap.add_argument("--expect-stock-sha256")
     a = ap.parse_args()
     if a.append and not a.image:
@@ -207,10 +219,10 @@ def main():
         image = open(a.image, "rb").read()
         blob = open(a.append, "rb").read() if a.append else b""
         android = stock_image(stock) if a.android else None
-        out, raw = build_image(stock, image, blob, android)
+        out, raw = build_image(stock, image, blob, android, a.cmdline.encode())
         if android and raw[struct.unpack_from("<Q", raw, 0x20)[0]:][:len(android)] != android:
             sys.exit("verify: Android Image not where the header says")
-        o = verify_layout(stock, out)
+        o = verify_layout(stock, out, a.cmdline.encode())
         if lz4.decompress(o["kernel"]) != raw:
             sys.exit("verify: decompressed kernel differs from Image + payload")
         what = (f"decompressed kernel == Image ({len(image)} B) + payload ({len(blob)} B)"
