@@ -37,7 +37,7 @@ void sweet_nt38771_init(void);
 #define NVT_RESET               0x3f0feu
 #define NVT_RESX_DECOUPLE       0x3f8d4u
 #define NVT_BOOT_READY           0x3f102u
-#define NVT_EVENT_BUF            0x31400u
+#define NVT_EVENT_BUF            0x2b400u
 #define NVT_FW_INFO              (NVT_EVENT_BUF + 0x78u)
 #define NVT_XFER_MAX             (15u * 1024u)
 #define NVT_REPORT_BYTES         LAPIS_NVT_REPORT_BYTES

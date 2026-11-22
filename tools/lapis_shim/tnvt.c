@@ -31,7 +31,7 @@
 #define NVT_CHIP_ID	0x3f004u
 #define NVT_RESET	0x3f0feu
 #define NVT_BOOT_READY	0x3f102u
-#define NVT_EVENT_BUF	0x31400u
+#define NVT_EVENT_BUF	0x2b400u
 #define NVT_XFER_MAX	(15u * 1024u)
 
 static inline uint32_t rd(uintptr_t a) { return *(volatile uint32_t *)a; }

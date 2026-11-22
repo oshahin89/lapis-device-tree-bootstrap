@@ -169,3 +169,55 @@ difference left is the transport/speed. **Next: drive SPI3's real controller**
 parent/sel/spi — map them via the clk-mt6878 sources in `reference/`, then a
 shim probe that only reads the chip ID through the controller, then the fast
 load). Console text over the GUI: boot-arg `sweetfb_noconsole=1` (patch 0067).
+
+### tspi — the SPI3 controller probe (2026-11-22, not yet run on the phone)
+
+`tools/lapis_shim/tspi.c` (`build.sh OUT tspi`, image `build/tspi_probe.img`,
+sha256 `36ce93fd…`, packed on HyperOS 4 `boot.img` `a01d0f11…`) runs the load
+through the real controller instead of the GPIO pins:
+
+- **Clocks** (clk-mt6878 sources, FDT `<66 124 66 17 64 12>` =
+  `topckgen UNIVPLL_D6_D2`, `topckgen SPI3_SEL`, `pericfg_ao SPI3_B`):
+  `0x10000050` CLK_CFG_4 bits 8–10 ← 1 (univpll/12 ≈ 208 MHz) and pdn bit 15
+  cleared via SET/CLR `+0x54/+0x58`, update `0x10000004` bit 17; gate
+  `0x11036028` ← bit 15 (status `0x11036010`, 1 = gated). The probe stops
+  before any SPI register access if the readback doesn't show both open.
+- **Pins** 68–71 → function 2 (Android's pinctrl default).
+- **Controller** like the stock `mtk_spi_fifo_transfer` for `mt6989-spi`:
+  CMD = NONIDLE | CS_PIN_SEL | TXMSBF | RXMSBF, tickdly 2, PAD_SEL 0,
+  CFG2 = 10/10 (22 ticks → 9.45 MHz), CFG3 = 0 (full duplex), 32-byte
+  packets (CFG1 length, CFG5 = 0), ACT, poll STATUS1, drain RX; sw CS =
+  CMD_CS_POL set while asserted, release = clear + CMD_RST.
+- Then: plain ID read, Android's chip check, 1 s, cold load (full ILM), timed
+  reset→BOOT_RDY, reset-state poll. Screen shows the clock/pin/controller
+  registers before and after, the 1 KiB time, timeouts and `STATUS0`.
+
+QEMU stops at the clock guard (reads `FFFFFFFF`), as intended.
+
+**v1 on the phone:** clocks already open from LK (`CLK_CFG_4 = 01010101`:
+spi3 sel 1, pdn 0; `pericfg_ao` CG0 = 0), pins → `22221111`, CMD `008C3000`,
+CFG2 `000A000A`. The controller works: ID `71 87 03` (plain and after the
+chip check), **0 timeouts**, 1 KiB in 1.5 ms, whole load reset→BOOT_RDY
+**200 ms**, all 15 partitions. Still state `00` — so the transport/timing was
+not the cause.
+
+**The real bug:** the event buffer. Android's capture writes the CRC enable
+and polls the reset state on page `FF 05 68` = **`0x2B400`**; ours used
+Novatek GPL's `0x31400` (another chip's map). So every load so far wrote
+`0x00/0xAE` into SRAM at `0x31460/0x31450` (just before the DLM partition at
+`0x31548`) instead of the CRC-enable/host-command bytes, and read garbage SRAM
+as the "state" (`9901`, `9105` …). Fixed in `sweet_nt38771.c`, `tnvt.c` and
+`tspi.c` (`NVT_EVENT_BUF 0x2b400`); tspi v2 image `build/tspi_probe_v2.img`
+sha256 `d8bab619…`.
+
+**v2 on the phone (`d8bab619…`): FIRMWARE BOOTED.** With the event buffer at
+`0x2B400`, the reset state is in the ready range on the first poll after
+BOOT_RDY (`ok_after_ms=1`; the user read `state` as `…0f`, and the readout only
+says "booted" for `0xA0..0xAF`, so it is presumably `0xAF`). The NT38771
+firmware runs after a controller load of ~200 ms. Restored stock `boot_b`
+(`a01d0f11…`); Android touch fine (`NVT-ts` IRQs counting, FW `0x2b`).
+
+**Next:** CI build of the xnu driver with the address fix (bit-bang still; the
+fix alone may be enough — the old load's bytes were right), and boot it with
+`lapisnt=1`. If the bit-bang load still doesn't boot, move the driver onto the
+SPI3 controller sequence proven by tspi.
