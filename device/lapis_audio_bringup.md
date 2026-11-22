@@ -126,6 +126,18 @@ After a reboot from Android the audio side keeps Android's state:
   0x38 = 0, 0xba0 = 0, I2SOUT4 0x13c0 = 0x009ff800 / 0x13c4 = 0x800984a5,
   memif 0x4640 = 0x330068, DL_24CH 0x4e10 = 0x100048.
 
+## From the stock AFE driver (snd-soc-mt6878-afe.ko, pulled from the phone)
+
+- memif data table (.rodata, 0xb0 per entry): **DL0** base 0x4444, cur 0x444c,
+  end 0x4454, MSBs 0x4440/0x4448/0x4450, CON 0x4460 (fs [12:8], mono bit 4,
+  enable bit 28, hd bit 3, hd_align bit 2, pbuf [6:5], minlen [21:20]).
+  **DL_24CH** (id 12) is 0x4620..0x4640, enable bit 31 (started by the ADSP).
+- DAPM mixers: I2SOUT4_CH1 inputs in 0x2f04 (DL0_CH1 bit 0, DL1 2, ... DL8
+  16, DL_24CH_CH1 22), I2SOUT4_CH2 in 0x2f24 (DL0_CH2 bit 1 ... DL_24CH_CH2 23).
+- `tools/lapis_shim/ttone.c` (dual_v12): APLL2 on, AFE as Android, I2S4,
+  a 1 kHz ring in AFE SRAM 0x11060000 played by DL0 -> I2SOUT4, amps from the
+  container, 3 s.
+
 ## Plan
 
 1. Which amp is fitted (Android: bound I2C drivers, `/proc/asound`, firmware).
