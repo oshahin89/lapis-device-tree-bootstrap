@@ -112,7 +112,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +		} else if (key) {
 +			OSDictionary *empty = OSDictionary::withCapacity(1);
 +			if (empty) {
-+				OSNumber *n = OSNumber::withNumber(0u, 32);
++				OSNumber *n = OSNumber::withNumber(0ULL, 32);
 +				if (n) {
 +					empty->setObject("FamilyCode", n);
 +					n->release();
