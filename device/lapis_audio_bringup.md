@@ -23,6 +23,14 @@ Started 2026-11-22. Nothing plays yet; this is the hardware map.
   stock Android routes most playback through it. We aim to bypass it: AFE DMA
   → I2S → amp directly.
 
+## Fitted on this phone (Android, 2026-11-22)
+
+`device/captures/android_i2c_audio_2026-11-22.txt`: **TFA98xx at 6-0034 and
+6-0037** (driver tfa98xx), firmware `/vendor/firmware/tfa98xx.cnt`, one ALSA
+card `mt6878-mt6369`. I2C6 = i2c@11e01000 (also gate-ic rt4831 0x11, wl2866d
+0x28, typec-audioswitch 0x42). `tools/lapis_shim/tamp.c` (dual_v9) reads the
+amps' revision registers.
+
 ## Plan
 
 1. Which amp is fitted (Android: bound I2C drivers, `/proc/asound`, firmware).

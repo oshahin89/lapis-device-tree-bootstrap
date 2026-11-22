@@ -1,0 +1,29 @@
+0-0055 bq28z610 -> bq28z610
+2-005a awinic_haptic -> awinic_haptic
+3-0028 nq-nci -> nxp,nq-nci
+4-0010 imgsensor -> imgsensor
+4-0051 camera_eeprom -> mediatek,camera_eeprom
+5-001a dummy -> dummy
+5-0034 mt6375 -> mt6375
+5-003f dummy -> dummy
+5-004a dummy -> dummy
+5-004e dummy -> dummy
+5-0064 dummy -> dummy
+6-0011 gate-ic-i2c -> gate_ic_i2c_rt4831
+6-0028 wl2866d -> et5904-regulator
+6-0034 tfa98xx -> tfa98xx
+6-0037 tfa98xx -> tfa98xx
+6-0042 typec-audioswitch -> typec-switch-driver
+7-0010 imgsensor -> imgsensor
+7-0036 camera_eeprom -> mediatek,camera_eeprom
+8-000a main_vcm -> main_vcm
+8-0010 imgsensor -> imgsensor
+8-0051 camera_eeprom -> mediatek,camera_eeprom
+9-003f bq25960-reverse -> bq25960-reverse-charger
+9-006a sc8541-standalone -> sc8541
+9-0075 BOB63810 -> BOB63810
+==
+ 0 [mt6878mt6369   ]: mt6878-mt6369 - mt6878-mt6369
+                      mt6878-mt6369
+==
+tfa98xx.cnt
