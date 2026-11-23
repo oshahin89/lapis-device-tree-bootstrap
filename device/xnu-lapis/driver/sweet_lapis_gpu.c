@@ -770,6 +770,8 @@ int lapis_gpu_vm_create(void);
 void lapis_gpu_vm_destroy(int vm);
 int lapis_gpu_vm_map(int vm, uint64_t va, uint64_t pa, int readonly, int noexec);
 void lapis_gpu_vm_unmap(int vm, uint64_t va, uint64_t size);
+int lapis_gpu_vm_map_kernel(int vm, uint64_t va, uint64_t pa, int noexec);
+void lapis_gpu_vm_unmap_kernel(int vm, uint64_t va, uint64_t size);
 void lapis_gpu_vm_flush(int vm);
 int lapis_gpu_group_create(int vm, uint32_t ring_size);
 void lapis_gpu_group_destroy(int slot);
@@ -875,6 +877,33 @@ lapis_gpu_vm_unmap(int vm, uint64_t va, uint64_t size)
 {
 	lck_mtx_lock(&lg_mtx);
 	if (lg_vm_ok(vm) && va < LG_KVA) {
+		for (uint64_t o = 0; o < size; o += 0x1000) {
+			lg_unmap_in(lg_vm_root[vm], va + o);
+		}
+		lg_as_flush(1 + vm);
+	}
+	lck_mtx_unlock(&lg_mtx);
+}
+
+/* the kernel's part of a VM (at and above LG_KVA, below the group rings' area
+ * only by convention: LapisGPU.cpp puts tiler heaps at LG_KVA + 1 GiB * (1 + id)) */
+int
+lapis_gpu_vm_map_kernel(int vm, uint64_t va, uint64_t pa, int noexec)
+{
+	int r = -1;
+	lck_mtx_lock(&lg_mtx);
+	if (lg_vm_ok(vm) && va >= LG_KVA + 0x40000000ull && !(va & 0xfff) && !(pa & 0xfff)) {
+		r = lg_map_in(lg_vm_root[vm], va, pa, noexec ? PTE_XN : 0);
+	}
+	lck_mtx_unlock(&lg_mtx);
+	return r;
+}
+
+void
+lapis_gpu_vm_unmap_kernel(int vm, uint64_t va, uint64_t size)
+{
+	lck_mtx_lock(&lg_mtx);
+	if (lg_vm_ok(vm) && va >= LG_KVA + 0x40000000ull) {
 		for (uint64_t o = 0; o < size; o += 0x1000) {
 			lg_unmap_in(lg_vm_root[vm], va + o);
 		}

@@ -28,10 +28,14 @@ now=$(cur)
 case "$1" in
 install)
 	[ "$now" = "$NEW" ] && { echo "already installed"; exit 0; }
-	[ "$now" = "$ORIG" ] || { echo "the blocks are not the expected original ($now): nothing written"; exit 1; }
 	[ "$(sha256sum "$DIR/lapis_gputest_fdr.blocks" | cut -c1-64)" = "$NEW" ] || { echo "lapis_gputest_fdr.blocks is not the right file"; exit 1; }
-	dd if="$DEV" bs=4096 skip=$START count=$COUNT of="$BACKUP" 2>/dev/null
-	[ "$(sha256sum "$BACKUP" | cut -c1-64)" = "$ORIG" ] || { echo "backup failed: nothing written"; exit 1; }
+	if [ "$now" = "$ORIG" ]; then
+		dd if="$DEV" bs=4096 skip=$START count=$COUNT of="$BACKUP" 2>/dev/null
+		[ "$(sha256sum "$BACKUP" | cut -c1-64)" = "$ORIG" ] || { echo "backup failed: nothing written"; exit 1; }
+	elif [ "$(sha256sum "$BACKUP" 2>/dev/null | cut -c1-64)" != "$ORIG" ] || \
+	     [ "$(dd if="$DEV" bs=4096 skip=$START count=1 2>/dev/null | od -An -tx4 -N4 | tr -d ' ')" != feedfacf ]; then
+		echo "the blocks hold neither the original nor an earlier lapis_gputest ($now): nothing written"; exit 1
+	fi
 	put "$DIR/lapis_gputest_fdr.blocks"
 	[ "$(cur)" = "$NEW" ] && echo "installed (original kept in $BACKUP)" || { echo "verify FAILED"; exit 1; }
 	;;

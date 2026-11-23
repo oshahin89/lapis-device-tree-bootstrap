@@ -39,7 +39,8 @@ extern kern_return_t IOConnectMapMemory64(io_connect_t connect, uint32_t memoryT
 enum {
 	kDrmGemClose = 0x09, kDevQuery = 0x40, kVmCreate = 0x41, kVmDestroy = 0x42, kVmBind = 0x43,
 	kBoCreate = 0x45, kBoMmapOffset = 0x46, kGroupCreate = 0x47, kGroupDestroy = 0x48,
-	kGroupSubmit = 0x49, kGroupGetState = 0x4a, kLapisWait = 0x7d, kLapisSync = 0x7e, kLapisLog = 0x7f,
+	kGroupSubmit = 0x49, kGroupGetState = 0x4a, kTilerHeapCreate = 0x4b, kTilerHeapDestroy = 0x4c,
+	kLapisWait = 0x7d, kLapisSync = 0x7e, kLapisLog = 0x7f,
 };
 struct obj_array { uint32_t stride, count; uint64_t array; };
 struct gpu_info {
@@ -70,6 +71,11 @@ struct queue_submit { uint32_t queue_index, stream_size; uint64_t stream_addr; u
 struct group_submit { uint32_t group_handle, pad; struct obj_array queue_submits; };
 struct group_get_state { uint32_t group_handle, state, fatal_queues, pad; };
 struct gem_close { uint32_t handle, pad; };
+struct tiler_heap_create {
+	uint32_t vm_id, initial_chunk_count, chunk_size, max_chunks, target_in_flight, handle;
+	uint64_t tiler_heap_ctx_gpu_va, first_heap_chunk_gpu_va;
+};
+struct tiler_heap_destroy { uint32_t handle, pad; };
 struct lapis_wait { uint32_t group_handle, seq; int64_t timeout_ns; };
 struct lapis_sync { uint32_t handle, pad; uint64_t offset, size; };
 struct lapis_log { char text[120]; };
@@ -219,34 +225,64 @@ main(void)
 	}
 	say("VM %u, buffers %u/%u at %p/%p, group %u", vc.id, cmd, tgt, (void *)c, (void *)t, gc.group_handle);
 
-	uint32_t ok = 0, worst = 0, first_bad = ~0u;
-	uint64_t sum = 0;
-	for (uint32_t i = 0; i < 1000; i++) {
-		uint32_t at = (i % 64) * 8, value = 0x50ad0000u | (i & 0xffff);
-		c[at + 0] = (1ull << 56) | (TGT_VA + (i % 16) * 4);             /* MOVE48 r0 */
-		c[at + 1] = (2ull << 56) | (2ull << 48) | value;                /* MOVE32 r2 */
-		c[at + 2] = (21ull << 56) | (2ull << 48) | (1ull << 16);        /* STORE_MULTIPLE [r0] = r2 */
-		c[at + 3] = (3ull << 56) | (0xffffull << 16);                   /* WAIT all */
-		uint64_t t0 = now_us();
-		sync_buffer(cmd, at * 8, 64);
-		struct queue_submit qs = { .queue_index = 0, .stream_size = 32, .stream_addr = CMD_VA + at * 8 };
-		struct group_submit gs = { .group_handle = gc.group_handle, .queue_submits = { sizeof(qs), 1, (uint64_t)(uintptr_t)&qs } };
-		kern_return_t ks = call(kGroupSubmit, &gs, sizeof(gs));
-		struct lapis_wait w = { .group_handle = gc.group_handle, .seq = 0, .timeout_ns = 100000000 };
-		kern_return_t kw = ks ? ks : call(kLapisWait, &w, sizeof(w));
-		sync_buffer(tgt, 0, 64);
-		uint32_t us = (uint32_t)(now_us() - t0);
-		if (kw == 0 && t[i % 16] == value) {
-			ok++;
-			sum += us;
-			worst = us > worst ? us : worst;
-		} else if (first_bad == ~0u) {
-			first_bad = i;
-			say("submission %u: submit %#x wait %#x seq %u target %#x", i, ks, kw, w.seq, t[i % 16]);
+	/*
+	 * Rounds of 1000 streams: with the cache syncs (0x7e), without them (the
+	 * program's mapping is write-combined: lapisgpuwc), and again 30 s later
+	 * (v48: 1.85 ms a round trip during boot, against 26 us from the kernel).
+	 */
+	static const struct { int sync, delay; const char *what; } rounds[] = {
+		{ 1, 0, "synced" }, { 0, 0, "no syncs (write-combined)" }, { 0, 30, "no syncs, 30 s later" },
+	};
+	uint32_t total_ok = 0;
+	for (unsigned r = 0; r < sizeof(rounds) / sizeof(rounds[0]); r++) {
+		uint32_t ok = 0, worst = 0, first_bad = ~0u;
+		uint64_t sum = 0;
+		if (rounds[r].delay) {
+			sleep(rounds[r].delay);
 		}
+		for (uint32_t i = 0; i < 1000; i++) {
+			uint32_t at = (i % 64) * 8, value = ((0x50a0u + r) << 16) | (i & 0xffff);
+			c[at + 0] = (1ull << 56) | (TGT_VA + (i % 16) * 4);             /* MOVE48 r0 */
+			c[at + 1] = (2ull << 56) | (2ull << 48) | value;                /* MOVE32 r2 */
+			c[at + 2] = (21ull << 56) | (2ull << 48) | (1ull << 16);        /* STORE_MULTIPLE [r0] = r2 */
+			c[at + 3] = (3ull << 56) | (0xffffull << 16);                   /* WAIT all */
+			__asm__ volatile("dsb sy" ::: "memory");
+			uint64_t t0 = now_us();
+			if (rounds[r].sync) {
+				sync_buffer(cmd, at * 8, 64);
+			}
+			struct queue_submit qs = { .queue_index = 0, .stream_size = 32, .stream_addr = CMD_VA + at * 8 };
+			struct group_submit gs = { .group_handle = gc.group_handle, .queue_submits = { sizeof(qs), 1, (uint64_t)(uintptr_t)&qs } };
+			kern_return_t ks = call(kGroupSubmit, &gs, sizeof(gs));
+			struct lapis_wait w = { .group_handle = gc.group_handle, .seq = 0, .timeout_ns = 100000000 };
+			kern_return_t kw = ks ? ks : call(kLapisWait, &w, sizeof(w));
+			if (rounds[r].sync) {
+				sync_buffer(tgt, 0, 64);
+			}
+			uint32_t us = (uint32_t)(now_us() - t0);
+			if (kw == 0 && t[i % 16] == value) {
+				ok++;
+				sum += us;
+				worst = us > worst ? us : worst;
+			} else if (first_bad == ~0u) {
+				first_bad = i;
+				say("%s: submission %u: submit %#x wait %#x seq %u target %#x", rounds[r].what, i, ks, kw, w.seq, t[i % 16]);
+			}
+		}
+		total_ok += ok;
+		say("1000 streams, %s: %u ran, avg %llu us, worst %u us, first miss %d", rounds[r].what,
+		    ok, ok ? (unsigned long long)(sum / ok) : 0ull, worst, (int)first_bad);
 	}
-	say("1000 streams from a program: %u ran, avg %llu us, worst %u us (round trips through the kernel), first miss %d",
-	    ok, ok ? (unsigned long long)(sum / ok) : 0ull, worst, (int)first_bad);
+	uint32_t ok = total_ok == 3000 ? 1000 : 0;
+
+	/* a tiler heap as Mesa's gallium makes one per context (5 x 2 MiB) */
+	struct tiler_heap_create th = { .vm_id = vc.id, .initial_chunk_count = 5, .chunk_size = 2 << 20,
+	    .max_chunks = 64, .target_in_flight = 65535 };
+	kern_return_t kh = call(kTilerHeapCreate, &th, sizeof(th));
+	struct tiler_heap_destroy thd = { .handle = th.handle };
+	kern_return_t khd = kh ? kh : call(kTilerHeapDestroy, &thd, sizeof(thd));
+	say("TILER_HEAP_CREATE %#x: heap %u context %#llx first chunk %#llx; destroy %#x", kh, th.handle,
+	    (unsigned long long)th.tiler_heap_ctx_gpu_va, (unsigned long long)th.first_heap_chunk_gpu_va, khd);
 
 	struct group_get_state gst = { .group_handle = gc.group_handle };
 	(void)call(kGroupGetState, &gst, sizeof(gst));

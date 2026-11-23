@@ -45,6 +45,8 @@ void lapis_gpu_vm_destroy(int vm);
 int lapis_gpu_vm_map(int vm, uint64_t va, uint64_t pa, int readonly, int noexec);
 void lapis_gpu_vm_unmap(int vm, uint64_t va, uint64_t size);
 void lapis_gpu_vm_flush(int vm);
+int lapis_gpu_vm_map_kernel(int vm, uint64_t va, uint64_t pa, int noexec);
+void lapis_gpu_vm_unmap_kernel(int vm, uint64_t va, uint64_t size);
 int lapis_gpu_group_create(int vm, uint32_t ring_size);
 void lapis_gpu_group_destroy(int slot);
 uint32_t lapis_gpu_group_submit(int slot, uint64_t stream, uint32_t size);
@@ -71,6 +73,8 @@ enum {
 	kPanthorGroupDestroy    = 0x48,
 	kPanthorGroupSubmit     = 0x49,
 	kPanthorGroupGetState   = 0x4a,
+	kPanthorTilerHeapCreate = 0x4b,
+	kPanthorTilerHeapDestroy = 0x4c,
 	kLapisWait              = 0x7d,         /* ours: struct lapis_wait */
 	kLapisSync              = 0x7e,         /* ours: struct lapis_sync */
 	kLapisLog               = 0x7f,         /* ours: struct lapis_log */
@@ -117,6 +121,11 @@ struct drm_panthor_queue_submit {
 };
 struct drm_panthor_group_submit { uint32_t group_handle, pad; struct drm_panthor_obj_array queue_submits; };
 struct drm_panthor_group_get_state { uint32_t group_handle, state, fatal_queues, pad; };
+struct drm_panthor_tiler_heap_create {
+	uint32_t vm_id, initial_chunk_count, chunk_size, max_chunks, target_in_flight, handle;
+	uint64_t tiler_heap_ctx_gpu_va, first_heap_chunk_gpu_va;
+};
+struct drm_panthor_tiler_heap_destroy { uint32_t handle, pad; };
 /* kLapisWait: the group's submission `seq` (0: its last one) done within timeout_ns; seq back */
 struct lapis_wait { uint32_t group_handle, seq; int64_t timeout_ns; };
 /* kLapisSync: clean + invalidate the CPU caches over a buffer's bytes [offset, offset + size) (0 size: all):
@@ -151,6 +160,40 @@ struct lg_buffer {
 };
 
 static IOLock * gLapisGPULock;
+
+/*
+ * Tiler heaps, as panthor_heap.c makes them: a zeroed context for the
+ * firmware and initial chunks, each starting with a header whose `next` is
+ * the previous chunk's GPU address | (chunk size >> 12); the first chunk
+ * handed out is the last one made. Mapped in the kernel's part of the VM:
+ * heap id n at LG_KVA + 1 GiB * (1 + n), the context first, chunks from
+ * + 16 MiB. Not here yet: growing a heap on the firmware's TILER_OOM.
+ */
+#define LG_HEAPS                32
+#define LG_HEAP_CHUNKS          64
+#define LG_HEAP_VA(n)           (LG_USER_VA_TOP + 0x40000000ull * (1 + (n)))
+struct lg_heap {
+	int vm;
+	void * owner;
+	uint32_t chunk_size, nchunks;
+	IOBufferMemoryDescriptor * ctx;
+	IOBufferMemoryDescriptor * chunks[LG_HEAP_CHUNKS];
+};
+static struct lg_heap gHeaps[LG_HEAPS];
+
+static void
+lgHeapFree(int n)
+{
+	struct lg_heap * h = &gHeaps[n];
+	if (h->vm) {
+		lapis_gpu_vm_unmap_kernel(h->vm, LG_HEAP_VA(n), 0x1000000ull + (uint64_t) h->nchunks * h->chunk_size);
+	}
+	for (uint32_t i = 0; i < h->nchunks; i++) {
+		OSSafeReleaseNULL(h->chunks[i]);
+	}
+	OSSafeReleaseNULL(h->ctx);
+	bzero(h, sizeof(*h));
+}
 
 /* every 4 KiB of `size` bytes of memory from `from` on into the VM at va */
 static IOReturn
@@ -194,6 +237,73 @@ lgNewMemory(uint64_t size)
 		lgSync(m->getBytesNoCopy(), size);
 	}
 	return m;
+}
+
+/* every 4 KiB of memory into the kernel's part of the VM at va */
+static IOReturn
+lgBindKernel(int vm, IOMemoryDescriptor * memory, uint64_t va, uint64_t size)
+{
+	for (uint64_t o = 0; o < size; o += 4096) {
+		IOByteCount length = 0;
+		addr64_t phys = memory->getPhysicalSegment(o, &length, kIOMemoryMapperNone);
+		if (phys == 0 || lapis_gpu_vm_map_kernel(vm, va + o, phys, 1) != 0) {
+			return kIOReturnNoMemory;
+		}
+	}
+	return kIOReturnSuccess;
+}
+
+/* With the lock held. */
+static IOReturn
+lgHeapCreate(struct drm_panthor_tiler_heap_create * r, void * owner)
+{
+	int n;
+	if (r->initial_chunk_count == 0 || r->initial_chunk_count > r->max_chunks ||
+	    r->initial_chunk_count > LG_HEAP_CHUNKS || (r->chunk_size & 0x3fff) ||
+	    r->chunk_size < 0x20000 || r->chunk_size > 0x800000) {
+		return kIOReturnBadArgument;
+	}
+	for (n = 0; n < LG_HEAPS && gHeaps[n].vm; n++) {
+	}
+	if (n == LG_HEAPS) {
+		return kIOReturnNoResources;
+	}
+	struct lg_heap * h = &gHeaps[n];
+	h->vm = (int) r->vm_id;
+	h->owner = owner;
+	h->chunk_size = r->chunk_size;
+	h->ctx = lgNewMemory(PAGE_SIZE);
+	if (h->ctx == NULL || lgBindKernel(h->vm, h->ctx, LG_HEAP_VA(n), PAGE_SIZE) != kIOReturnSuccess) {
+		lgHeapFree(n);
+		return kIOReturnNoMemory;
+	}
+	uint64_t prev = 0;
+	for (uint32_t i = 0; i < r->initial_chunk_count; i++) {
+		uint64_t va = LG_HEAP_VA(n) + 0x1000000ull + (uint64_t) i * h->chunk_size;
+		IOBufferMemoryDescriptor * c = lgNewMemory(h->chunk_size);
+		if (c == NULL) {
+			lgHeapFree(n);
+			return kIOReturnNoMemory;
+		}
+		h->chunks[h->nchunks++] = c;
+		if (prev) {
+			volatile uint64_t * hdr = (volatile uint64_t *) c->getBytesNoCopy();
+			hdr[0] = (prev & ~0xfffull) | (h->chunk_size >> 12);
+			lgSync(hdr, 64);
+		}
+		if (lgBindKernel(h->vm, c, va, h->chunk_size) != kIOReturnSuccess) {
+			lgHeapFree(n);
+			return kIOReturnNoMemory;
+		}
+		prev = va;
+	}
+	lapis_gpu_vm_flush(h->vm);
+	r->handle = (uint32_t) n;
+	r->tiler_heap_ctx_gpu_va = LG_HEAP_VA(n);
+	r->first_heap_chunk_gpu_va = prev;
+	IOLog("LapisGPU: tiler heap %d on VM %d: %u x %#x, context %#llx, first chunk %#llx\n", n, h->vm,
+	    h->nchunks, h->chunk_size, (unsigned long long) r->tiler_heap_ctx_gpu_va, (unsigned long long) prev);
+	return kIOReturnSuccess;
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -293,6 +403,11 @@ LapisGPUUserClient::forgetVM(int vm)
 			if (fBuffers[i].binds[k].vm == vm) {
 				bzero(&fBuffers[i].binds[k], sizeof(fBuffers[i].binds[k]));
 			}
+		}
+	}
+	for (int n = 0; n < LG_HEAPS; n++) {
+		if (gHeaps[n].vm == vm && gHeaps[n].owner == this) {
+			lgHeapFree(n);
 		}
 	}
 	for (int n = 1; n < LG_GROUPS; n++) {
@@ -487,6 +602,11 @@ LapisGPUUserClient::clientClose(void)
 			freeBuffer(&fBuffers[i]);
 		}
 	}
+	for (int n = 0; n < LG_HEAPS; n++) {
+		if (gHeaps[n].vm && gHeaps[n].owner == this) {
+			lgHeapFree(n);
+		}
+	}
 	for (int vm = 1; vm < 32; vm++) {
 		if (fVMs & (1u << vm)) {
 			lapis_gpu_vm_destroy(vm);
@@ -516,9 +636,21 @@ LapisGPUUserClient::clientMemoryForType(UInt32 type, IOOptionBits * options, IOM
 	IOLockLock(gLapisGPULock);
 	struct lg_buffer * b = buffer(type);
 	if (b != NULL) {
+		/*
+		 * The program's view write-combined (lapisgpuwc=0: cacheable, then the
+		 * program syncs with 0x7e): Mesa writes buffers the GPU reads without
+		 * syncing, as on Linux. The kernel's own cacheable view is not written
+		 * after the buffer is made (lgNewMemory cleans it then).
+		 */
+		static int wc = -1;
+		if (wc < 0) {
+			int v = 1;
+			(void) PE_parse_boot_argn("lapisgpuwc", &v, sizeof(v));
+			wc = v != 0;
+		}
 		b->memory->retain();
 		*memory = b->memory;
-		*options = 0;
+		*options = wc ? kIOMapWriteCombineCache : 0;
 		ret = kIOReturnSuccess;
 	}
 	IOLockUnlock(gLapisGPULock);
@@ -542,6 +674,8 @@ LapisGPUUserClient::externalMethod(uint32_t selector, IOExternalMethodArguments 
 		struct drm_panthor_group_destroy gd;
 		struct drm_panthor_group_submit gs;
 		struct drm_panthor_group_get_state gst;
+		struct drm_panthor_tiler_heap_create thc;
+		struct drm_panthor_tiler_heap_destroy thd;
 		struct lapis_wait wait;
 		struct lapis_sync sync;
 		struct lapis_log log;
@@ -658,6 +792,20 @@ LapisGPUUserClient::externalMethod(uint32_t selector, IOExternalMethodArguments 
 			int fatal = lapis_gpu_group_fatal((int) r.gst.group_handle);
 			r.gst.state = fatal ? PANTHOR_STATE_FATAL : 0;
 			r.gst.fatal_queues = fatal ? 1 : 0;
+		}
+		break;
+	case kPanthorTilerHeapCreate:
+		if (r.thc.vm_id == 0 || r.thc.vm_id >= 32 || !(fVMs & (1u << r.thc.vm_id))) {
+			ret = kIOReturnBadArgument;
+		} else {
+			ret = lgHeapCreate(&r.thc, this);
+		}
+		break;
+	case kPanthorTilerHeapDestroy:
+		if (r.thd.handle >= LG_HEAPS || !gHeaps[r.thd.handle].vm || gHeaps[r.thd.handle].owner != this) {
+			ret = kIOReturnNotFound;
+		} else {
+			lgHeapFree((int) r.thd.handle);
 		}
 		break;
 	case kLapisSync: {
