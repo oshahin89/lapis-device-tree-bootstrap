@@ -560,11 +560,13 @@ lg_service_locked(void)
 			printf("LAPIS GPU: GPU fault status %#x, int %#x\n", g(0x3c), gi);
 		}
 	}
-	uint32_t mi = g(MMU_INT_RAWSTAT);
+	/* bits 0..15 are page faults; 16..31 REQ_COMPLETE, set again by every AS
+	 * command (v46 took them for faults and redid the AS disable every tick) */
+	uint32_t mi = g(MMU_INT_RAWSTAT) & 0xffffu;
 	if (mi) {
 		gw(MMU_INT_CLEAR, mi);
 		for (unsigned n = 0; n < 8; n++) {
-			if (!((mi | (mi >> 16)) & (1u << n))) {
+			if (!(mi & (1u << n))) {
 				continue;
 			}
 			if (lg_nfault++ < 8) {
@@ -736,7 +738,7 @@ lg_sleep_ms(uint32_t ms)
 #define LG_RING_MAX     0x10000u
 
 static uint64_t lg_vm_root[LG_NVM + 1];
-static int lg_trace = 1;                /* lapisgputrace: steps of group create, flushed (v43 froze) */
+static int lg_trace;                    /* lapisgputrace=1: steps of group create, each waited for the log writer */
 
 static void
 lg_step(int n, const char *what, uint32_t a, uint32_t b)

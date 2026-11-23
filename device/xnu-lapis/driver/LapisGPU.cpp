@@ -684,13 +684,17 @@ out:
  * an address nothing is bound at (the fault must stay in its group), and a
  * new group after it. Everything goes back at the end.
  */
-/* v43 froze the phone somewhere in here before the log was written: each
- * step says what comes next and waits for the log writer (ufslogsecs=1) */
+/* v43/v44 stopped the phone in here before the log was written: each step
+ * says what comes next; with lapisgputrace=1 (and ufslogsecs=1) it also waits
+ * for the log writer, so the last line on disk is where it stopped */
 static void
 lgStage(const char * what)
 {
+	int trace = 0;
 	IOLog("LapisGPU: self-test: %s\n", what);
-	IOSleep(1500);
+	if (PE_parse_boot_argn("lapisgputrace", &trace, sizeof(trace)) && trace) {
+		IOSleep(1500);
+	}
 }
 
 static void
