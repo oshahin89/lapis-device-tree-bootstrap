@@ -118,9 +118,22 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   - `device/device_types.h` in an IOKit user client changes io_object_t and
     the link then misses IOUserClient::exportObjectToClient.
   - lapisgputrace=1 (+ ufslogsecs=1) logs and flushes every step.
-- Next: a user-space test client (IOKit, built on CI for iOS, put into the
-  iOS root: needs the PC), then the stand-in for libdrm that Mesa's panfrost
-  (panthor backend) calls, a cache sync request, sync objects on 0x7d.
+- ~~Milestone 7: a program drives the GPU~~ **done (dual_v48, 2026-11-23).**
+  tools/lapis_gputest (CI: .github/workflows/lapis-gputest.yml, iOS arm64,
+  ad-hoc signed) opens LapisGPU over IOKit like Mesa will: DEV_QUERY (gpu_id
+  0xb8a31030, csf 0x4100412, shaders 0x5, AS 0xfc, 7 CSG slots, 96 regs, 16
+  scoreboards), VM, two buffers mapped into the process (IOConnectMapMemory64,
+  type = handle) and bound, a group, 1000 submissions of a stream it writes
+  itself: **1000/1000 ran**, everything torn down cleanly
+  (device/captures/sweetlog_v48_gpu.txt). Round trips averaged 1.85 ms
+  (worst 1.5 s) during boot, against 26 us from the kernel: to look at.
+  Requests added: 0x7e LAPIS_SYNC (clean + invalidate a buffer), 0x7f
+  LAPIS_LOG. Installed from the phone alone (tools/lapis_fdr_gputest.sh):
+  the program's blocks over /usr/bin/IOMFB_FDR_Loader, which iOS runs once
+  per boot as root; tools/hfsplus_find.py found them in the image without
+  mounting. `restore` puts the original back.
+- Next: the stand-in for libdrm that Mesa's panfrost (panthor backend)
+  calls, sync objects on 0x7d, then Mesa itself built for iOS.
 
 ## tgpu v1 on the phone (dual_v29, 2026-11-23)
 
