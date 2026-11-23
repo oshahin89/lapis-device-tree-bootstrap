@@ -22,7 +22,10 @@
  * CSG doorbell acked, CS0 still ack 0. v5: no tiler endpoint (TILER_PRESENT
  * reads 0), read-backs, CSG_STATUS_UPDATE, the queue's user doorbell: no CSG
  * request acked after START, JOB_INT 0x80000001 pending. v6 services the
- * IRQs (JOB_INT clear, GLB/CSG event acks, cs_irq_ack) before retrying.
+ * IRQs (JOB_INT clear, GLB/CSG event acks, cs_irq_ack) before retrying:
+ * still nothing. Android's kbase (kprobed) uses MCU shared-region VAs for
+ * the user I/O and suspend buffers; v7 does the same, plus req 0x1500 and a
+ * protected-mode suspend buffer.
  * Writes: the GPUEB mailbox, the GPU, and DRAM at POOL.
  */
 #include <stdint.h>
@@ -150,11 +153,16 @@ static volatile uint32_t *sh(uint32_t va) { return (volatile uint32_t *)(shared_
 
 /* v2: buffers for the first command stream, mapped at these GPU VAs in the
  * AS0 tables, which AS1 (the group's address space) shares */
+/* v7: Android's kbase puts the queue's user I/O pages and the group's suspend
+ * buffers inside the MCU shared region (0x04000000..0x08000000; trace in
+ * device/captures/android_kbase_csf_writes_*), as panthor does; only the ring
+ * buffer and data live in the group's own VA space. */
 #define VA_RING		0x10000000u
-#define VA_UIO_IN	0x10001000u
-#define VA_UIO_OUT	0x10002000u
+#define VA_UIO_IN	0x04100000u
+#define VA_UIO_OUT	0x04101000u
 #define VA_TARGET	0x10003000u
-#define VA_SUSPEND	0x10010000u
+#define VA_SUSPEND	0x04110000u
+#define VA_PSUSPEND	0x04120000u
 
 static uintptr_t map_new(uint32_t va, uint32_t pages)
 {
@@ -249,7 +257,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
 	con_skip();		/* the camera hole covers the first lines */
-	con_str("LAPIS", "tcsf v6: CSF boot + first command stream");
+	con_str("LAPIS", "tcsf v7: CSF boot + first command stream");
 	if ((rd(0x1c001eb4) & 0xc0000000u) != 0xc0000000u) {
 		con_str("FAIL", "mfg0 domain off");
 		goto out;
@@ -340,7 +348,9 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 
 	uintptr_t ring = map_new(VA_RING, 1), uin = map_new(VA_UIO_IN, 1), uout = map_new(VA_UIO_OUT, 1);
 	uintptr_t target = map_new(VA_TARGET, 1), sbuf = map_new(VA_SUSPEND, (susp + 0xfff) >> 12);
-	if (!ring || !uin || !uout || !target || !sbuf) {
+	uint32_t psusp = csgc[0x10 / 4];
+	uintptr_t pbuf = psusp ? map_new(VA_PSUSPEND, (psusp + 0xfff) >> 12) : 1;
+	if (!ring || !uin || !uout || !target || !sbuf || !pbuf) {
 		con_str("FAIL", "pool exhausted");
 		goto out;
 	}
@@ -366,7 +376,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	csgin[0x30 / 4] = g(0x110);
 	csgin[0x34 / 4] = 2u | (2u << 8) | (g(0x110) ? (1u << 16) : 0) | (1u << 28);
 	*(volatile uint64_t *)&csgin[0x40 / 4] = VA_SUSPEND;
-	*(volatile uint64_t *)&csgin[0x48 / 4] = 0;
+	*(volatile uint64_t *)&csgin[0x48 / 4] = psusp ? VA_PSUSPEND : 0;
 	csgin[0x50 / 4] = 1;			/* AS1 */
 	csgin[0x04 / 4] = ~0u;
 	csgin[0] = (csgin[0] & ~7u) | 1u;	/* CSG_STATE_START */
@@ -387,7 +397,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	*(volatile uint64_t *)&csin[0x38 / 4] = VA_UIO_OUT;
 	csin[0x04 / 4] = 1u | (1u << 8);	/* priority 1, doorbell 1 */
 	csin[0x0c / 4] = ~0u;
-	csin[0] = (csin[0] & ~((1u << 8) | (1u << 10) | 7u)) | (1u << 8) | (1u << 10) | 1u;	/* START */
+	csin[0] = (csin[0] & ~(0x1500u | 7u)) | 0x1500u | 1u;	/* idle bits as kbase (0x1500), START */
 	toggle(&csgin[0x08 / 4], csgout[0x08 / 4], 1u);	/* CSG doorbell_req: queue 0 */
 	toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);	/* GLB doorbell_req: CSG 0 */
 	gw(0x80000, 1);
