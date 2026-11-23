@@ -17,7 +17,8 @@
  * a 4-instruction stream (MOVE48, MOVE32, STORE_MULTIPLE, WAIT; Mesa v11.xml
  * encodings) that stores 0xc0ffee42 to a buffer. v2 on the phone: GLB config
  * and PING acked, CSG0 START acked in 40 us, but CS0 stayed at ack 0 (req
- * 0x501) and nothing ran; v3 kicks CS0 again after the group started.
+ * 0x501) and nothing ran; v3 kicked CS0 again: CSG doorbell ack stuck at 1.
+ * v4: group start and stream start as two steps, each ack waited for.
  * Writes: the GPUEB mailbox, the GPU, and DRAM at POOL.
  */
 #include <stdint.h>
@@ -244,7 +245,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
 	con_skip();		/* the camera hole covers the first lines */
-	con_str("LAPIS", "tcsf v3: CSF boot + first command stream");
+	con_str("LAPIS", "tcsf v4: CSF boot + first command stream");
 	if ((rd(0x1c001eb4) & 0xc0000000u) != 0xc0000000u) {
 		con_str("FAIL", "mfg0 domain off");
 		goto out;
@@ -352,16 +353,9 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	gw(AS0 + AS_COMMAND, 1);
 	(void)poll(AS0 + AS_STATUS, 1, 0, 10000);
 
-	/* CS0: panthor cs_slot_prog_locked */
-	*(volatile uint64_t *)&csin[0x10 / 4] = VA_RING;
-	csin[0x18 / 4] = 0x1000;
-	*(volatile uint64_t *)&csin[0x30 / 4] = VA_UIO_IN;
-	*(volatile uint64_t *)&csin[0x38 / 4] = VA_UIO_OUT;
-	csin[0x04 / 4] = 1u | (1u << 8);	/* priority 1, doorbell 1 */
-	csin[0x0c / 4] = ~0u;
-	csin[0] = (csin[0] & ~((1u << 8) | (1u << 10) | 7u)) | (1u << 8) | (1u << 10) | 1u;	/* START */
-
-	/* CSG0: panthor csg_slot_prog_locked + START */
+	/* v4: in two separate steps, each waited for: (1) the group, (2) the
+	 * stream. v3: CSG0 doorbell ack stuck at 1 after the first kick. */
+	/* (1) CSG0: panthor csg_slot_prog_locked + START, no queue kick yet */
 	*(volatile uint64_t *)&csgin[0x20 / 4] = 0x5;
 	*(volatile uint64_t *)&csgin[0x28 / 4] = 0x5;
 	csgin[0x30 / 4] = 0x1;
@@ -370,25 +364,33 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	*(volatile uint64_t *)&csgin[0x48 / 4] = 0;
 	csgin[0x50 / 4] = 1;			/* AS1 */
 	csgin[0x04 / 4] = ~0u;
-	toggle(&csgin[0x08 / 4], csgout[0x08 / 4], 1u);	/* doorbell_req: queue 0 */
 	csgin[0] = (csgin[0] & ~7u) | 1u;	/* CSG_STATE_START */
 	toggle(&csgin[0], csgout[0], 1u << 4);	/* CSG_ENDPOINT_CONFIG */
+	uint32_t gdb0 = gin[0x08 / 4] << 16 | gout[0x08 / 4];
 	toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);	/* GLB doorbell_req: CSG 0 */
 	gw(0x80000, 1);
 	uint32_t c3 = wait_acked(&csgin[0], &csgout[0], 7u | (1u << 4), 10000);
-	con_hex2("CSG0", "start ack x10us=", c3, "state=", csgout[0x18 / 4]);
-	/* v3: v2 left CS0 at ack 0 / req 0x501: kick the stream again now that
-	 * the group runs (CSG doorbell_req for queue 0, GLB doorbell_req for CSG
-	 * 0, GLB doorbell) and wait until CS0 acks START */
-	uint32_t c4 = ~0u;
-	for (int k = 0; k < 3 && c4 == ~0u; k++) {
-		toggle(&csgin[0x08 / 4], csgout[0x08 / 4], 1u);
-		toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);
-		gw(0x80000, 1);
-		c4 = wait_acked(&csin[0], &csout[0], 7u, 10000);
-	}
-	con_hex2("CS0", "ack=", csout[0], "start ack x10us=", c4);
-	con_hex2("CSG0", "dbell req/ack=", csgin[0x08 / 4] << 16 | csgout[0x08 / 4], "cs_irq_req=", csgout[0x0c / 4]);
+	uint32_t g3 = wait_acked(&gin[0x08 / 4], &gout[0x08 / 4], 1u, 10000);
+	con_hex2("CSG0", "start ack x10us=", c3, "glb db ack x10us=", g3);
+	con_hex2("GLBDB", "req/ack before=", gdb0, "after=", gin[0x08 / 4] << 16 | gout[0x08 / 4]);
+	con_hex2("CSG0", "ack=", csgout[0], "ep cur/req=", csgout[0x10 / 4] << 16 | (csgout[0x14 / 4] & 0xffff));
+
+	/* (2) CS0: panthor cs_slot_prog_locked, then kick the queue */
+	*(volatile uint64_t *)&csin[0x10 / 4] = VA_RING;
+	csin[0x18 / 4] = 0x1000;
+	*(volatile uint64_t *)&csin[0x30 / 4] = VA_UIO_IN;
+	*(volatile uint64_t *)&csin[0x38 / 4] = VA_UIO_OUT;
+	csin[0x04 / 4] = 1u | (1u << 8);	/* priority 1, doorbell 1 */
+	csin[0x0c / 4] = ~0u;
+	csin[0] = (csin[0] & ~((1u << 8) | (1u << 10) | 7u)) | (1u << 8) | (1u << 10) | 1u;	/* START */
+	toggle(&csgin[0x08 / 4], csgout[0x08 / 4], 1u);	/* CSG doorbell_req: queue 0 */
+	toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);	/* GLB doorbell_req: CSG 0 */
+	gw(0x80000, 1);
+	uint32_t c4 = wait_acked(&csin[0], &csout[0], 7u, 10000);
+	uint32_t d4 = wait_acked(&csgin[0x08 / 4], &csgout[0x08 / 4], 1u, 1000);
+	con_hex2("CS0", "start ack x10us=", c4, "csg db ack x10us=", d4);
+	con_hex2("CS0", "ack=", csout[0], "req=", csin[0]);
+	con_hex2("GLBDB", "req/ack=", gin[0x08 / 4] << 16 | gout[0x08 / 4], "mcu=", g(MCU_STATUS));
 
 	/* the program: r0:r1 = &target, r2 = magic, store r2 at [r0], wait all */
 	volatile uint64_t *ins = (volatile uint64_t *)ring;
