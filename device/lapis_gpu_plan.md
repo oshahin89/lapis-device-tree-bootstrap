@@ -42,6 +42,17 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
 - Android trace of the GPU power-up (regmap / clk / scpsys events, GPUEB
   mailbox) with the boot-time cmdline trick, as for audio.
 
+## tgpu v1 on the phone (dual_v29, 2026-11-23)
+
+- mfg0 domain (PWR_CON 0x1c001eb4) is **on** after a reboot from Android.
+- The Mali itself reads **0** (gpu_id 0, shader_present 0) without a stall:
+  the GPU core domain is off or isolated. mfg_rpc 0x13f90000: +0 = 0x08010030,
+  +4 = 0x012b0000, +8 = 0, +0xc = 0x0fc00100.
+- Next: the core power-up goes through GPUEB (gpueb-support = 1): Android's
+  mtk_gpufreq / gpueb IPI drivers send it a power request over the mailbox at
+  0x13c00000. Pull those modules from vendor_dlkm and read the IPI protocol
+  (IPI_ID_GPUFREQ), or find whether mfg_rpc can be driven directly.
+
 ## What lapis needs (in order)
 
 1. **Power and clocks**: MFG power domains (scpsys), GPU PLL, `ged-supply`
