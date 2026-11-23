@@ -12,6 +12,10 @@
  * ZERO sections cleared, PROT sections skipped; MCU_CONTROL = AUTO, wait for
  * JOB_INT_GLOBAL_IF (bit 31); then the global control block at MCU VA
  * 0x04000000: version, features, input/output VAs, group count.
+ * v1 on the phone: GLB v2.5.0, 8 groups. v2: global setup and PING as
+ * panthor_fw_init_global_iface, group 0 / stream 0 on AS1 (same tables), and
+ * a 4-instruction stream (MOVE48, MOVE32, STORE_MULTIPLE, WAIT; Mesa v11.xml
+ * encodings) that stores 0xc0ffee42 to a buffer.
  * Writes: the GPUEB mailbox, the GPU, and DRAM at POOL.
  */
 #include <stdint.h>
@@ -134,6 +138,45 @@ static int map_page(uint64_t va, uint64_t pa, uint64_t attrs)
 
 static uintptr_t shared_pa;
 
+/* MCU VA -> CPU (physical) address, for VAs inside the shared section */
+static volatile uint32_t *sh(uint32_t va) { return (volatile uint32_t *)(shared_pa + (va - 0x04000000u)); }
+
+/* v2: buffers for the first command stream, mapped at these GPU VAs in the
+ * AS0 tables, which AS1 (the group's address space) shares */
+#define VA_RING		0x10000000u
+#define VA_UIO_IN	0x10001000u
+#define VA_UIO_OUT	0x10002000u
+#define VA_TARGET	0x10003000u
+#define VA_SUSPEND	0x10010000u
+
+static uintptr_t map_new(uint32_t va, uint32_t pages)
+{
+	uintptr_t pa = page_alloc(pages);
+	if (!pa)
+		return 0;
+	for (uint32_t i = 0; i < pages; i++)
+		if (map_page(va + i * 0x1000ull, pa + i * 0x1000ull, 0))
+			return 0;
+	return pa;
+}
+
+/* panthor_fw_toggle_reqs: flip the bits of mask in req so they differ from ack */
+static void toggle(volatile uint32_t *req, uint32_t ack, uint32_t mask)
+{
+	*req = ((ack ^ mask) & mask) | (*req & ~mask);
+	__asm__ volatile("dsb sy" ::: "memory");
+}
+
+static uint32_t wait_acked(volatile uint32_t *req, volatile uint32_t *ack, uint32_t mask, uint32_t max10us)
+{
+	for (uint32_t i = 0; i < max10us; i++) {
+		if (((*req ^ *ack) & mask) == 0)
+			return i;
+		udelay(10);
+	}
+	return ~0u;
+}
+
 static int load_fw(uint32_t *nsec)
 {
 	const uint8_t *d = mali_fw;
@@ -199,7 +242,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
 	con_skip();		/* the camera hole covers the first lines */
-	con_str("LAPIS", "tcsf v1: Mali CSF firmware boot");
+	con_str("LAPIS", "tcsf v2: CSF boot + first command stream");
 	if ((rd(0x1c001eb4) & 0xc0000000u) != 0xc0000000u) {
 		con_str("FAIL", "mfg0 domain off");
 		goto out;
@@ -258,10 +301,111 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	con_hex2("GLB", "version=", glb[0], "features=", glb[1]);
 	con_hex2("GLB", "input_va=", glb[2], "output_va=", glb[3]);
 	con_hex2("GLB", "group_num=", glb[4], "group_stride=", glb[5]);
-	if (glb[0])
-		con_str("DONE", "CSF firmware booted");
-	else
+	if (!glb[0]) {
 		con_str("DONE", "firmware did not publish its interface");
+		goto out;
+	}
+
+	/* ---- v2: global setup + PING (panthor_fw_init_global_iface) ---- */
+	volatile uint32_t *gin = sh(glb[2]), *gout = sh(glb[3]);
+	gin[0x18 / 4] = 0x5;			/* core_en_mask = shader_present */
+	gin[0x1c / 4] = 0;
+	gin[0x10 / 4] = (uint32_t)((5ull * 500 * 1024 * 1024) >> 10);	/* progress_timer */
+	gin[0x14 / 4] = 0x7fffffffu;		/* poweroff_timer: max */
+	gin[0x04 / 4] = (1u << 2) | (1u << 8) | (1u << 1) | (1u << 3) | (1u << 10) | (1u << 26);
+	gin[0] = (gin[0] & ~((1u << 10) | (1u << 7))) | (1u << 10) | (1u << 7);
+	toggle(&gin[0], gout[0], (1u << 2) | (1u << 3) | (1u << 1));
+	gw(0x80000, 1);				/* GLB doorbell */
+	uint32_t c1 = wait_acked(&gin[0], &gout[0], (1u << 2) | (1u << 3) | (1u << 1), 10000);
+	toggle(&gin[0], gout[0], 1u << 8);	/* PING */
+	gw(0x80000, 1);
+	uint32_t c2 = wait_acked(&gin[0], &gout[0], 1u << 8, 10000);
+	con_hex2("GLB", "config ack x10us=", c1, "ping ack x10us=", c2);
+
+	/* ---- group 0 / stream 0 ---- */
+	volatile uint32_t *csgc = sh(0x04000000u + 0x1000u);
+	uint32_t susp = csgc[0x0c / 4], streams = csgc[0x14 / 4], sstride = csgc[0x18 / 4];
+	volatile uint32_t *csgin = sh(csgc[1]), *csgout = sh(csgc[2]);
+	volatile uint32_t *csc = (volatile uint32_t *)((uintptr_t)csgc + 0x40);
+	volatile uint32_t *csin = sh(csc[1]), *csout = sh(csc[2]);
+	con_hex2("CSG0", "suspend_size=", susp, "streams=", streams << 16 | sstride);
+	con_hex2("CS0", "features=", csc[0], "csg features=", csgc[0]);
+
+	uintptr_t ring = map_new(VA_RING, 1), uin = map_new(VA_UIO_IN, 1), uout = map_new(VA_UIO_OUT, 1);
+	uintptr_t target = map_new(VA_TARGET, 1), sbuf = map_new(VA_SUSPEND, (susp + 0xfff) >> 12);
+	if (!ring || !uin || !uout || !target || !sbuf) {
+		con_str("FAIL", "pool exhausted");
+		goto out;
+	}
+	/* AS1 = the group's address space: the same tables */
+	gw(0x2440 + AS_TRANSTAB, (uint32_t)pt_root);
+	gw(0x2440 + AS_TRANSTAB + 4, 0);
+	gw(0x2440 + AS_MEMATTR, 0x4c4c4c4c);
+	gw(0x2440 + AS_MEMATTR + 4, 0x4c4c4c4c);
+	gw(0x2440 + AS_TRANSCFG, (uint32_t)transcfg);
+	gw(0x2440 + AS_TRANSCFG + 4, (uint32_t)(transcfg >> 32));
+	gw(0x2440 + AS_COMMAND, 1);
+	(void)poll(0x2440 + AS_STATUS, 1, 0, 10000);
+	/* flush the MCU's view of AS0 too: tables changed */
+	gw(AS0 + AS_COMMAND, 1);
+	(void)poll(AS0 + AS_STATUS, 1, 0, 10000);
+
+	/* CS0: panthor cs_slot_prog_locked */
+	*(volatile uint64_t *)&csin[0x10 / 4] = VA_RING;
+	csin[0x18 / 4] = 0x1000;
+	*(volatile uint64_t *)&csin[0x30 / 4] = VA_UIO_IN;
+	*(volatile uint64_t *)&csin[0x38 / 4] = VA_UIO_OUT;
+	csin[0x04 / 4] = 1u | (1u << 8);	/* priority 1, doorbell 1 */
+	csin[0x0c / 4] = ~0u;
+	csin[0] = (csin[0] & ~((1u << 8) | (1u << 10) | 7u)) | (1u << 8) | (1u << 10) | 1u;	/* START */
+
+	/* CSG0: panthor csg_slot_prog_locked + START */
+	*(volatile uint64_t *)&csgin[0x20 / 4] = 0x5;
+	*(volatile uint64_t *)&csgin[0x28 / 4] = 0x5;
+	csgin[0x30 / 4] = 0x1;
+	csgin[0x34 / 4] = 2u | (2u << 8) | (1u << 16) | (1u << 28);
+	*(volatile uint64_t *)&csgin[0x40 / 4] = VA_SUSPEND;
+	*(volatile uint64_t *)&csgin[0x48 / 4] = 0;
+	csgin[0x50 / 4] = 1;			/* AS1 */
+	csgin[0x04 / 4] = ~0u;
+	toggle(&csgin[0x08 / 4], csgout[0x08 / 4], 1u);	/* doorbell_req: queue 0 */
+	csgin[0] = (csgin[0] & ~7u) | 1u;	/* CSG_STATE_START */
+	toggle(&csgin[0], csgout[0], 1u << 4);	/* CSG_ENDPOINT_CONFIG */
+	toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);	/* GLB doorbell_req: CSG 0 */
+	gw(0x80000, 1);
+	uint32_t c3 = wait_acked(&csgin[0], &csgout[0], 7u | (1u << 4), 10000);
+	con_hex2("CSG0", "start ack x10us=", c3, "status_state=", csgout[0x18 / 4]);
+	con_hex2("CS0", "ack=", csout[0], "req=", csin[0]);
+
+	/* the program: r0:r1 = &target, r2 = magic, store r2 at [r0], wait all */
+	volatile uint64_t *ins = (volatile uint64_t *)ring;
+	ins[0] = (1ull << 56) | (0ull << 48) | VA_TARGET;
+	ins[1] = (2ull << 56) | (2ull << 48) | 0xc0ffee42ull;
+	ins[2] = (21ull << 56) | (2ull << 48) | (0ull << 40) | (1ull << 16) | 0;
+	ins[3] = (3ull << 56) | (0xffffull << 16);
+	*(volatile uint32_t *)target = 0x11111111;
+	volatile uint64_t *uio = (volatile uint64_t *)uin;
+	uio[1] = 0;				/* extract */
+	__asm__ volatile("dsb sy" ::: "memory");
+	uio[0] = 32;				/* insert: 4 instructions */
+	__asm__ volatile("dsb sy" ::: "memory");
+	gw(0x80000 + 1 * 0x10000, 1);		/* CS doorbell 1 */
+	uint32_t t;
+	for (t = 0; t < 10000; t++) {
+		if (*(volatile uint32_t *)target == 0xc0ffee42u)
+			break;
+		udelay(10);
+	}
+	volatile uint64_t *uo = (volatile uint64_t *)uout;
+	con_hex2("RUN", "target=", *(volatile uint32_t *)target, "after x10us=", t);
+	con_hex2("RUN", "extract=", (uint32_t)uo[0], "active=", ((volatile uint32_t *)uout)[2]);
+	con_hex2("CS0", "cmd_ptr=", csout[0x40 / 4], "blocked=", csout[0x60 / 4]);
+	con_hex2("CS0", "fault=", csout[0x80 / 4], "fatal=", csout[0x88 / 4]);
+	con_hex2("MMU", "as1 fault=", g(0x2440 + AS_FAULTSTATUS), "addr=", g(0x2440 + AS_FAULTADDRESS));
+	if (*(volatile uint32_t *)target == 0xc0ffee42u)
+		con_str("DONE", "the GPU ran our command stream");
+	else
+		con_str("DONE", "no store seen");
 out:
 #ifdef LAPIS_DUAL_PROBE
 	return;			/* shim.c: Power reboots to Android */
