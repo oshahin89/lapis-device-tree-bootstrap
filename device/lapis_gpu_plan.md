@@ -37,9 +37,18 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
 ## First concrete steps
 
 - ~~Shim probe: power state + GPU_ID~~ done (tgpu v2).
-- Next: GPU soft reset, MMU address space for the MCU, load mali_csffw.bin
-  (its sections into GPU VA as the kbase CSF loader does), boot the MCU and
-  wait for the global interface (GLB) to come up.
+- ~~CSF firmware boot~~ **done (tcsf v1, dual_v31, first try, 2026-11-23)**:
+  GPUEB power-on (0.6 ms), MMU_FEATURES 0x2830 (48-bit VA, 40-bit PA),
+  AS_PRESENT 0xff, CSF_ID 0x04100412; soft reset immediate, L2 on in 0.25 ms;
+  7 firmware sections loaded into a DRAM pool at 0x58000000 (0xb9000 bytes
+  incl. tables), shared section at PA 0x580ac000; AS0 4-level AArch64 4K
+  tables, all non-cacheable (MEMATTR 0x4c..., PTW NC); MCU_CONTROL = AUTO ->
+  JOB_INT_GLOBAL_IF after 60 us, MCU_STATUS 1 (enabled), no GPU or MMU fault.
+  **Global interface v2.5.0**, features 0x10, input VA 0x04002000, output VA
+  0x04006000, **8 command stream groups**, group stride 0xa0.
+- Next (milestone 3): GLB setup as panthor_fw_init_global_iface (ack masks,
+  timers, GLB_PING), then one CSG with one CS ring running a trivial command
+  stream that writes a value to memory.
 - Android trace of the GPU power-up (regmap / clk / scpsys events, GPUEB
   mailbox) with the boot-time cmdline trick, as for audio.
 
