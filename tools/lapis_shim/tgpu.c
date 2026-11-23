@@ -25,8 +25,34 @@
 #define MFG_RPC		0x13f90000UL
 #define GPUEB		0x13c00000UL
 #define GPU		0x13000000UL
+/* GPUEB IPI (runtime FDT gpueb@13c00000; captured on Android with kprobes):
+ * gpufreq sends IPI 1 (IPI_ID_GPUFREQ) as mtk_mbox_write(mbox 0, slot 4,
+ * 8 words) + mtk_mbox_trigger_irq(mbox 0, 0x2). Words: [0] magic (read by the
+ * driver from GPUEB GPR 13), [1] command (6 = CMD_POWER_CONTROL), [4] 1 = on. */
+#define GPUEB_GPR	0x13c3fd1cUL
+#define MBOX0		0x13c3fd80UL	/* 0x280 bytes of slots */
+#define MBOX0_SET	0x13c62004UL
+#define MBOX0_CLR	0x13c62074UL
+#define MBOX0_SEND	0x13c62000UL
+#define MBOX0_RECV	0x13c62078UL
+#define rsr(r) ({ uint64_t _v; __asm__ volatile("mrs %0, " r : "=r"(_v)); _v; })
+
+static inline void wr(uintptr_t a, uint32_t v)
+{
+	*(volatile uint32_t *)a = v;
+	__asm__ volatile("dsb sy" ::: "memory");
+}
+
+static void udelay(uint32_t us)
+{
+	uint64_t f = rsr("cntfrq_el0"), t0 = rsr("cntvct_el0");
+	while (rsr("cntvct_el0") - t0 < (f / 1000000) * us + 1)
+		;
+}
 
 static inline uint32_t rd(uintptr_t a) { return *(volatile uint32_t *)a; }
+static void wr(uintptr_t a, uint32_t v);
+static void udelay(uint32_t us);
 
 static void pair(const char *label, uintptr_t base, uint32_t a, uint32_t b)
 {
@@ -41,7 +67,8 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "tgpu v1: Mali-G615 power state + GPU_ID");
+	con_skip();		/* the camera hole covers the first lines */
+	con_str("LAPIS", "tgpu v2: GPUEB power-on IPI + GPU_ID");
 	uint32_t pwr = rd(MFG0_PWR_CON);
 	con_hex2("MFG0", "pwr_con eb4=", pwr, "busprot cac=", rd(INFRA + 0xcac));
 	pair("MFG_PLL", MFG_PLL, 0x008, 0x00c);
@@ -59,12 +86,46 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 		con_str("GPU", "mfg0 is off: not touching the Mali");
 		goto out;
 	}
-	con_str("GPU", "mfg0 on: reading the Mali next (a stall = cores off)");
+	con_hex2("GPU", "before gpu_id=", rd(GPU + 0x000), "shader_ready=", rd(GPU + 0x140));
+
+	/* v2: ask GPUEB to power the GPU on, as Android's gpufreq does */
+	uint32_t magic = rd(GPUEB_GPR + 13 * 4);
+	con_hex2("GPUEB", "magic gpr13=", magic, "recv=", rd(MBOX0_RECV));
+	con_hex2("GPUEB", "send=", rd(MBOX0_SEND), "slot4=", rd(MBOX0 + 16));
+	if (magic == 0) {
+		con_str("GPUEB", "no magic: GPUEB not running?");
+		goto out;
+	}
+	uint32_t msg[8] = { magic, 6, 0, 0, 1, 0, 0, 0 };
+	uint32_t before[40];
+	for (int i = 0; i < 40; i++)
+		before[i] = rd(MBOX0 + i * 4);
+	for (int i = 0; i < 8; i++)
+		wr(MBOX0 + 16 + i * 4, msg[i]);
+	wr(MBOX0_SET, 0x2);
+	uint32_t recv = 0, t;
+	for (t = 0; t < 1000; t++) {	/* up to 100 ms */
+		recv = rd(MBOX0_RECV);
+		if (recv)
+			break;
+		udelay(100);
+	}
+	con_hex2("IPI", "recv=", recv, "after x100us=", t);
+	int shown = 0;
+	for (int i = 0; i < 40 && shown < 6; i++) {
+		uint32_t v = rd(MBOX0 + i * 4);
+		if (v != before[i] && (i < 4 || i >= 12)) {
+			con_hex2("SLOT", "index=", (uint32_t)i, "value=", v);
+			shown++;
+		}
+	}
+	if (recv)
+		wr(MBOX0_CLR, recv);
+	udelay(5000);
 	con_hex2("GPU", "gpu_id=", rd(GPU + 0x000), "l2_features=", rd(GPU + 0x004));
 	con_hex2("GPU", "shader_present=", rd(GPU + 0x100), "tiler_present=", rd(GPU + 0x110));
-	con_hex2("GPU", "l2_present=", rd(GPU + 0x120), "shader_ready=", rd(GPU + 0x140));
-	con_hex2("GPU", "tiler_ready=", rd(GPU + 0x150), "l2_ready=", rd(GPU + 0x160));
-	con_hex2("GPU", "gpu_status=", rd(GPU + 0x034), "mcu_status=", rd(GPU + 0x704));
+	con_hex2("GPU", "l2_present=", rd(GPU + 0x120), "gpu_status=", rd(GPU + 0x034));
+	con_hex2("MFG_RPC", "+000=", rd(MFG_RPC), "+00c=", rd(MFG_RPC + 0xc));
 	con_str("DONE", "Mali registers readable");
 out:
 #ifdef LAPIS_DUAL_PROBE

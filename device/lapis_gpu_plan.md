@@ -53,6 +53,23 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   0x13c00000. Pull those modules from vendor_dlkm and read the IPI protocol
   (IPI_ID_GPUFREQ), or find whether mfg_rpc can be driven directly.
 
+## GPUEB power IPI (kprobes on Android, 2026-11-23)
+
+- Modules pulled to build/gpu/mod (not committed): mtk_gpufreq_wrapper,
+  mtk_gpufreq_mt6878, gpueb, mtk_tinysys_ipi, mtk_rpmsg_mbox, mali_kbase.
+- `gpufreq_power_control` -> `gpufreq_ipi_to_gpueb(data)` ->
+  `mtk_ipi_send_compl(ipidev, 1 = IPI_ID_GPUFREQ, 1, data, 8 words, 10000)`
+  -> `mtk_mbox_write(mbox 0, slot offset 4, 32 bytes)` +
+  `mtk_mbox_trigger_irq(mbox 0, 0x2)`.
+- Message: w0 = magic 0x02812969 (the driver reads it from GPUEB GPR 13 =
+  0x13c3fd1c + 13 * 4 at probe), w1 = command (6 = CMD_POWER_CONTROL,
+  8 = DVFS commit with w2 = 1, w4 = OPP index), w4 = 1 on / 0 off.
+  Debug file `/proc/gpufreqv2/mfgsys_power_control` takes power_on / power_off;
+  kbase itself toggles power every ~8 ms while idle.
+- Mailbox (FDT gpueb): slots at 0x13c3fd80 (0x280 B), set 0x13c62004, clr
+  0x13c62074, send 0x13c62000, recv 0x13c62078, IRQ 0x111.
+- tgpu v2 (dual_v30): reads the magic, sends power-on, reads GPU_ID.
+
 ## What lapis needs (in order)
 
 1. **Power and clocks**: MFG power domains (scpsys), GPU PLL, `ged-supply`
