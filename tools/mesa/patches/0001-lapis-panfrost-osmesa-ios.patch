@@ -11,15 +11,29 @@ over the kernel's LapisGPU service (tools/mesa/lapis-drm as libdrm).
 diff -ruN a/meson.build b/meson.build
 --- a/meson.build
 +++ b/meson.build
-@@ -1716,7 +1716,21 @@
+@@ -1716,7 +1716,16 @@
    # dependencies (such as vk-runtime) linking to it
    dep_libdrm = null_dep
  endif
 -if dep_libdrm.found()
-+if host_machine.system() == 'darwin' and with_gallium_panfrost
++with_lapis_drm = host_machine.system() == 'darwin' and with_gallium_panfrost
++if with_lapis_drm
 +  # lapis: no DRM on iOS; panthor's requests go to the kernel's LapisGPU
 +  # service through a stand-in for libdrm (src/lapis-drm, put there by
-+  # tools/mesa/build-mesa-ios.sh of the lapis tree)
++  # tools/mesa/build-mesa-ios.sh of the lapis tree); its library is declared
++  # after the project arguments, just before subdir('src')
++  dep_libdrm = declare_dependency(
++    include_directories : include_directories('src/lapis-drm'),
++  )
++elif dep_libdrm.found()
+   pre_args += '-DHAVE_LIBDRM'
+   if with_dri_platform == 'drm' and with_dri
+     with_gallium_drisw_kms = true
+@@ -2313,6 +2322,19 @@
+ dir_source_root = meson.project_source_root()
+ 
+ 
++if with_lapis_drm
 +  _liblapis_drm = static_library(
 +    'lapis_drm', 'src/lapis-drm/lapis_drm.c',
 +    include_directories : include_directories('include', 'src/lapis-drm'),
@@ -30,10 +44,11 @@ diff -ruN a/meson.build b/meson.build
 +    link_with : _liblapis_drm,
 +    link_args : ['-framework', 'IOKit', '-framework', 'CoreFoundation'],
 +  )
-+elif dep_libdrm.found()
-   pre_args += '-DHAVE_LIBDRM'
-   if with_dri_platform == 'drm' and with_dri
-     with_gallium_drisw_kms = true
++endif
++
+ subdir('include')
+ subdir('bin')
+ subdir('src')
 diff -ruN a/src/gallium/drivers/panfrost/pan_bo.c b/src/gallium/drivers/panfrost/pan_bo.c
 --- a/src/gallium/drivers/panfrost/pan_bo.c
 +++ b/src/gallium/drivers/panfrost/pan_bo.c
