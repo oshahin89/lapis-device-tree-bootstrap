@@ -43,7 +43,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +	SweetBacklightCreate(provider);
  	return true;
  }
-@@ -419,3 +425,213 @@
+@@ -419,3 +425,226 @@
  	IOPMPowerSource::free();
  }
 +
@@ -76,7 +76,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +	    OSDictionary *properties, IOUserClient **handler) APPLE_KEXT_OVERRIDE;
 +private:
 +	unsigned fValue, fLogs;
-+	mutable unsigned fReadLogs;
++	mutable unsigned fReadLogs, fReads;
 +	void logRead(const char *what, const char *key) const;
 +	void publishValue(void);
 +	bool findValue(OSObject *obj, unsigned depth, unsigned *out);
@@ -196,6 +196,13 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +void
 +SweetBacklight::logRead(const char *what, const char *key) const
 +{
++	fReads++;
++	if (fReads % 500 == 0) {
++		char name[32];
++		proc_selfname(name, (int)sizeof(name));
++		IOLog("LAPIS BACKLIGHT: %u property reads so far (last %s by %s)\n", fReads,
++		    key ? key : "(all)", name);
++	}
 +	if (fReadLogs < 60) {
 +		char name[32];
 +		fReadLogs++;
@@ -245,6 +252,12 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +static void
 +SweetBacklightCreate(IOService *provider)
 +{
++	int enabled = 1;
++	(void)PE_parse_boot_argn("lapisbacklight", &enabled, sizeof(enabled));
++	if (!enabled) {
++		IOLog("LAPIS BACKLIGHT: service off (lapisbacklight=0)\n");
++		return;
++	}
 +	SweetBacklight *bl = OSTypeAlloc(SweetBacklight);
 +	if (!bl || !bl->init()) {
 +		OSSafeReleaseNULL(bl);
