@@ -92,8 +92,35 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   32-byte ones and every one at +32 in a block was skipped (extract still
   reached insert): the stream replays its stale prefetch of the block.
   lapisgpu=2 stops the GPU after the self-test.
-- Next: a panthor-like user interface (buffer objects, VM bind, group/queue
-  create, submit, sync) for Mesa panfrost, and real shaders.
+- ~~Milestone 6: panthor's interface in the kernel~~ **done (patch 0092,
+  device/xnu-lapis/driver/LapisGPU.cpp + sweet_lapis_gpu.c, dual_v47,
+  2026-11-23).** IOKit service `LapisGPU`, user client selectors = 0x40 +
+  panthor request (DEV_QUERY, VM_CREATE/DESTROY/BIND/GET_STATE, BO_CREATE,
+  BO_MMAP_OFFSET (= client memory type), GROUP_CREATE/DESTROY/SUBMIT/
+  GET_STATE, GEM_CLOSE) plus 0x7d LAPIS_WAIT {group, seq, timeout_ns}.
+  VMs 1..4 have their own tables on AS 2..5 (user VA below 0xff0000000000);
+  groups use CSG slots 1..7, one queue each, doorbell slot + 1; a submission
+  is a 64-byte ring entry: CALL the user stream, WAIT, store the number to
+  the group's sync page. Boot self-test through the same calls
+  (device/captures/sweetlog_v47_gpu.txt): 200/200 streams CALLed from
+  kernel memory (avg 26 us); a store to an unbound VA faults AS2, the AS is
+  disabled as panthor does, wait -2 / group fatal; a new group after it
+  10/10; MCU fine to 120 s, 1 fault counted. What it took:
+  - v43/v44: **write-combined IOBufferMemoryDescriptors panic this port**
+    (phystokv_range: illegal PA 0x4aed0000): buffers are cacheable, cleaned
+    after allocation, and the CPU cleans / invalidates around the GPU
+    (flush_dcache64 by VA). Programs will need a cache sync request.
+  - v45: on a GPU page fault the AS must be disabled (TRANSCFG UNMAPPED +
+    UPDATE) or the stream stays stalled and its group never terminates;
+    never free a group's MCU pages unless the firmware acked TERMINATE
+    (freeing them under it faulted AS0 and killed the MCU).
+  - v46: MMU_INT bits 16..31 are REQ_COMPLETE, not faults.
+  - `device/device_types.h` in an IOKit user client changes io_object_t and
+    the link then misses IOUserClient::exportObjectToClient.
+  - lapisgputrace=1 (+ ufslogsecs=1) logs and flushes every step.
+- Next: a user-space test client (IOKit, built on CI for iOS, put into the
+  iOS root: needs the PC), then the stand-in for libdrm that Mesa's panfrost
+  (panthor backend) calls, a cache sync request, sync objects on 0x7d.
 
 ## tgpu v1 on the phone (dual_v29, 2026-11-23)
 
