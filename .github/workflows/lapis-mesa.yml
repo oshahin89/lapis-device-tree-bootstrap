@@ -1,0 +1,44 @@
+name: lapis-mesa
+
+# Mesa's gallium panfrost + OSMesa for the lapis iOS over LapisGPU, and
+# tools/lapis_osmesatest against it (tools/mesa/build-mesa-ios.sh). Mesa's
+# sources are fetched (archive.mesa3d.org, hash checked) and patched at build
+# time; nothing of Mesa is committed here beyond our patches.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/mesa/**
+      - tools/lapis_osmesatest/**
+      - .github/workflows/lapis-mesa.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          brew install bison flex
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: bash tools/mesa/build-mesa-ios.sh "$RUNNER_TEMP/mesa-ios"
+      - name: Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lapis-mesa-logs
+          path: |
+            ${{ runner.temp }}/mesa-ios/meson-setup.log
+            ${{ runner.temp }}/mesa-ios/ninja.log
+            ${{ runner.temp }}/mesa-ios/build/meson-logs/meson-log.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapis-mesa
+          path: ${{ runner.temp }}/mesa-ios/out/
