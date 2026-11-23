@@ -163,6 +163,10 @@ chain_stub_end:
 	.balign	16
 sec_entry:
 	msr	daifset, #0xf
+	mrs	x1, sctlr_el1		/* I-cache on (allowed with the MMU off): v3 timed */
+	orr	x1, x1, #(1 << 12)	/* an uncached fetch, ~1% of cpu0 */
+	msr	sctlr_el1, x1
+	isb
 	mov	sp, x0
 	bl	sec_main
 1:	wfe

@@ -13,7 +13,8 @@
  * Shows both LUTs and states, times a fixed loop on cpu0 (loops per us is
  * proportional to the clock). v2: the MCU PLL block reads 0 from here. v3
  * starts cpu4 (big) with PSCI CPU_ON and times the same loop there, then
- * writes big FREQ_PERF = 0 and times again. v1: requests LUT index 0 (the top entry) on both
+ * writes big FREQ_PERF = 0 and times again. v3 on the phone: cpu4 70 vs cpu0
+ * 6586 kloops (its I-cache was off), 81 after perf 0; v4 turns the I-cache on. v1: requests LUT index 0 (the top entry) on both
  * domains, waits, and times again. Writes: FREQ_PERF_STATE only.
  */
 #include <stdint.h>
@@ -130,7 +131,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "tcpu v3: big core speed via PSCI cpu4");
+	con_str("LAPIS", "tcpu v4: big core speed, I-cache on");
 	con_hex2("LITTLE", "enable=", rd(DOM0 + FREQ_ENABLE), "perf=", rd(DOM0 + FREQ_PERF));
 	con_hex2("BIG", "enable=", rd(DOM1 + FREQ_ENABLE), "perf=", rd(DOM1 + FREQ_PERF));
 	/* v2: the PLLs themselves (v1: little at LUT 0 = 2000 MHz already, big
@@ -139,6 +140,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	uint32_t s0 = speed();
 	con_hex2("SPEED", "before kloops/10ms=", s0, 0, 0);
 	con_skip();
+	con_hex2("CPU0", "sctlr_el1=", (uint32_t)rsr("sctlr_el1"), "midr=", (uint32_t)rsr("midr_el1"));
 	int64_t r = psci_cpu_on(0x400, (uint64_t)(uintptr_t)sec_entry,
 	    (uint64_t)(uintptr_t)(sec_stack + sizeof(sec_stack)));
 	con_hex2("CPU4", "psci cpu_on=", (uint32_t)r, 0, 0);
