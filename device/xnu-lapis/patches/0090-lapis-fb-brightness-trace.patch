@@ -1,0 +1,40 @@
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -647,6 +647,36 @@
+ 	if (args->structureOutputDescriptor == NULL && args->structureOutput != NULL) {
+ 		bzero(args->structureOutput, args->structureOutputSize);
+ 	}
++	/*
++	 * lapis: brightness hunt. With no backlight service the Settings slider
++	 * still moves; log every call of the selectors that could carry it
++	 * (17 SetGammaTable, 50 SetBrightnessCorrection, 66/67 SPLC brightness,
++	 * 68 SetParameter, 84 SetContrast) with their inputs.
++	 */
++	static unsigned lapis_br_logs;
++	if ((selector == 17 || selector == 50 || selector == 66 || selector == 67 ||
++	    selector == 68 || selector == 84) && lapis_br_logs < 400) {
++		char name[32];
++		uint32_t w[4] = { 0, 0, 0, 0 };
++		lapis_br_logs++;
++		proc_selfname(name, sizeof(name));
++		if (args->structureInputDescriptor == NULL && args->structureInput != NULL) {
++			memcpy(w, args->structureInput,
++			    args->structureInputSize < sizeof(w) ? args->structureInputSize : sizeof(w));
++		}
++		IOLog("LAPIS BR: %s sel %u s0 %#llx s1 %#llx s2 %#llx in %u/%u words %08x %08x %08x %08x\n",
++		    name, selector,
++		    args->scalarInputCount > 0 ? args->scalarInput[0] : 0ULL,
++		    args->scalarInputCount > 1 ? args->scalarInput[1] : 0ULL,
++		    args->scalarInputCount > 2 ? args->scalarInput[2] : 0ULL,
++		    args->scalarInputCount, args->structureInputSize, w[0], w[1], w[2], w[3]);
++		if (selector == 17 && args->structureInputDescriptor == NULL &&
++		    args->structureInput != NULL && args->structureInputSize >= 3084) {
++			const uint32_t *g = (const uint32_t *)args->structureInput;
++			IOLog("LAPIS BR: gamma words 0 %08x 64 %08x 128 %08x 255 %08x 256 %08x 511 %08x 770 %08x\n",
++			    g[0], g[64], g[128], g[255], g[256], g[511], g[770]);
++		}
++	}
+ 	if (selector >= 64 || !(sweet_fb_logged & (1ULL << selector))) {
+ 		if (selector < 64) {
+ 			sweet_fb_logged |= 1ULL << selector;
