@@ -2,14 +2,14 @@
 # Build the lapis XNU boot shim (default) or the register-dump probe as a raw
 # arm64 Image (no payload).
 #   tools/lapis_shim/build.sh OUTDIR dual [PROBE]   (PROBE: tvib, tdsi: behind Volume down)
-#   tools/lapis_shim/build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi|tbl|tamp|taud|ttone|tcpu|tgpu]
+#   tools/lapis_shim/build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi|tbl|tamp|taud|ttone|tcpu|tgpu|tcsf]
 # Pack the shim with a SWEETXNU payload into a boot_b copy with
 #   tools/lapis_boot_pack.py STOCK OUT.img --image OUTDIR/Image --append PAYLOAD
 # and the probe with
 #   tools/lapis_boot_pack.py STOCK OUT.img --image OUTDIR/Image
 set -euo pipefail
 cd "$(dirname "$0")"
-OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi|tbl|tamp|taud|ttone|tcpu|tgpu]}")
+OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|dual|regdump|pstest|tchip|tufs|tnvt|tspi|tkeys|tpmic|tgauge|tchg|tvib|tdsi|tbl|tamp|taud|ttone|tcpu|tgpu|tcsf]}")
 WHAT=${2:-shim}
 case "$WHAT" in
 	shim)    MAIN=shim.c; EXTRA="loader.c ufsinit.c" ;;
@@ -32,6 +32,7 @@ case "$WHAT" in
 	ttone)   MAIN=ttone.c; EXTRA="" ;;
 	tcpu)    MAIN=tcpu.c; EXTRA="" ;;
 	tgpu)    MAIN=tgpu.c; EXTRA="" ;;
+	tcsf)    MAIN=tcsf.c; EXTRA="" ;;
 	tufs)    MAIN=tufs.c; EXTRA="reboot.c ufsinit.c" ;;
 	pstest)  MAIN=pstest.c; EXTRA="pstore.c reboot.c" ;;
 	*) echo "unknown target $WHAT" >&2; exit 2 ;;
@@ -47,6 +48,20 @@ d = open(sys.argv[1], "rb").read()
 assert len(d) == 196608 and d[0x2f000] + d[0x2f001] == 0xff
 with open(sys.argv[2], "w") as o:
     o.write("static const uint8_t nvt_fw[196608] = {\n")
+    for i in range(0, len(d), 16):
+        o.write(",".join("0x%02x" % b for b in d[i:i + 16]) + ",\n")
+    o.write("};\n")
+PY
+fi
+if [ "$WHAT" = tcsf ] || [ "${PROBE:-}" = tcsf ]; then
+	# the Mali CSF firmware pulled from this phone (not in git: Arm binary)
+	FW=../../build/gpu/mali_csffw.bin
+	[ -f "$FW" ] || { echo "missing $FW (adb pull /vendor/firmware/mali_csffw.bin)" >&2; exit 1; }
+	python3 - "$FW" "$OUT/mali_fw.h" <<'PY'
+import sys
+d = open(sys.argv[1], "rb").read()
+with open(sys.argv[2], "w") as o:
+    o.write("static const uint8_t mali_fw[%d] __attribute__((aligned(8))) = {\n" % len(d))
     for i in range(0, len(d), 16):
         o.write(",".join("0x%02x" % b for b in d[i:i + 16]) + ",\n")
     o.write("};\n")
