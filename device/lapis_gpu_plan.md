@@ -70,6 +70,20 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
 - Android trace of the GPU power-up (regmap / clk / scpsys events, GPUEB
   mailbox) with the boot-time cmdline trick, as for audio.
 
+- ~~Milestone 4: the same inside XNU~~ **done (patch 0091,
+  device/xnu-lapis/driver/sweet_lapis_gpu.c, dual_v40, 2026-11-23).** iOS
+  boot log (device/captures/sweetlog_v40_gpu.txt):
+  `GPUEB power-on 5 x100us, GPU_ID 0xb8a31030` / `firmware 0, 7 sections,
+  pool 0xb9000 used` / `MCU boot 2 x10us, interface 0x2050000, 8 groups` /
+  `GLB config 2 ping 1, CSG start 2, CS start 1` / `command stream RAN:
+  target 0xc0ffee42 after 3 x10us, AS1 fault 0` / `stopped and powered off`;
+  iOS then boots as before. Firmware rides in the boot image at PA 0x43800000
+  (lapis_boot_pack.py --gpufw), page pool at PA 0x58000000 (both below XNU's
+  RAM). v39 failed at `firmware -4`: the header's size field (offset 16) is
+  the header length (0x3c0), not the file length.
+- Next: keep the GPU up after boot (no stop), IRQ handler, and a
+  panthor-like user interface for Mesa.
+
 ## tgpu v1 on the phone (dual_v29, 2026-11-23)
 
 - mfg0 domain (PWR_CON 0x1c001eb4) is **on** after a reboot from Android.
