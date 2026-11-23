@@ -126,7 +126,7 @@ struct lapis_wait { uint32_t group_handle, seq; int64_t timeout_ns; };
 #define PANTHOR_BIND_SYNC_ONLY  (2u << 28)
 #define PANTHOR_STATE_FATAL     (1u << 1)
 
-static_assert(sizeof(struct drm_panthor_gpu_info) == 0x58, "panthor_drm.h layout");
+static_assert(sizeof(struct drm_panthor_gpu_info) == 0x68, "panthor_drm.h layout");
 static_assert(sizeof(struct drm_panthor_vm_bind_op) == 0x30, "panthor_drm.h layout");
 static_assert(sizeof(struct drm_panthor_group_create) == 0x38, "panthor_drm.h layout");
 static_assert(sizeof(struct drm_panthor_queue_submit) == 0x28, "panthor_drm.h layout");
