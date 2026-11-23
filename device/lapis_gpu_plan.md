@@ -11,8 +11,15 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   firmware running on the GPU's own MCU), OPPs up to 1.3 GHz (opp00
   0x4d7c6d00 Hz), `ged-supply`, protected-memory allocator, memory group
   manager. Android's driver: `mali_kbase_mt6878_r44` (Arm DDK r44).
-- To confirm from Android: GPU product (gpuinfo), core count, the CSF
-  firmware file (`mali_csffw.bin`), MFG power domains / clocks.
+- Confirmed on Android (2026-11-23): **Mali-G615, 2 cores, r1p3**
+  (gpuinfo `Mali-G615 2 cores r1p3 0xB8A3`), shader core mask 0x5, power
+  policy coarse_demand; CSF firmware `/vendor/firmware/mali_csffw.bin`
+  (290816 B, magic c3f13a6e, sha256 3bbb5e95…, pulled to build/gpu/, not
+  committed). gpufreq: 47 OPPs, idle at OPP 35 = 508 MHz / 0.59375 V, Vsram
+  0.75 V; **GPUEB support On** (MediaTek's GPU embedded processor owns
+  power / DVFS: power-up likely goes through its mailbox, not plain scpsys).
+- Mali-G615 is 5th-gen Valhall (like G715): check Mesa's panfrost / panthor
+  support for this architecture version before committing to step 4.
 
 ## What exists
 
