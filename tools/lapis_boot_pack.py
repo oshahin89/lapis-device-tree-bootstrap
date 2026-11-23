@@ -104,7 +104,10 @@ def stock_image(stock):
     return raw
 
 
-def build_image(stock, image, blob, android=None, cmdline=b""):
+GPUFW_OFF = 0x3800000   # sweet_lapis_gpu.c reads mali_csffw.bin at load base + this
+
+
+def build_image(stock, image, blob, android=None, cmdline=b"", gpufw=b""):
     if image[0x38:0x3C] != b"ARMd":
         sys.exit("--image is not a Linux arm64 Image")
     raw = bytearray(image)
@@ -127,6 +130,15 @@ def build_image(stock, image, blob, android=None, cmdline=b""):
             sys.exit("stub area would be overwritten by Android's kernel")
         raw += b"\0" * STUB_AREA
         struct.pack_into("<QQQ", raw, 0x20, a_off, len(android), stub_off)
+    if gpufw:
+        # the Mali CSF firmware at a fixed offset (RAM 0x43800000 with LK's
+        # 0x40000000 load base), for the xnu GPU driver; not in git
+        if len(raw) > GPUFW_OFF:
+            sys.exit("image already past the GPU firmware offset")
+        if gpufw[:4] != bytes.fromhex("6e3af1c3"):
+            sys.exit("--gpufw is not a Mali CSF firmware (magic)")
+        raw += b"\0" * (GPUFW_OFF - len(raw))
+        raw += gpufw
     struct.pack_into("<Q", raw, 16, len(raw))             # image_size covers the payload
     return assemble(stock, lz4.compress(bytes(raw)), cmdline), bytes(raw)
 
@@ -197,6 +209,7 @@ def main():
     ap.add_argument("--append", help="with --image: blob appended at the next 4 KiB boundary")
     ap.add_argument("--android", action="store_true",
                     help="with --image: also carry STOCK's own Android kernel (dual boot, lapis_shim dual)")
+    ap.add_argument("--gpufw", help="with --image: mali_csffw.bin placed at load base + 0x3800000")
     ap.add_argument("--cmdline", default="",
                     help="with --image: text for the boot header cmdline (LK appends it to bootargs)")
     ap.add_argument("--expect-stock-sha256")
@@ -219,7 +232,8 @@ def main():
         image = open(a.image, "rb").read()
         blob = open(a.append, "rb").read() if a.append else b""
         android = stock_image(stock) if a.android else None
-        out, raw = build_image(stock, image, blob, android, a.cmdline.encode())
+        gpufw = open(a.gpufw, "rb").read() if a.gpufw else b""
+        out, raw = build_image(stock, image, blob, android, a.cmdline.encode(), gpufw)
         if android and raw[struct.unpack_from("<Q", raw, 0x20)[0]:][:len(android)] != android:
             sys.exit("verify: Android Image not where the header says")
         o = verify_layout(stock, out, a.cmdline.encode())
