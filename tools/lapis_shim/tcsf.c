@@ -15,7 +15,9 @@
  * v1 on the phone: GLB v2.5.0, 8 groups. v2: global setup and PING as
  * panthor_fw_init_global_iface, group 0 / stream 0 on AS1 (same tables), and
  * a 4-instruction stream (MOVE48, MOVE32, STORE_MULTIPLE, WAIT; Mesa v11.xml
- * encodings) that stores 0xc0ffee42 to a buffer.
+ * encodings) that stores 0xc0ffee42 to a buffer. v2 on the phone: GLB config
+ * and PING acked, CSG0 START acked in 40 us, but CS0 stayed at ack 0 (req
+ * 0x501) and nothing ran; v3 kicks CS0 again after the group started.
  * Writes: the GPUEB mailbox, the GPU, and DRAM at POOL.
  */
 #include <stdint.h>
@@ -242,7 +244,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
 	con_skip();		/* the camera hole covers the first lines */
-	con_str("LAPIS", "tcsf v2: CSF boot + first command stream");
+	con_str("LAPIS", "tcsf v3: CSF boot + first command stream");
 	if ((rd(0x1c001eb4) & 0xc0000000u) != 0xc0000000u) {
 		con_str("FAIL", "mfg0 domain off");
 		goto out;
@@ -374,8 +376,19 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);	/* GLB doorbell_req: CSG 0 */
 	gw(0x80000, 1);
 	uint32_t c3 = wait_acked(&csgin[0], &csgout[0], 7u | (1u << 4), 10000);
-	con_hex2("CSG0", "start ack x10us=", c3, "status_state=", csgout[0x18 / 4]);
-	con_hex2("CS0", "ack=", csout[0], "req=", csin[0]);
+	con_hex2("CSG0", "start ack x10us=", c3, "state=", csgout[0x18 / 4]);
+	/* v3: v2 left CS0 at ack 0 / req 0x501: kick the stream again now that
+	 * the group runs (CSG doorbell_req for queue 0, GLB doorbell_req for CSG
+	 * 0, GLB doorbell) and wait until CS0 acks START */
+	uint32_t c4 = ~0u;
+	for (int k = 0; k < 3 && c4 == ~0u; k++) {
+		toggle(&csgin[0x08 / 4], csgout[0x08 / 4], 1u);
+		toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);
+		gw(0x80000, 1);
+		c4 = wait_acked(&csin[0], &csout[0], 7u, 10000);
+	}
+	con_hex2("CS0", "ack=", csout[0], "start ack x10us=", c4);
+	con_hex2("CSG0", "dbell req/ack=", csgin[0x08 / 4] << 16 | csgout[0x08 / 4], "cs_irq_req=", csgout[0x0c / 4]);
 
 	/* the program: r0:r1 = &target, r2 = magic, store r2 at [r0], wait all */
 	volatile uint64_t *ins = (volatile uint64_t *)ring;
