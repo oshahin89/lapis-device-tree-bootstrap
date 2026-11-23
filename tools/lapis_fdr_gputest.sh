@@ -33,7 +33,7 @@ install)
 		dd if="$DEV" bs=4096 skip=$START count=$COUNT of="$BACKUP" 2>/dev/null
 		[ "$(sha256sum "$BACKUP" | cut -c1-64)" = "$ORIG" ] || { echo "backup failed: nothing written"; exit 1; }
 	elif [ "$(sha256sum "$BACKUP" 2>/dev/null | cut -c1-64)" != "$ORIG" ] || \
-	     [ "$(dd if="$DEV" bs=4096 skip=$START count=1 2>/dev/null | od -An -tx4 -N4 | tr -d ' ')" != feedfacf ]; then
+	     [ "$(dd if="$DEV" bs=4096 skip=$START count=1 2>/dev/null | head -c 4 | sha256sum | cut -c1-64)" != d2238b6d7c34ad608a5f6caddf95928d741307fea41f0336302e390109311d72 ]; then
 		echo "the blocks hold neither the original nor an earlier lapis_gputest ($now): nothing written"; exit 1
 	fi
 	put "$DIR/lapis_gputest_fdr.blocks"

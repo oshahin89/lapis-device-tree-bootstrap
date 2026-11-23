@@ -28,7 +28,7 @@ slot() {
 	esac
 }
 cur() { dd if="$DEV" bs=4096 skip=$START count=$COUNT 2>/dev/null | sha256sum | cut -c1-64; }
-magic() { dd if="$DEV" bs=4096 skip=$START count=1 2>/dev/null | od -An -tx4 -N4 | tr -d ' '; }
+magic() { [ "$(dd if="$DEV" bs=4096 skip=$START count=1 2>/dev/null | head -c 4 | sha256sum | cut -c1-64)" = d2238b6d7c34ad608a5f6caddf95928d741307fea41f0336302e390109311d72 ] && echo feedfacf || echo other; }
 
 case "$1" in
 install)
