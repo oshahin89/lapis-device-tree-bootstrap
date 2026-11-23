@@ -46,9 +46,27 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   JOB_INT_GLOBAL_IF after 60 us, MCU_STATUS 1 (enabled), no GPU or MMU fault.
   **Global interface v2.5.0**, features 0x10, input VA 0x04002000, output VA
   0x04006000, **8 command stream groups**, group stride 0xa0.
-- Next (milestone 3): GLB setup as panthor_fw_init_global_iface (ack masks,
-  timers, GLB_PING), then one CSG with one CS ring running a trivial command
-  stream that writes a value to memory.
+- ~~Milestone 3: first command stream~~ **done (tcsf v7, dual_v38,
+  2026-11-23): the GPU ran our command stream.** MOVE48 / MOVE32 /
+  STORE_MULTIPLE / WAIT stored 0xc0ffee42 in 70 us; extract advanced to 0x20.
+  What it took (logs in device/captures/tcsf_v*_pstore_*):
+  - GLB: core_en_mask = shader_present, progress / poweroff timers,
+    ack_irq_mask, IDLE_EN | COUNTER_EN, toggle CFG_ALLOC_EN | POWEROFF |
+    PROGRESS, ring doorbell 0; PING acked.
+  - **The queue's user I/O pages and the group's suspend buffers must be MCU
+    VAs in the shared region 0x04000000..0x08000000** (here 0x04100000 /
+    0x04101000 / 0x04110000 / 0x04120000), as Android's kbase and panthor do;
+    at 0x10000000 the firmware acked the group but never started the stream.
+    Found by kprobing kbase_csf_firmware_{cs,csg,global}_input[_mask] on
+    Android (device/captures/android_kbase_csf_writes_2026-11-23.txt).
+  - CS req idle bits 0x1500 (kbase) + START; CSG START + ENDPOINT_CONFIG
+    toggle; CSG doorbell_req bit per queue, GLB doorbell_req bit per group,
+    GLB doorbell; then the queue's user doorbell (CSF_DOORBELL(1)) after
+    writing insert. Group on AS1 sharing AS0's tables.
+  - Probe logs no longer need photos: dual probes tee the console into the
+    pstore console zone and chain into Android without a reset.
+- Next: an xnu kernel driver doing all this at boot (power, firmware, GLB,
+  one CSG), then the panthor-like UAPI for Mesa.
 - Android trace of the GPU power-up (regmap / clk / scpsys events, GPUEB
   mailbox) with the boot-time cmdline trick, as for audio.
 
