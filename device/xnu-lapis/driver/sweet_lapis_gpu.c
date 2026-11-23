@@ -15,7 +15,8 @@
  *  - group 0 / stream 0 with the user I/O and suspend buffers in the MCU
  *    shared region (0x04000000..0x08000000, as Android's kbase does), and a
  *    4-instruction command stream that stores 0xc0ffee42.
- * Then the GPU is stopped and powered off again (nothing uses it yet).
+ * Step 2 keeps it up (see lg_service_locked); lapisgpu=2 stops it after the
+ * self-test as step 1 did.
  * Register layout and sequence after Linux panthor (GPL, read for reference,
  * not copied) and Android's kbase (kprobed on this phone). lapisgpu=0 skips.
  */
@@ -23,8 +24,10 @@
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <kern/clock.h>
+#include <mach/mach_time.h>
 #include <kern/thread.h>
 #include <kern/sched_prim.h>
+#include <kern/locks.h>
 #include <machine/machine_routines.h>
 #include <pexpert/pexpert.h>
 
@@ -55,6 +58,8 @@ void sweet_lapis_gpu_init(void);
 #define GPU_COHERENCY   0x304
 #define MCU_CONTROL     0x700
 #define MCU_STATUS      0x704
+#define MMU_INT_RAWSTAT 0x2000
+#define MMU_INT_CLEAR   0x2004
 #define JOB_INT_RAWSTAT 0x1000
 #define JOB_INT_CLEAR   0x1004
 #define JOB_INT_MASK    0x1008
@@ -65,6 +70,10 @@ void sweet_lapis_gpu_init(void);
 #define AS_FAULTSTATUS  0x1c
 #define AS_STATUS       0x28
 #define AS_TRANSCFG     0x30
+#define LG_RING         0x1000u
+#define GLB_EVT_MASK    0x07f00000u     /* panthor GLB_EVT_MASK */
+#define CSG_EVT_MASK    0xb0000000u     /* SYNC_UPDATE | IDLE | PROGRESS_TIMER */
+#define CS_EVT_MASK     0xc4000000u     /* FAULT | FATAL | TILER_OOM */
 #define DOORBELL(n)     (0x80000u + (n) * 0x10000u)
 
 #define VA_SHARED       0x04000000u
@@ -88,6 +97,9 @@ static uint64_t lg_pool_next = LG_POOL_PA, lg_root;
 static uint64_t lg_shared_pa;
 static unsigned lg_levels;
 static int lg_sleep_chan;
+static volatile uint32_t *lg_gin, *lg_gout, *lg_csgin, *lg_csgout, *lg_csin, *lg_csout;
+static volatile uint64_t *lg_ring, *lg_uin, *lg_uout;
+static volatile uint32_t *lg_tgt;
 
 static uint32_t
 lg_rd(vm_offset_t base, uint32_t off)
@@ -299,7 +311,7 @@ lg_stop(void)
 	(void)lg_gpueb_power(0);
 }
 
-static void
+static int
 lg_run(void)
 {
 	lg_gpu = ml_io_map(LG_GPU_PA, LG_GPU_SIZE);
@@ -310,18 +322,18 @@ lg_run(void)
 	lg_pool = ml_io_map(LG_POOL_PA, LG_POOL_SIZE);
 	if (!lg_gpu || !lg_gpueb || !lg_mbox || !lg_scp || !lg_fw || !lg_pool) {
 		printf("LAPIS GPU: map failed\n");
-		return;
+		return 0;
 	}
 	uint32_t pwr = lg_rd(lg_scp, 0xeb4);
 	if ((pwr & 0xc0000000u) != 0xc0000000u) {
 		printf("LAPIS GPU: mfg0 domain off (%#x), skipped\n", pwr);
-		return;
+		return 0;
 	}
 	uint32_t ipi = lg_gpueb_power(1);
 	uint32_t id = g(GPU_ID), mmuf = g(GPU_MMU_FEATURES), va_bits = mmuf & 0xff;
 	printf("LAPIS GPU: GPUEB power-on %u x100us, GPU_ID %#x, MMU_FEATURES %#x\n", ipi, id, mmuf);
 	if (!id) {
-		return;
+		return 0;
 	}
 	gw(GPU_INT_CLEAR, 0xffffffff);
 	gw(GPU_CMD, 0x101);
@@ -339,7 +351,7 @@ lg_run(void)
 	    rs, l2, lr, nsec, (unsigned long long)(lg_pool_next - LG_POOL_PA));
 	if (lr) {
 		lg_stop();
-		return;
+		return 0;
 	}
 	uint64_t transcfg = 6ull | ((uint64_t)(55 - va_bits) << 6) | (1ull << 24);
 	lg_as_setup(0, transcfg);
@@ -352,11 +364,13 @@ lg_run(void)
 	    boot, g(MCU_STATUS), glb[0], glb[4]);
 	if (!glb[0]) {
 		lg_stop();
-		return;
+		return 0;
 	}
 
 	/* GLB setup + PING */
 	volatile uint32_t *gin = lg_sh(glb[2]), *gout = lg_sh(glb[3]);
+	lg_gin = gin;
+	lg_gout = gout;
 	gin[0x18 / 4] = 0x5;
 	gin[0x1c / 4] = 0;
 	gin[0x10 / 4] = (uint32_t)((5ull * 500 * 1024 * 1024) >> 10);
@@ -375,6 +389,10 @@ lg_run(void)
 	volatile uint32_t *csgin = lg_sh(csgc[1]), *csgout = lg_sh(csgc[2]);
 	volatile uint32_t *csc = (volatile uint32_t *)((uintptr_t)csgc + 0x40);
 	volatile uint32_t *csin = lg_sh(csc[1]), *csout = lg_sh(csc[2]);
+	lg_csgin = csgin;
+	lg_csgout = csgout;
+	lg_csin = csin;
+	lg_csout = csout;
 	uint32_t susp = csgc[0x0c / 4], psusp = csgc[0x10 / 4];
 	uint64_t ring = lg_map_new(VA_RING, 1), uin = lg_map_new(VA_UIO_IN, 1);
 	uint64_t uout = lg_map_new(VA_UIO_OUT, 1), target = lg_map_new(VA_TARGET, 1);
@@ -383,7 +401,7 @@ lg_run(void)
 	if (!ring || !uin || !uout || !target || !sbuf || !pbuf) {
 		printf("LAPIS GPU: pool exhausted\n");
 		lg_stop();
-		return;
+		return 0;
 	}
 	lg_as_setup(1, transcfg);
 	gw(AS(0) + AS_COMMAND, 1);              /* AS0 sees the new pages too */
@@ -415,37 +433,234 @@ lg_run(void)
 	gw(DOORBELL(0), 1);
 	uint32_t c4 = lg_acked(&csin[0], &csout[0], 7u, 10000);
 
-	volatile uint64_t *ins = lg_pool_va(ring);
-	ins[0] = (1ull << 56) | VA_TARGET;                      /* MOVE48 r0 */
-	ins[1] = (2ull << 56) | (2ull << 48) | 0xc0ffee42ull;   /* MOVE32 r2 */
-	ins[2] = (21ull << 56) | (2ull << 48) | (1ull << 16);   /* STORE_MULTIPLE [r0] = r2 */
-	ins[3] = (3ull << 56) | (0xffffull << 16);              /* WAIT all */
-	volatile uint32_t *tgt = lg_pool_va(target);
-	*tgt = 0x11111111;
-	volatile uint64_t *uio = lg_pool_va(uin);
-	uio[1] = 0;
+	lg_ring = lg_pool_va(ring);
+	lg_uin = lg_pool_va(uin);
+	lg_uout = lg_pool_va(uout);
+	lg_tgt = lg_pool_va(target);
+	*lg_tgt = 0x11111111;
+	lg_uin[1] = 0;
+	printf("LAPIS GPU: GLB config %u ping %u, CSG start %u, CS start %u (x10us)\n", c1, c2, c3, c4);
+	return 1;
+}
+
+/*
+ * Step 2: the GPU stays up. Our queue (group 0 / stream 0, AS1) takes any
+ * number of submissions: instructions go into the 4 KiB ring at the insert
+ * offset (modulo the ring), user I/O insert advances, user doorbell 1 rings.
+ * No interrupt line is wired in this port (touch and keys poll too), so a
+ * service thread does what panthor's IRQ handlers do: clear JOB_INT, ack the
+ * GLB / CSG / CS events the firmware raised, log GPU, MMU and stream faults.
+ */
+LCK_GRP_DECLARE(lg_lck_grp, "lapisgpu");
+LCK_MTX_DECLARE(lg_mtx, &lg_lck_grp);
+static uint32_t lg_nfault, lg_nevent;
+
+static uint64_t
+lg_now_us(void)
+{
+	uint64_t ns;
+	absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
+	return ns / 1000;
+}
+
+static void
+lg_service_locked(void)
+{
+	uint32_t gi = g(GPU_INT_RAWSTAT) & ~((1u << 8) | (1u << 9) | (1u << 10)); /* reset/L2/clean done */
+	if (gi) {
+		gw(GPU_INT_CLEAR, gi);
+		if ((gi & 1u) && lg_nfault++ < 8) {     /* GPU_FAULT */
+			printf("LAPIS GPU: GPU fault status %#x, int %#x\n", g(0x3c), gi);
+		}
+	}
+	uint32_t mi = g(MMU_INT_RAWSTAT);
+	if (mi) {
+		gw(MMU_INT_CLEAR, mi);
+		for (unsigned n = 0; n < 2; n++) {
+			if ((mi & (1u << n)) && lg_nfault++ < 8) {
+				printf("LAPIS GPU: AS%u fault %#x at %#x%08x\n", n, g(AS(n) + AS_FAULTSTATUS),
+				    g(AS(n) + 0x24), g(AS(n) + 0x20));
+			}
+		}
+	}
+	uint32_t ji = g(JOB_INT_RAWSTAT);
+	if (!ji) {
+		return;
+	}
+	gw(JOB_INT_CLEAR, ji);
+	lg_nevent++;
+	if (ji & (1u << 31)) {                  /* GLB events: req follows ack */
+		lg_gin[0] = (lg_gin[0] & ~GLB_EVT_MASK) | (lg_gout[0] & GLB_EVT_MASK);
+	}
+	if (ji & 1u) {                          /* group 0 */
+		uint32_t csev = (lg_csin[0] ^ lg_csout[0]) & CS_EVT_MASK;
+		if (csev) {
+			if (lg_nfault++ < 8) {
+				printf("LAPIS GPU: CS0 event %#x, fault %#x fatal %#x, cmd ptr %#x\n", csev,
+				    lg_csout[0x80 / 4], lg_csout[0x84 / 4], lg_csout[0x40 / 4]);
+			}
+			lg_csin[0] = (lg_csin[0] & ~CS_EVT_MASK) | (lg_csout[0] & CS_EVT_MASK);
+		}
+		lg_csgin[0x0c / 4] = lg_csgout[0x0c / 4];       /* cs_irq_ack */
+		lg_csgin[0] = (lg_csgin[0] & ~CSG_EVT_MASK) | (lg_csgout[0] & CSG_EVT_MASK);
+		if (csev) {                     /* the firmware rechecks CS0 */
+			lg_toggle(&lg_csgin[0x08 / 4], lg_csgout[0x08 / 4], 1u);
+			lg_toggle(&lg_gin[0x08 / 4], lg_gout[0x08 / 4], 1u);
+			gw(DOORBELL(0), 1);
+		}
+	}
 	__asm__ volatile("dsb osh" ::: "memory");
-	uio[0] = 32;
+}
+
+/* Run instructions on our queue; 0 or -1 if the ring is full, -2 if down. */
+static int
+lg_submit_locked(const uint64_t *ins, uint32_t n)
+{
+	if (!lg_ring) {
+		return -2;
+	}
+	uint64_t insert = lg_uin[0];
+	if (n > LG_RING / 8 || insert + n * 8 - lg_uout[0] > LG_RING) {
+		return -1;
+	}
+	for (uint32_t i = 0; i < n; i++) {
+		lg_ring[((insert / 8) + i) % (LG_RING / 8)] = ins[i];
+	}
+	__asm__ volatile("dsb osh" ::: "memory");
+	lg_uin[0] = insert + n * 8;
 	__asm__ volatile("dsb osh" ::: "memory");
 	gw(DOORBELL(1), 1);
-	uint32_t t;
-	for (t = 0; t < 10000; t++) {
-		if (*tgt == 0xc0ffee42u) {
-			break;
-		}
-		delay(10);
+	return 0;
+}
+
+int sweet_lapis_gpu_submit(const uint64_t *ins, uint32_t n);
+int
+sweet_lapis_gpu_submit(const uint64_t *ins, uint32_t n)
+{
+	lck_mtx_lock(&lg_mtx);
+	int r = lg_submit_locked(ins, n);
+	lck_mtx_unlock(&lg_mtx);
+	return r;
+}
+
+/* one store of value to the target page; microseconds to see it, or ~0u */
+static uint32_t
+lg_test_store(uint32_t value)
+{
+	uint64_t ins[4] = {
+		(1ull << 56) | VA_TARGET,                       /* MOVE48 r0 */
+		(2ull << 56) | (2ull << 48) | value,            /* MOVE32 r2 */
+		(21ull << 56) | (2ull << 48) | (1ull << 16),    /* STORE_MULTIPLE [r0] = r2 */
+		(3ull << 56) | (0xffffull << 16),               /* WAIT all */
+	};
+	uint64_t t0 = lg_now_us();
+	lck_mtx_lock(&lg_mtx);
+	int r = lg_submit_locked(ins, 4);
+	lck_mtx_unlock(&lg_mtx);
+	if (r) {
+		return ~0u;
 	}
-	printf("LAPIS GPU: GLB config %u ping %u, CSG start %u, CS start %u (x10us)\n", c1, c2, c3, c4);
-	printf("LAPIS GPU: command stream %s: target %#x after %u x10us, AS1 fault %#x\n",
-	    *tgt == 0xc0ffee42u ? "RAN" : "did not run", *tgt, t, g(AS(1) + AS_FAULTSTATUS));
-	lg_stop();
-	printf("LAPIS GPU: stopped and powered off\n");
+	while (*lg_tgt != value) {
+		uint64_t t = lg_now_us() - t0;
+		if (t > 100000) {
+			return ~0u;
+		}
+		if (t > 200) {
+			lck_mtx_lock(&lg_mtx);
+			lg_service_locked();
+			lck_mtx_unlock(&lg_mtx);
+		}
+		delay(5);
+	}
+	return (uint32_t)(lg_now_us() - t0);
+}
+
+static uint32_t
+lg_ping(void)
+{
+	lck_mtx_lock(&lg_mtx);
+	lg_toggle(&lg_gin[0], lg_gout[0], 1u << 8);
+	gw(DOORBELL(0), 1);
+	uint32_t r = lg_acked(&lg_gin[0], &lg_gout[0], 1u << 8, 10000);
+	lck_mtx_unlock(&lg_mtx);
+	return r;
+}
+
+static void
+lg_sleep_ms(uint32_t ms)
+{
+	uint64_t deadline;
+	clock_interval_to_deadline(ms, NSEC_PER_MSEC, &deadline);
+	(void)assert_wait_deadline(&lg_sleep_chan, THREAD_UNINT, deadline);
+	thread_block(THREAD_CONTINUE_NULL);
+}
+
+static void
+lg_selftest(void)
+{
+	/* 300 back-to-back: 9600 bytes of instructions, the ring wraps twice */
+	uint32_t ok = 0, worst = 0, sum = 0, first_bad = ~0u;
+	for (uint32_t i = 0; i < 300; i++) {
+		uint32_t us = lg_test_store(0xa5000000u | i);
+		if (us == ~0u) {
+			if (first_bad == ~0u) {
+				first_bad = i;
+			}
+			continue;
+		}
+		ok++;
+		sum += us;
+		worst = us > worst ? us : worst;
+	}
+	printf("LAPIS GPU: 300 streams: %u ran, avg %u us, worst %u us, first miss %d, insert %#llx extract %#llx\n",
+	    ok, ok ? sum / ok : 0, worst, (int)first_bad, (unsigned long long)lg_uin[0],
+	    (unsigned long long)lg_uout[0]);
 }
 
 static void
 lg_thread(void *arg __unused, wait_result_t wr __unused)
 {
-	lg_run();
+	int mode = 1;
+	(void)PE_parse_boot_argn("lapisgpu", &mode, sizeof(mode));
+	if (!lg_run()) {
+		lg_ring = NULL;
+	} else {
+		lg_selftest();
+		/* later checks: an idle GPU must still answer */
+		static const uint32_t at_s[] = { 1, 10, 30, 60, 120 };
+		uint64_t start = lg_now_us();
+		for (unsigned k = 0; k < sizeof(at_s) / sizeof(at_s[0]); k++) {
+			while (lg_now_us() - start < at_s[k] * 1000000ull) {
+				lck_mtx_lock(&lg_mtx);
+				lg_service_locked();
+				lck_mtx_unlock(&lg_mtx);
+				lg_sleep_ms(20);
+			}
+			uint32_t us = lg_test_store(0x5a000000u | k);
+			uint32_t png = lg_ping();
+			printf("LAPIS GPU: at %us: stream %s %u us, ping %u x10us, MCU %u, events %u faults %u\n",
+			    at_s[k], us == ~0u ? "MISSED" : "ran", us == ~0u ? 0 : us, png,
+			    g(MCU_STATUS), lg_nevent, lg_nfault);
+			if (mode == 2) {
+				break;
+			}
+		}
+		if (mode == 2) {
+			lck_mtx_lock(&lg_mtx);
+			lg_ring = NULL;
+			lg_stop();
+			lck_mtx_unlock(&lg_mtx);
+			printf("LAPIS GPU: stopped and powered off (lapisgpu=2)\n");
+		} else {
+			printf("LAPIS GPU: up, servicing events every 20 ms\n");
+			for (;;) {
+				lck_mtx_lock(&lg_mtx);
+				lg_service_locked();
+				lck_mtx_unlock(&lg_mtx);
+				lg_sleep_ms(20);
+			}
+		}
+	}
 	(void)thread_terminate(current_thread());
 	thread_block(THREAD_CONTINUE_NULL);
 }
@@ -460,7 +675,6 @@ sweet_lapis_gpu_init(void)
 		return;
 	}
 	started = true;
-	(void)lg_sleep_chan;
 	(void)PE_parse_boot_argn("lapisgpu", &enabled, sizeof(enabled));
 	if (!enabled) {
 		printf("LAPIS GPU: disabled (lapisgpu=0)\n");
