@@ -11,7 +11,9 @@
  * switching (cpuhvfs@114400, "mediatek,cpufreq-hybrid").
  *
  * Shows both LUTs and states, times a fixed loop on cpu0 (loops per us is
- * proportional to the clock), requests LUT index 0 (the top entry) on both
+ * proportional to the clock). v2: the MCU PLL block reads 0 from here. v3
+ * starts cpu4 (big) with PSCI CPU_ON and times the same loop there, then
+ * writes big FREQ_PERF = 0 and times again. v1: requests LUT index 0 (the top entry) on both
  * domains, waits, and times again. Writes: FREQ_PERF_STATE only.
  */
 #include <stdint.h>
@@ -84,23 +86,81 @@ static void dom(const char *label, uintptr_t d)
 	}
 }
 
+/* v3: run the speed loop on cpu4 (big) through PSCI CPU_ON */
+extern char sec_entry[];
+void sec_main(void);
+static uint8_t sec_stack[4096] __attribute__((aligned(16)));
+static volatile uint32_t sec_req, sec_done, sec_loops[2];
+
+void sec_main(void)
+{
+	for (uint32_t n = 0; n < 2; n++) {
+		while (sec_req <= n)
+			__asm__ volatile("dsb sy" ::: "memory");
+		sec_loops[n] = speed();
+		__asm__ volatile("dsb sy" ::: "memory");
+		sec_done = n + 1;
+		__asm__ volatile("dsb sy" ::: "memory");
+	}
+}
+
+static int64_t psci_cpu_on(uint64_t mpidr, uint64_t entry, uint64_t ctx)
+{
+	register uint64_t x0 __asm__("x0") = 0xc4000003ULL;
+	register uint64_t x1 __asm__("x1") = mpidr;
+	register uint64_t x2 __asm__("x2") = entry;
+	register uint64_t x3 __asm__("x3") = ctx;
+	__asm__ volatile("smc #0" : "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3) : :
+	    "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14",
+	    "x15", "x16", "x17", "memory");
+	return (int64_t)x0;
+}
+
+static int wait_done(uint32_t n)
+{
+	for (int i = 0; i < 300; i++) {	/* up to 300 ms */
+		if (sec_done >= n)
+			return 1;
+		udelay(1000);
+	}
+	return 0;
+}
+
 void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "tcpu v2: CPU PLLs (read-only) + cpu0 speed");
+	con_str("LAPIS", "tcpu v3: big core speed via PSCI cpu4");
 	con_hex2("LITTLE", "enable=", rd(DOM0 + FREQ_ENABLE), "perf=", rd(DOM0 + FREQ_PERF));
 	con_hex2("BIG", "enable=", rd(DOM1 + FREQ_ENABLE), "perf=", rd(DOM1 + FREQ_PERF));
 	/* v2: the PLLs themselves (v1: little at LUT 0 = 2000 MHz already, big
 	 * domain not enabled, perf 12) */
-	pll("PLL LL", 0x208, 0xa2a0);
-	pll("PLL BL", 0x218, 0xa2a4);
-	pll("PLL CCI", 0x228, 0xa2e0);
+	(void)pll;		/* v2 on the phone: the MCU PLL block reads 0 */
 	uint32_t s0 = speed();
 	con_hex2("SPEED", "before kloops/10ms=", s0, 0, 0);
 	con_skip();
-	(void)wr;
-	(void)udelay;
+	int64_t r = psci_cpu_on(0x400, (uint64_t)(uintptr_t)sec_entry,
+	    (uint64_t)(uintptr_t)(sec_stack + sizeof(sec_stack)));
+	con_hex2("CPU4", "psci cpu_on=", (uint32_t)r, 0, 0);
+	if (r == 0) {
+		sec_req = 1;
+		__asm__ volatile("dsb sy" ::: "memory");
+		if (wait_done(1)) {
+			con_hex2("CPU4", "big kloops/10ms=", sec_loops[0], "x100 vs cpu0=", s0 ? sec_loops[0] * 100 / s0 : 0);
+			/* ask for the top big OPP (LUT 0 = 2600 MHz) even with the domain off */
+			wr(DOM1 + FREQ_PERF, 0);
+			udelay(50000);
+			con_hex2("BIG", "perf=", rd(DOM1 + FREQ_PERF), "hw_state=", rd(DOM1 + FREQ_HW));
+			sec_req = 2;
+			__asm__ volatile("dsb sy" ::: "memory");
+			if (wait_done(2))
+				con_hex2("CPU4", "after perf 0 kloops=", sec_loops[1], "x100 vs cpu0=", s0 ? sec_loops[1] * 100 / s0 : 0);
+			else
+				con_str("CPU4", "no second result");
+		} else {
+			con_str("CPU4", "started but no result");
+		}
+	}
 	(void)dom;
 #ifdef LAPIS_DUAL_PROBE
 	return;			/* shim.c: Power reboots to Android */

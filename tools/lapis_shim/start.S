@@ -154,3 +154,16 @@ chain_stub:
 	mov	x3, xzr
 	br	x4
 chain_stub_end:
+
+/*
+ * sec_entry: a secondary core started by PSCI CPU_ON with context_id = its
+ * stack top (tcpu: big-core speed). MMU and caches off like the boot core.
+ */
+	.globl	sec_entry
+	.balign	16
+sec_entry:
+	msr	daifset, #0xf
+	mov	sp, x0
+	bl	sec_main
+1:	wfe
+	b	1b
