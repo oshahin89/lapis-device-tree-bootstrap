@@ -21,7 +21,6 @@
  * At start, a self-test does what a program would, through the same calls.
  */
 #if defined(ARM64_BOARD_CONFIG_SWEET)
-#include <device/device_types.h> /* io_buf_ptr_t for private OSKext headers (as SweetBattery.cpp) */
 #include <IOKit/IOLib.h>
 #include <IOKit/IOLocks.h>
 #include <IOKit/IOKitKeys.h>
