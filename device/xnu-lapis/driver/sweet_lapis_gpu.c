@@ -709,6 +709,16 @@ lg_sleep_ms(uint32_t ms)
 #define LG_RING_MAX     0x10000u
 
 static uint64_t lg_vm_root[LG_NVM + 1];
+static int lg_trace = 1;                /* lapisgputrace: steps of group create, flushed (v43 froze) */
+
+static void
+lg_step(int n, const char *what, uint32_t a, uint32_t b)
+{
+	if (lg_trace) {
+		printf("LAPIS GPU: group %d: %s %#x %#x\n", n, what, a, b);
+		lg_sleep_ms(1200);
+	}
+}
 struct lg_group {
 	int vm;
 	uint32_t ring_size, susp_pages, psusp_pages, seq;
@@ -956,8 +966,10 @@ lapis_gpu_group_create(int vm, uint32_t ring_size)
 		r = -5;
 		goto out;
 	}
+	lg_step(n, "pages mapped, susp/psusp pages", gr->susp_pages, gr->psusp_pages);
 	lg_as_flush(1 + vm);
 	lg_as_flush(0);
+	lg_step(n, "flushed AS0 and AS", 1 + vm, g(AS(1 + vm) + AS_STATUS));
 	gr->ring = lg_pool_va(gr->ring_pa);
 	gr->uin = lg_pool_va(gr->uin_pa);
 	gr->uout = lg_pool_va(gr->uout_pa);
@@ -984,6 +996,7 @@ lapis_gpu_group_create(int vm, uint32_t ring_size)
 	lg_toggle(&lg_gin[0x08 / 4], lg_gout[0x08 / 4], 1u << n);
 	gw(DOORBELL(0), 1);
 	uint32_t a1 = lg_acked(&ci[0], &co[0], 7u | (1u << 4), 10000);
+	lg_step(n, "CSG start ack, csg ack word", a1, co[0]);
 
 	volatile uint32_t *si = sl->csin, *so = sl->csout;
 	*(volatile uint64_t *)&si[0x10 / 4] = LG_SLOT_KVA(n);
@@ -997,6 +1010,7 @@ lapis_gpu_group_create(int vm, uint32_t ring_size)
 	lg_toggle(&lg_gin[0x08 / 4], lg_gout[0x08 / 4], 1u << n);
 	gw(DOORBELL(0), 1);
 	uint32_t a2 = lg_acked(&si[0], &so[0], 7u, 10000);
+	lg_step(n, "CS start ack, cs ack word", a2, so[0]);
 	if (a1 == ~0u || a2 == ~0u) {
 		printf("LAPIS GPU: group %d on VM %d did not start (csg %u, cs %u)\n", n, vm, a1, a2);
 		lg_group_free_locked(n);
@@ -1136,6 +1150,7 @@ lg_thread(void *arg __unused, wait_result_t wr __unused)
 {
 	int mode = 1;
 	(void)PE_parse_boot_argn("lapisgpu", &mode, sizeof(mode));
+	(void)PE_parse_boot_argn("lapisgputrace", &lg_trace, sizeof(lg_trace));
 	if (!lg_run()) {
 		lg_ring = NULL;
 	} else {

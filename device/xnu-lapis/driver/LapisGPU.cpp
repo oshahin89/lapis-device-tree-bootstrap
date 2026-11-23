@@ -664,31 +664,65 @@ out:
  * an address nothing is bound at (the fault must stay in its group), and a
  * new group after it. Everything goes back at the end.
  */
+/* v43 froze the phone somewhere in here before the log was written: each
+ * step says what comes next and waits for the log writer (ufslogsecs=1) */
+static void
+lgStage(const char * what)
+{
+	IOLog("LapisGPU: self-test: %s\n", what);
+	IOSleep(1500);
+}
+
 static void
 LapisGPUSelfTest(void)
 {
 	const uint64_t kCmdVA = 0x10000000, kTgtVA = 0x20000000, kHoleVA = 0x30000000;
-	IOBufferMemoryDescriptor * cmd = lgNewMemory(0x10000), * tgt = lgNewMemory(0x4000);
-	int vm = lapis_gpu_vm_create(), slot = -1;
+	IOBufferMemoryDescriptor * cmd = NULL, * tgt = NULL;
+	IOMemoryMap * cmap = NULL, * tmap = NULL;
+	int vm = 0, slot = -1;
 	uint32_t ok = 0, worst = 0, sum = 0, first_bad = ~0u;
+	IOByteCount len = 0;
 
-	if (cmd == NULL || tgt == NULL || vm <= 0) {
-		IOLog("LapisGPU: self-test: no memory or VM (vm %d)\n", vm);
+	lgStage("1 buffers");
+	cmd = lgNewMemory(0x10000);
+	tgt = lgNewMemory(0x4000);
+	if (cmd == NULL || tgt == NULL) {
+		IOLog("LapisGPU: self-test: no memory\n");
 		goto done;
 	}
+	/* the CPU's own write-combined view of each, not the descriptor's default one */
+	cmap = cmd->createMappingInTask(kernel_task, 0, kIOMapAnywhere | kIOMapWriteCombineCache);
+	tmap = tgt->createMappingInTask(kernel_task, 0, kIOMapAnywhere | kIOMapWriteCombineCache);
+	IOLog("LapisGPU: self-test: cmd pa %#llx kva %p map %#llx, tgt pa %#llx kva %p map %#llx\n",
+	    (unsigned long long) cmd->getPhysicalSegment(0, &len, kIOMemoryMapperNone), cmd->getBytesNoCopy(),
+	    cmap ? (unsigned long long) cmap->getVirtualAddress() : 0ull,
+	    (unsigned long long) tgt->getPhysicalSegment(0, &len, kIOMemoryMapperNone), tgt->getBytesNoCopy(),
+	    tmap ? (unsigned long long) tmap->getVirtualAddress() : 0ull);
+	if (cmap == NULL || tmap == NULL) {
+		goto done;
+	}
+	lgStage("2 VM");
+	vm = lapis_gpu_vm_create();
+	if (vm <= 0) {
+		IOLog("LapisGPU: self-test: no VM (%d)\n", vm);
+		goto done;
+	}
+	lgStage("3 bind");
 	if (lgBind(vm, cmd, 0, kCmdVA, 0x10000, PANTHOR_BIND_READONLY) != kIOReturnSuccess ||
 	    lgBind(vm, tgt, 0, kTgtVA, 0x4000, PANTHOR_BIND_NOEXEC) != kIOReturnSuccess) {
 		IOLog("LapisGPU: self-test: bind failed\n");
 		goto done;
 	}
+	lgStage("4 group");
 	slot = lapis_gpu_group_create(vm, 0x4000);
 	if (slot <= 0) {
 		IOLog("LapisGPU: self-test: group create %d\n", slot);
 		goto done;
 	}
+	lgStage("5 first stream");
 	{
-		volatile uint64_t * c = (volatile uint64_t *) cmd->getBytesNoCopy();
-		volatile uint32_t * t = (volatile uint32_t *) tgt->getBytesNoCopy();
+		volatile uint64_t * c = (volatile uint64_t *) cmap->getVirtualAddress();
+		volatile uint32_t * t = (volatile uint32_t *) tmap->getVirtualAddress();
 		for (uint32_t i = 0; i < 200; i++) {
 			uint32_t at = (i % 64) * 8, value = 0xbeef0000u | i;
 			c[at + 0] = (1ull << 56) | (kTgtVA + (i % 16) * 4);             /* MOVE48 r0 */
@@ -712,6 +746,7 @@ LapisGPUSelfTest(void)
 		IOLog("LapisGPU: self-test: VM %d group %d, 200 streams CALLed from kernel memory: %u ran, avg %u us, worst %u us, first miss %d\n",
 		    vm, slot, ok, ok ? sum / ok : 0, worst, (int) first_bad);
 
+		lgStage("6 fault");
 		/* a store where nothing is bound: the group faults, the GPU goes on */
 		c[0] = (1ull << 56) | kHoleVA;
 		c[1] = (2ull << 56) | (2ull << 48) | 0xdeadu;
@@ -724,6 +759,7 @@ LapisGPUSelfTest(void)
 		    lapis_gpu_group_fatal(slot));
 		lapis_gpu_group_destroy(slot);
 
+		lgStage("7 new group");
 		/* a new group on the same VM after that */
 		slot = lapis_gpu_group_create(vm, 0x1000);
 		uint32_t again = 0;
@@ -741,14 +777,18 @@ LapisGPUSelfTest(void)
 		IOLog("LapisGPU: self-test: new group %d after the fault: %u/10 ran\n", slot, again);
 	}
 done:
+	lgStage("8 clean up");
 	if (slot > 0) {
 		lapis_gpu_group_destroy(slot);
 	}
 	if (vm > 0) {
 		lapis_gpu_vm_destroy(vm);
 	}
+	OSSafeReleaseNULL(cmap);
+	OSSafeReleaseNULL(tmap);
 	OSSafeReleaseNULL(cmd);
 	OSSafeReleaseNULL(tgt);
+	IOLog("LapisGPU: self-test: done\n");
 }
 
 void
@@ -763,6 +803,7 @@ LapisGPUStart(void)
 	if (test) {
 		LapisGPUSelfTest();
 	}
+	IOLog("LapisGPU: creating the service\n");
 	gpu = OSTypeAlloc(LapisGPU);
 	if (gpu == NULL || provider == NULL || !gpu->init() || !gpu->attach(provider)) {
 		OSSafeReleaseNULL(gpu);
