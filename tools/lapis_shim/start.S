@@ -160,6 +160,7 @@ chain_stub_end:
  * stack top (tcpu: big-core speed). MMU and caches off like the boot core.
  */
 	.globl	sec_entry
+	.weak	sec_main		/* only tcpu has it; others never start a core */
 	.balign	16
 sec_entry:
 	msr	daifset, #0xf
