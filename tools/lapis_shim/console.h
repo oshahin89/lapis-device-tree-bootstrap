@@ -27,3 +27,6 @@ void con_hex(const char *label, uint64_t v);
 void con_hex2(const char *label, const char *a, uint32_t va, const char *b, uint32_t vb);
 int con_row(void);
 void con_set_row(int r);
+
+/* when set, every printed character is also passed here (dual: pstore) */
+extern void (*con_tee)(char);

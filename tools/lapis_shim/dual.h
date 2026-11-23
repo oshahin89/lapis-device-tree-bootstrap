@@ -8,3 +8,4 @@ void __attribute__((noreturn)) dual_reboot(void);
 void __attribute__((noreturn)) dual_power_reboot(void);
 /* build.sh dual PROBE: the probe's shim_main, renamed */
 void probe_main(uint64_t dtb, uint64_t entry_el);
+void __attribute__((noreturn)) dual_power_android(uint64_t dtb);

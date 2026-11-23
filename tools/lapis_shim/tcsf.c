@@ -421,9 +421,32 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 		con_str("DONE", "the GPU ran our command stream");
 	else
 		con_str("DONE", "no store seen");
+	/* stop everything before Android takes this memory back: MCU off, GPU
+	 * soft reset, GPUEB power off (the same IPI with w4 = 0) */
+	gw(MCU_CONTROL, 0);
+	(void)poll(MCU_STATUS, 3, 0, 10000);
+	gw(GPU_INT_CLEAR, 0xffffffff);
+	gw(GPU_CMD, 0x101);
+	(void)poll(GPU_INT_RAWSTAT, 1u << 8, 1u << 8, 10000);
+	{
+		uint32_t magic = rd(GPUEB_GPR + 13 * 4);
+		uint32_t msg[8] = { magic, 6, 0, 0, 0, 0, 0, 0 };
+		for (int i = 0; i < 8; i++)
+			wr(MBOX0 + 16 + i * 4, msg[i]);
+		wr(MBOX0_SET, 0x2);
+		for (int t = 0; t < 1000; t++) {
+			uint32_t r = rd(MBOX0_RECV);
+			if (r) {
+				wr(MBOX0_CLR, r);
+				break;
+			}
+			udelay(100);
+		}
+	}
+	con_hex2("STOP", "mcu_status=", g(MCU_STATUS), "gpu_id=", g(GPU_ID));
 out:
 #ifdef LAPIS_DUAL_PROBE
-	return;			/* shim.c: Power reboots to Android */
+	return;			/* shim.c: Power starts Android (pstore log kept) */
 #endif
 	con_str("END", "Power+Vol-down to recover");
 	for (;;)

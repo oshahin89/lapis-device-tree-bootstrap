@@ -142,6 +142,25 @@ void dual_reboot(void)
 	}
 }
 
+/*
+ * End of a probe: Power (pressed and released) starts Android directly, with
+ * no reset, so DRAM and the pstore console zone (written while the probe ran)
+ * survive: Android shows the probe's screen as /sys/fs/pstore/console-ramoops-0.
+ */
+void dual_power_android(uint64_t dtb)
+{
+	con_str("DUAL", "press Power = Android (log kept in pstore)");
+	uint32_t n = 0;
+	while (n < NEED_DOWN) {
+		n = power_down() ? n + 1 : 0;
+		udelay(POLL_MS * 1000u);
+	}
+	while (power_down())
+		udelay(POLL_MS * 1000u);
+	con_tee = 0;
+	dual_chain_android(dtb);
+}
+
 /* End of a probe or a shim error: Power (pressed and released) reboots to Android. */
 void dual_power_reboot(void)
 {

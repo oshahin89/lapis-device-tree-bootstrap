@@ -13,7 +13,7 @@ OUT=$(realpath -m "${1:?usage: build.sh OUTDIR [shim|dual|regdump|pstest|tchip|t
 WHAT=${2:-shim}
 case "$WHAT" in
 	shim)    MAIN=shim.c; EXTRA="loader.c ufsinit.c" ;;
-	dual)    MAIN=shim.c; EXTRA="loader.c ufsinit.c dual.c"; DEFS="-DLAPIS_DUAL ${DUAL_TEST:+-DLAPIS_DUAL_TEST=$DUAL_TEST}"
+	dual)    MAIN=shim.c; EXTRA="loader.c ufsinit.c dual.c pstore.c"; DEFS="-DLAPIS_DUAL ${DUAL_TEST:+-DLAPIS_DUAL_TEST=$DUAL_TEST}"
 		 PROBE=${3:-}
 		 [ -n "$PROBE" ] && DEFS="$DEFS -DLAPIS_DUAL_PROBE" ;;
 	regdump) MAIN=regdump.c; EXTRA="pstore.c" ;;

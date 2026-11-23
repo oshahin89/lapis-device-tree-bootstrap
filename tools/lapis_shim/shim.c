@@ -10,6 +10,7 @@
 #include "ufsinit.h"
 #ifdef LAPIS_DUAL
 #include "dual.h"
+#include "pstore.h"
 #endif
 
 #define rsr(r) ({ uint64_t _v; __asm__ volatile("mrs %0, " r : "=r"(_v)); _v; })
@@ -29,8 +30,10 @@ void shim_main(uint64_t dtb)
 	dual_wdt_off();
 #ifdef LAPIS_DUAL_PROBE
 	if (pick == DUAL_PROBE) {
+		ps_init();
+		con_tee = ps_putc;
 		probe_main(dtb, 1u << 2);
-		dual_power_reboot();
+		dual_power_android(dtb);
 	}
 #endif
 #endif

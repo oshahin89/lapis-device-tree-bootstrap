@@ -50,11 +50,23 @@ static void put_char(int col, char ch, uint32_t fg)
 		}
 }
 
+/* Optional copy of every printed line (dual probes: the pstore console). */
+void (*con_tee)(char);
+
 static int put_str(int col, const char *s, uint32_t fg)
 {
-	while (*s)
+	while (*s) {
+		if (con_tee)
+			con_tee(*s);
 		put_char(col++, *s++, fg);
+	}
 	return col;
+}
+
+static void tee_end(void)
+{
+	if (con_tee)
+		con_tee('\n');
 }
 
 static void fmt_hex(char *buf, uint64_t v, int digits)
@@ -67,13 +79,17 @@ static void fmt_hex(char *buf, uint64_t v, int digits)
 
 void con_skip(void)
 {
+	tee_end();
 	row++;
 }
 
 void con_str(const char *label, const char *s)
 {
 	put_str(0, label, YELLOW);
+	if (con_tee)
+		con_tee(' ');
 	put_str(LABEL_COLS, s, WHITE);
+	tee_end();
 	row++;
 }
 
@@ -89,14 +105,21 @@ void con_hex2(const char *label, const char *a, uint32_t va, const char *b, uint
 	char buf[9];
 	int col = put_str(0, label, YELLOW);
 	col = col < LABEL_COLS ? LABEL_COLS : col + 1;
+	if (con_tee)
+		con_tee(' ');
 	col = put_str(col, a, YELLOW);
 	fmt_hex(buf, va, 8);
 	col = put_str(col, buf, WHITE);
 	if (b) {
+		if (con_tee)
+			con_tee(' ');
 		col = put_str(col + 1, b, YELLOW);
 		fmt_hex(buf, vb, 8);
+		if (con_tee)
+			con_tee(' ');
 		put_str(col, buf, WHITE);
 	}
+	tee_end();
 	row++;
 }
 
