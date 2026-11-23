@@ -18,7 +18,9 @@
  * encodings) that stores 0xc0ffee42 to a buffer. v2 on the phone: GLB config
  * and PING acked, CSG0 START acked in 40 us, but CS0 stayed at ack 0 (req
  * 0x501) and nothing ran; v3 kicked CS0 again: CSG doorbell ack stuck at 1.
- * v4: group start and stream start as two steps, each ack waited for.
+ * v4: group start and stream start as two steps, each ack waited for:
+ * CSG doorbell acked, CS0 still ack 0. v5: no tiler endpoint (TILER_PRESENT
+ * reads 0), read-backs, CSG_STATUS_UPDATE, the queue's user doorbell.
  * Writes: the GPUEB mailbox, the GPU, and DRAM at POOL.
  */
 #include <stdint.h>
@@ -245,7 +247,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
 	con_skip();		/* the camera hole covers the first lines */
-	con_str("LAPIS", "tcsf v4: CSF boot + first command stream");
+	con_str("LAPIS", "tcsf v5: CSF boot + first command stream");
 	if ((rd(0x1c001eb4) & 0xc0000000u) != 0xc0000000u) {
 		con_str("FAIL", "mfg0 domain off");
 		goto out;
@@ -358,8 +360,9 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	/* (1) CSG0: panthor csg_slot_prog_locked + START, no queue kick yet */
 	*(volatile uint64_t *)&csgin[0x20 / 4] = 0x5;
 	*(volatile uint64_t *)&csgin[0x28 / 4] = 0x5;
-	csgin[0x30 / 4] = 0x1;
-	csgin[0x34 / 4] = 2u | (2u << 8) | (1u << 16) | (1u << 28);
+	/* v5: TILER_PRESENT reads 0 here: no tiler endpoint / allow_other */
+	csgin[0x30 / 4] = g(0x110);
+	csgin[0x34 / 4] = 2u | (2u << 8) | (g(0x110) ? (1u << 16) : 0) | (1u << 28);
 	*(volatile uint64_t *)&csgin[0x40 / 4] = VA_SUSPEND;
 	*(volatile uint64_t *)&csgin[0x48 / 4] = 0;
 	csgin[0x50 / 4] = 1;			/* AS1 */
@@ -391,6 +394,24 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	con_hex2("CS0", "start ack x10us=", c4, "csg db ack x10us=", d4);
 	con_hex2("CS0", "ack=", csout[0], "req=", csin[0]);
 	con_hex2("GLBDB", "req/ack=", gin[0x08 / 4] << 16 | gout[0x08 / 4], "mcu=", g(MCU_STATUS));
+	/* v5 diagnostics: where the interfaces are, what was written, statuses */
+	con_hex2("IFACE", "csg in/out=", csgc[1], "", csgc[2]);
+	con_hex2("IFACE", "cs in/out=", csc[1], "", csc[2]);
+	con_hex2("CS0IN", "ring lo=", csin[0x10 / 4], "size=", csin[0x18 / 4]);
+	con_hex2("CS0IN", "uin=", csin[0x30 / 4], "uout=", csin[0x38 / 4]);
+	con_hex2("CS0IN", "config=", csin[0x04 / 4], "irqmask=", csin[0x0c / 4]);
+	toggle(&csgin[0], csgout[0], 1u << 5);	/* CSG_STATUS_UPDATE */
+	toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);
+	gw(0x80000, 1);
+	uint32_t c5 = wait_acked(&csgin[0], &csgout[0], 1u << 5, 10000);
+	con_hex2("STATUS", "ack x10us=", c5, "csg state=", csgout[0x18 / 4]);
+	con_hex2("STATUS", "ep current=", csgout[0x10 / 4], "ep req=", csgout[0x14 / 4]);
+	con_hex2("STATUS", "cs_irq_req=", csgout[0x0c / 4], "resource_dep=", csgout[0x1c / 4]);
+	con_hex2("STATUS", "job_raw=", g(JOB_INT_RAWSTAT), "tiler_present=", g(0x110));
+	/* and the user doorbell of the queue, in case START waits for it */
+	gw(0x80000 + 1 * 0x10000, 1);
+	uint32_t c6 = wait_acked(&csin[0], &csout[0], 7u, 10000);
+	con_hex2("CS0", "after user doorbell ack x10us=", c6, "ack=", csout[0]);
 
 	/* the program: r0:r1 = &target, r2 = magic, store r2 at [r0], wait all */
 	volatile uint64_t *ins = (volatile uint64_t *)ring;
