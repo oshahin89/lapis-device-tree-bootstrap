@@ -70,3 +70,18 @@ levels visibly applied; VM_CMD_DONE came after 0xf4..0x1a1 polls of 10 us
 VM_CMD_CON 0x200 = 0x00033923, clear INTSTA bit 5, START bit 16 0 -> 1, wait
 INTSTA bit 5, START bit 16 -> 0, VM_CMD_CON back to 0x21. Next: an XNU
 brightness hook (and screen off with level 0 or DCS 0x28/0x10).
+
+## Brightness from iOS (2026-11-23) — not working yet
+
+- v19/v20 (SweetBacklight, `backlight-control` = true): backboardd matches it
+  and reads AppleARMBacklight-style properties (default-whitepoint-type,
+  blr-cct-min/max/default/warning, pre-strobe-dim-period, pab-scaler-index,
+  aml-table-factor) but **never sets a property and never opens it**; iOS
+  becomes slow (v21b with `lapisbacklight=0` is fast again).
+- v22 (service off) and v23 (on): moving the Settings slider sends **nothing**
+  to the framebuffer user client (only boot-time sel 17/50/68/84) and sets no
+  property on AppleCLCD; v23 shows only ~60 property reads, so the slowness is
+  not a registry polling loop (probably CoreBrightness spinning in userland).
+- The DCS 0x51 path itself works from XNU (`lapis_brightness_set`).
+- Next: CoreBrightness reverse engineering (which service/property it wants on
+  an OLED iPhone X), or a kernel-side screen-off on lock via DCS level 0.
