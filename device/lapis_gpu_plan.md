@@ -36,9 +36,10 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
 
 ## First concrete steps
 
-- Shim probe: MFG power state after a reboot from Android (the audio domain
-  kept Android's state; the GPU may too), then GPU_ID at 0x13000000 + 0x0
-  (expect 0xb8a3xxxx-ish product id for G615 r1p3).
+- ~~Shim probe: power state + GPU_ID~~ done (tgpu v2).
+- Next: GPU soft reset, MMU address space for the MCU, load mali_csffw.bin
+  (its sections into GPU VA as the kbase CSF loader does), boot the MCU and
+  wait for the global interface (GLB) to come up.
 - Android trace of the GPU power-up (regmap / clk / scpsys events, GPUEB
   mailbox) with the boot-time cmdline trick, as for audio.
 
@@ -68,7 +69,12 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   kbase itself toggles power every ~8 ms while idle.
 - Mailbox (FDT gpueb): slots at 0x13c3fd80 (0x280 B), set 0x13c62004, clr
   0x13c62074, send 0x13c62000, recv 0x13c62078, IRQ 0x111.
-- tgpu v2 (dual_v30): reads the magic, sends power-on, reads GPU_ID.
+- **tgpu v2 (dual_v30) on the phone: the GPU powers on from our code.** GPUEB
+  is running after a reboot from Android (GPR13 magic 0x02812969, same as
+  Android's); the power-on IPI was answered in ~0.6 ms (recv = 0x2); then
+  **GPU_ID = 0xb8a31030** (Mali-G615 r1p3), L2_FEATURES 0x07120306,
+  SHADER_PRESENT 0x5 (as Android's core mask), L2_PRESENT 0x1, TILER_PRESENT 0,
+  GPU_STATUS 0. Milestone 1 done.
 
 ## What lapis needs (in order)
 
