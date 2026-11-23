@@ -106,6 +106,8 @@ struct lg_slot {
 	int active, fatal;
 };
 static struct lg_slot lg_slots[8];
+static uint32_t lg_as_faulty;           /* AS disabled after a fault, set up again by the next group */
+static int lg_slot_vm(unsigned n);
 static volatile uint32_t *lg_gin, *lg_gout, *lg_csgin, *lg_csgout, *lg_csin, *lg_csout;
 static volatile uint64_t *lg_ring, *lg_uin, *lg_uout;
 static volatile uint32_t *lg_tgt;
@@ -562,9 +564,34 @@ lg_service_locked(void)
 	if (mi) {
 		gw(MMU_INT_CLEAR, mi);
 		for (unsigned n = 0; n < 8; n++) {
-			if ((mi & (1u << n)) && lg_nfault++ < 8) {
+			if (!((mi | (mi >> 16)) & (1u << n))) {
+				continue;
+			}
+			if (lg_nfault++ < 8) {
 				printf("LAPIS GPU: AS%u fault %#x at %#x%08x\n", n, g(AS(n) + AS_FAULTSTATUS),
 				    g(AS(n) + 0x24), g(AS(n) + 0x20));
+			}
+			if (n >= 2) {
+				/*
+				 * As panthor: disable the faulting AS (unmapped: the stalled
+				 * access fails and so does its stream) and fail its groups.
+				 * v45: without this the group stayed stalled, would not
+				 * terminate, and freeing it under the firmware killed the MCU.
+				 */
+				gw(AS(n) + AS_TRANSTAB, 0);
+				gw(AS(n) + AS_TRANSTAB + 4, 0);
+				gw(AS(n) + AS_MEMATTR, 0);
+				gw(AS(n) + AS_MEMATTR + 4, 0);
+				gw(AS(n) + AS_TRANSCFG, 1);
+				gw(AS(n) + AS_TRANSCFG + 4, 0);
+				gw(AS(n) + AS_COMMAND, 1);
+				(void)lg_poll(AS(n) + AS_STATUS, 1, 0, 10000);
+				lg_as_faulty |= 1u << n;
+				for (unsigned k = 1; k < 8; k++) {
+					if (lg_slots[k].active && lg_slot_vm(k) == (int)n - 1) {
+						lg_slots[k].fatal = 1;
+					}
+				}
 			}
 		}
 	}
@@ -728,6 +755,12 @@ struct lg_group {
 };
 static struct lg_group lg_groups[8];
 
+static int
+lg_slot_vm(unsigned n)
+{
+	return lg_groups[n].vm;
+}
+
 int lapis_gpu_ready(void);
 uint32_t lapis_gpu_reg(uint32_t off);
 void lapis_gpu_csif(uint32_t out[5]);
@@ -817,6 +850,7 @@ lapis_gpu_vm_destroy(int vm)
 		lg_as_flush(1 + vm);
 		lg_free_tables(lg_vm_root[vm], 4 - lg_levels);
 		lg_vm_root[vm] = 0;
+		lg_as_faulty &= ~(1u << (1 + vm));
 	}
 	lck_mtx_unlock(&lg_mtx);
 }
@@ -908,6 +942,10 @@ lapis_gpu_group_create(int vm, uint32_t ring_size)
 	lck_mtx_lock(&lg_mtx);
 	if (!lg_vm_ok(vm)) {
 		goto out;
+	}
+	if (lg_as_faulty & (1u << (1 + vm))) {
+		lg_as_setup(1 + vm, lg_vm_root[vm], lg_transcfg);
+		lg_as_faulty &= ~(1u << (1 + vm));
 	}
 	for (n = 1; n < (int)lg_ngroups; n++) {
 		if (!lg_slots[n].active && !lg_groups[n].vm) {
@@ -1034,9 +1072,13 @@ lapis_gpu_group_destroy(int n)
 		lg_toggle(&lg_gin[0x08 / 4], lg_gout[0x08 / 4], 1u << n);
 		gw(DOORBELL(0), 1);
 		if (lg_acked(&sl->csgin[0], &sl->csgout[0], 7u, 10000) == ~0u) {
-			printf("LAPIS GPU: group %d did not terminate\n", n);
+			/* the firmware may still use its pages: keep them, never reuse the slot */
+			printf("LAPIS GPU: group %d did not terminate (csg ack %#x): slot retired\n", n, sl->csgout[0]);
+			sl->active = 0;
+			lg_groups[n].vm = -1;
+		} else {
+			lg_group_free_locked(n);
 		}
-		lg_group_free_locked(n);
 	}
 	lck_mtx_unlock(&lg_mtx);
 }
