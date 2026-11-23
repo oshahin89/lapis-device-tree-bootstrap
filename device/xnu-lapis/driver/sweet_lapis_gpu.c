@@ -519,15 +519,21 @@ lg_submit_locked(const uint64_t *ins, uint32_t n)
 	if (!lg_ring) {
 		return -2;
 	}
+	/*
+	 * Whole 64-byte blocks, NOP (0) padded: the stream fetches 64 bytes at a
+	 * time and would replay a stale copy of the rest of a block it already
+	 * read (v41: of 300 32-byte submissions every second one was skipped).
+	 */
 	uint64_t insert = lg_uin[0];
-	if (n > LG_RING / 8 || insert + n * 8 - lg_uout[0] > LG_RING) {
+	uint32_t padded = (n + 7u) & ~7u;
+	if (padded > LG_RING / 8 || insert + padded * 8 - lg_uout[0] > LG_RING) {
 		return -1;
 	}
-	for (uint32_t i = 0; i < n; i++) {
-		lg_ring[((insert / 8) + i) % (LG_RING / 8)] = ins[i];
+	for (uint32_t i = 0; i < padded; i++) {
+		lg_ring[((insert / 8) + i) % (LG_RING / 8)] = i < n ? ins[i] : 0;
 	}
 	__asm__ volatile("dsb osh" ::: "memory");
-	lg_uin[0] = insert + n * 8;
+	lg_uin[0] = insert + padded * 8;
 	__asm__ volatile("dsb osh" ::: "memory");
 	gw(DOORBELL(1), 1);
 	return 0;
@@ -598,7 +604,7 @@ lg_sleep_ms(uint32_t ms)
 static void
 lg_selftest(void)
 {
-	/* 300 back-to-back: 9600 bytes of instructions, the ring wraps twice */
+	/* 300 back-to-back: 19200 bytes of instructions, the ring wraps 4 times */
 	uint32_t ok = 0, worst = 0, sum = 0, first_bad = ~0u;
 	for (uint32_t i = 0; i < 300; i++) {
 		uint32_t us = lg_test_store(0xa5000000u | i);
