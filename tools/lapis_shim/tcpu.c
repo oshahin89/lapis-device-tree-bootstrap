@@ -53,6 +53,25 @@ static uint32_t speed(void)
 	return n;
 }
 
+#define MCU_APMIX	0x0c030000UL	/* cpuhvfs apmixedsys: pll-con 0x208/0x218/0x228 */
+#define MCU_CKDIV	0x0c000000UL	/* cpuhvfs clk-div-base: 0xa2a0/0xa2a4/0xa2e0 */
+
+/* MHz from a MediaTek CPU PLL CON1: postdiv [26:24] (log2), pcw [21:0]
+ * with 14 fractional bits, 26 MHz reference. */
+static uint32_t pll_mhz(uint32_t con1)
+{
+	uint64_t pcw = con1 & 0x3fffff;
+	uint32_t pd = (con1 >> 24) & 7;
+	return (uint32_t)((26ull * pcw >> 14) >> pd);
+}
+
+static void pll(const char *label, uint32_t con, uint32_t div)
+{
+	uint32_t c0 = rd(MCU_APMIX + con), c1 = rd(MCU_APMIX + con + 4);
+	con_hex2(label, "con0=", c0, "con1=", c1);
+	con_hex2(label, "pll mhz=", pll_mhz(c1), "clkdiv=", rd(MCU_CKDIV + div));
+}
+
 static void dom(const char *label, uintptr_t d)
 {
 	con_hex2(label, "enable=", rd(d + FREQ_ENABLE), "perf=", rd(d + FREQ_PERF));
@@ -69,19 +88,20 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 {
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
-	con_str("LAPIS", "tcpu v1: cpufreq-hw domains, cpu0 speed");
-	dom("LITTLE", DOM0);
-	dom("BIG", DOM1);
+	con_str("LAPIS", "tcpu v2: CPU PLLs (read-only) + cpu0 speed");
+	con_hex2("LITTLE", "enable=", rd(DOM0 + FREQ_ENABLE), "perf=", rd(DOM0 + FREQ_PERF));
+	con_hex2("BIG", "enable=", rd(DOM1 + FREQ_ENABLE), "perf=", rd(DOM1 + FREQ_PERF));
+	/* v2: the PLLs themselves (v1: little at LUT 0 = 2000 MHz already, big
+	 * domain not enabled, perf 12) */
+	pll("PLL LL", 0x208, 0xa2a0);
+	pll("PLL BL", 0x218, 0xa2a4);
+	pll("PLL CCI", 0x228, 0xa2e0);
 	uint32_t s0 = speed();
 	con_hex2("SPEED", "before kloops/10ms=", s0, 0, 0);
 	con_skip();
-	wr(DOM0 + FREQ_PERF, 0);
-	wr(DOM1 + FREQ_PERF, 0);
-	udelay(20000);
-	con_hex2("LITTLE", "perf=", rd(DOM0 + FREQ_PERF), "hw_state=", rd(DOM0 + FREQ_HW));
-	con_hex2("BIG", "perf=", rd(DOM1 + FREQ_PERF), "hw_state=", rd(DOM1 + FREQ_HW));
-	uint32_t s1 = speed();
-	con_hex2("SPEED", "after kloops/10ms=", s1, "x100=", s0 ? s1 * 100 / s0 : 0);
+	(void)wr;
+	(void)udelay;
+	(void)dom;
 #ifdef LAPIS_DUAL_PROBE
 	return;			/* shim.c: Power reboots to Android */
 #endif
