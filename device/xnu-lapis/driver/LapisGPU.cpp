@@ -72,6 +72,8 @@ enum {
 	kPanthorGroupSubmit     = 0x49,
 	kPanthorGroupGetState   = 0x4a,
 	kLapisWait              = 0x7d,         /* ours: struct lapis_wait */
+	kLapisSync              = 0x7e,         /* ours: struct lapis_sync */
+	kLapisLog               = 0x7f,         /* ours: struct lapis_log */
 };
 
 struct drm_gem_close { uint32_t handle, pad; };
@@ -117,6 +119,11 @@ struct drm_panthor_group_submit { uint32_t group_handle, pad; struct drm_panthor
 struct drm_panthor_group_get_state { uint32_t group_handle, state, fatal_queues, pad; };
 /* kLapisWait: the group's submission `seq` (0: its last one) done within timeout_ns; seq back */
 struct lapis_wait { uint32_t group_handle, seq; int64_t timeout_ns; };
+/* kLapisSync: clean + invalidate the CPU caches over a buffer's bytes [offset, offset + size) (0 size: all):
+ * buffers are cacheable and the GPU is not coherent, so a program syncs after writing and before reading */
+struct lapis_sync { uint32_t handle, pad; uint64_t offset, size; };
+/* kLapisLog: a line from the program into the kernel's log (the UFS log on the phone) */
+struct lapis_log { char text[120]; };
 
 #define PANTHOR_BIND_READONLY   (1u << 0)
 #define PANTHOR_BIND_NOEXEC     (1u << 1)
@@ -536,6 +543,8 @@ LapisGPUUserClient::externalMethod(uint32_t selector, IOExternalMethodArguments 
 		struct drm_panthor_group_submit gs;
 		struct drm_panthor_group_get_state gst;
 		struct lapis_wait wait;
+		struct lapis_sync sync;
+		struct lapis_log log;
 	} r;
 	size_t size = args->structureInputSize;
 	IOReturn ret = kIOReturnSuccess;
@@ -563,7 +572,7 @@ LapisGPUUserClient::externalMethod(uint32_t selector, IOExternalMethodArguments 
 	}
 
 	IOLockLock(gLapisGPULock);
-	if (fRequests++ < 32) {                 /* the first ones a client makes, for following it in the log */
+	if (selector != kLapisLog && fRequests++ < 8) {                 /* the first ones a client makes, for following it in the log */
 		IOLog("LapisGPU: request %#x, %zu bytes\n", selector, size);
 	}
 	switch (selector) {
@@ -650,6 +659,20 @@ LapisGPUUserClient::externalMethod(uint32_t selector, IOExternalMethodArguments 
 			r.gst.state = fatal ? PANTHOR_STATE_FATAL : 0;
 			r.gst.fatal_queues = fatal ? 1 : 0;
 		}
+		break;
+	case kLapisSync: {
+		struct lg_buffer * b = buffer(r.sync.handle);
+		uint64_t size = r.sync.size ? r.sync.size : (b ? b->size : 0);
+		if (b == NULL || r.sync.offset > b->size || size > b->size - r.sync.offset) {
+			ret = kIOReturnBadArgument;
+		} else {
+			lgSync((uint8_t *) b->memory->getBytesNoCopy() + r.sync.offset, size);
+		}
+		break;
+	}
+	case kLapisLog:
+		r.log.text[sizeof(r.log.text) - 1] = 0;
+		IOLog("LapisGPU client: %s\n", r.log.text);
 		break;
 	case kDrmGemClose: {
 		struct lg_buffer * b = buffer(r.close.handle);
