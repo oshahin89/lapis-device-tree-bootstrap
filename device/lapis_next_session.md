@@ -85,3 +85,18 @@ brightness hook (and screen off with level 0 or DCS 0x28/0x10).
 - The DCS 0x51 path itself works from XNU (`lapis_brightness_set`).
 - Next: CoreBrightness reverse engineering (which service/property it wants on
   an OLED iPhone X), or a kernel-side screen-off on lock via DCS level 0.
+
+## CPU speed (tcpu, 2026-11-23) — the big cores run at ~25 MHz
+
+- cpufreq-hw (performance-controller@11bc00): domain 0 (cpu0..3, A55) at
+  0x11bc10 is enabled (0x301) at LUT 0 = 2000 MHz (LUT 2000..500 step 100);
+  domain 1 (cpu4..7) at 0x11bd30 is **not enabled** (0), perf 12, LUT
+  2600..1400. MCU PLL block 0x0c030000 / clk-div 0x0c000000 read 0 from EL1.
+- Timed loop (kloops / 10 ms): cpu0 (A55, I-cache off, SCTLR 0x30d00800)
+  ~6590; cpu4 started with PSCI CPU_ON (works, returns 0): **74** with I-cache
+  on, 82 after big FREQ_PERF = 0. So the big cluster runs at ~1% of cpu0,
+  i.e. ~20-25 MHz: its PLL is off (26 MHz crystal) after LK.
+- iOS has been booting with cpus=8, so every thread scheduled on cpu4..7
+  crawls. dual_v28 = v22 with cpus=4 (ADT cpu0..3 = the A55 cluster).
+- Real fix later: enable the big PLL / MCUPM DVFS for domain 1 (with its
+  voltage, proc2-supply), then cpus=8 again.
