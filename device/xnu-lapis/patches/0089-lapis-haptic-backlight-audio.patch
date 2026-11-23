@@ -23,11 +23,12 @@ diff --git a/bsd/dev/sweet_ufs.c b/bsd/dev/sweet_ufs.c
 diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.cpp
 --- a/iokit/Kernel/arm/SweetBattery.cpp
 +++ b/iokit/Kernel/arm/SweetBattery.cpp
-@@ -24,8 +24,12 @@
+@@ -24,8 +24,13 @@
  extern "C" int lapis_battery_init(void);
  extern "C" int lapis_battery_read(struct lapis_battery_sample *s);
 +/* bsd/dev/sweet_lapis_display.c (lapis patch 0089): DCS 0x51 on DSI0 */
 +extern "C" int lapis_brightness_set(unsigned level);
++extern "C" void proc_selfname(char *buf, int size);
  #define LAPIS_BATTERY_DESIGN_MAH        6580    /* FDT / Android charge_full_design */
  #define LAPIS_BQ_STATUS_FC              (1u << 5)
  #define LAPIS_BQ_STATUS_DSG             (1u << 6)
@@ -36,13 +37,13 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +
  class SweetBattery : public IOPMPowerSource {
  	OSDeclareDefaultStructors(SweetBattery);
-@@ -384,4 +388,5 @@
+@@ -384,4 +389,5 @@
  	}
  	registerService();
 +	SweetBacklightCreate(provider);
  	return true;
  }
-@@ -419,3 +424,152 @@
+@@ -419,3 +425,213 @@
  	IOPMPowerSource::free();
  }
 +
@@ -63,8 +64,20 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +public:
 +	bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
 +	IOReturn setProperties(OSObject *properties) APPLE_KEXT_OVERRIDE;
++	/* v2: who reads what from this service (backboardd matched it in
++	 * dual_v19 but never set a property) */
++	using IOService::copyProperty;
++	using IOService::newUserClient;
++	OSObject *copyProperty(const char *aKey) const APPLE_KEXT_OVERRIDE;
++	OSObject *copyProperty(const OSSymbol *aKey) const APPLE_KEXT_OVERRIDE;
++	OSObject *copyProperty(const OSString *aKey) const APPLE_KEXT_OVERRIDE;
++	bool serializeProperties(OSSerialize *s) const APPLE_KEXT_OVERRIDE;
++	IOReturn newUserClient(task_t owningTask, void *securityID, UInt32 type,
++	    OSDictionary *properties, IOUserClient **handler) APPLE_KEXT_OVERRIDE;
 +private:
 +	unsigned fValue, fLogs;
++	mutable unsigned fReadLogs;
++	void logRead(const char *what, const char *key) const;
 +	void publishValue(void);
 +	bool findValue(OSObject *obj, unsigned depth, unsigned *out);
 +	void apply(unsigned value);
@@ -178,6 +191,55 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +		return kIOReturnSuccess;
 +	}
 +	return kIOReturnUnsupported;
++}
++
++void
++SweetBacklight::logRead(const char *what, const char *key) const
++{
++	if (fReadLogs < 60) {
++		char name[32];
++		fReadLogs++;
++		proc_selfname(name, (int)sizeof(name));
++		IOLog("LAPIS BACKLIGHT: %s %s by %s\n", what, key ? key : "(all)", name);
++	}
++}
++
++OSObject *
++SweetBacklight::copyProperty(const char *aKey) const
++{
++	logRead("read", aKey);
++	return IOService::copyProperty(aKey);
++}
++
++OSObject *
++SweetBacklight::copyProperty(const OSSymbol *aKey) const
++{
++	logRead("read", aKey ? aKey->getCStringNoCopy() : NULL);
++	return IOService::copyProperty(aKey);
++}
++
++OSObject *
++SweetBacklight::copyProperty(const OSString *aKey) const
++{
++	logRead("read", aKey ? aKey->getCStringNoCopy() : NULL);
++	return IOService::copyProperty(aKey);
++}
++
++bool
++SweetBacklight::serializeProperties(OSSerialize *s) const
++{
++	logRead("serialize", NULL);
++	return IOService::serializeProperties(s);
++}
++
++IOReturn
++SweetBacklight::newUserClient(task_t owningTask, void *securityID, UInt32 type,
++    OSDictionary *properties, IOUserClient **handler)
++{
++	char name[32];
++	proc_selfname(name, (int)sizeof(name));
++	IOLog("LAPIS BACKLIGHT: newUserClient type %u by %s\n", (unsigned)type, name);
++	return IOService::newUserClient(owningTask, securityID, type, properties, handler);
 +}
 +
 +static void
