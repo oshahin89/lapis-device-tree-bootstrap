@@ -18,8 +18,9 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   committed). gpufreq: 47 OPPs, idle at OPP 35 = 508 MHz / 0.59375 V, Vsram
   0.75 V; **GPUEB support On** (MediaTek's GPU embedded processor owns
   power / DVFS: power-up likely goes through its mailbox, not plain scpsys).
-- Mali-G615 is 5th-gen Valhall (like G715): check Mesa's panfrost / panthor
-  support for this architecture version before committing to step 4.
+- **Mesa supports it**: docs.mesa3d.org/drivers/panfrost lists "G615, G715 |
+  Valhall (v11)" with OpenGL ES 3.1 and Vulkan 1.4 (PanVK). On Linux that runs
+  on the panthor kernel driver (CSF), so step 3 targets panthor's UAPI.
 
 ## What exists
 
@@ -32,6 +33,14 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   system's .metallib) -> NIR (`air-frontend.patch`) -> a Mesa gallium driver
   (today freedreno / ir3 for Adreno), plus `darwin-drm` (a DRM-like interface
   between Mesa and an xnu GPU service). Their docs: `docs/air.md`.
+
+## First concrete steps
+
+- Shim probe: MFG power state after a reboot from Android (the audio domain
+  kept Android's state; the GPU may too), then GPU_ID at 0x13000000 + 0x0
+  (expect 0xb8a3xxxx-ish product id for G615 r1p3).
+- Android trace of the GPU power-up (regmap / clk / scpsys events, GPUEB
+  mailbox) with the boot-time cmdline trick, as for audio.
 
 ## What lapis needs (in order)
 
