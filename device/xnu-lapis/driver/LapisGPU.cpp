@@ -11,8 +11,9 @@
  * APSL 2.0, the Mali-G52 / panfrost one) and RedwoodGPU.
  *
  * What there is: DEV_QUERY (GPU and CS interface info), VMs (own page tables
- * and address space each), buffers (wired, write-combined kernel memory,
- * mapped into VMs page by page), groups with one queue, submissions (the
+ * and address space each), buffers (wired, cacheable kernel memory mapped into
+ * VMs page by page; the GPU is not coherent and write-combined buffers panic
+ * this port, so programs will need a cache sync request: not here yet), groups with one queue, submissions (the
  * user's stream is CALLed from the kernel's ring) and our own wait (0x7d) for
  * a group's submission by number. Not here yet: sync objects (Mesa's stand-in
  * for libdrm will map them onto 0x7d), tiler heaps, more than one queue per
@@ -161,12 +162,31 @@ lgBind(int vm, IOMemoryDescriptor * memory, uint64_t from, uint64_t va, uint64_t
 	return kIOReturnSuccess;
 }
 
+extern "C" void flush_dcache64(addr64_t addr, unsigned count, int phys);       /* osfmk/arm/caches.c */
+
+/* clean + invalidate the CPU's cache lines of [va, va + len): the GPU is not coherent (GPU_COHERENCY none) */
+static void
+lgSync(volatile void * va, uint64_t len)
+{
+	flush_dcache64((addr64_t) (uintptr_t) va, (unsigned) len, FALSE);
+}
+
+/*
+ * Wired, zero, cacheable kernel memory, as topaz's IOSurfaces. v44 panicked
+ * (phystokv_range: illegal PA 0x4aed0000) right where the first buffers were
+ * made write-combined (kIOMapWriteCombineCache): not on this port. The zero
+ * lines are cleaned at once, so no dirty line can later land over the GPU's
+ * writes; the CPU cleans what it writes and invalidates before it reads.
+ */
 static IOBufferMemoryDescriptor *
 lgNewMemory(uint64_t size)
 {
-	/* wired, zero, write-combined (as RedwoodMali's): what the CPU writes is in memory for the GPU */
-	return IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task, kIODirectionInOut | kIOMemoryKernelUserShared |
-	           kIOMapWriteCombineCache, (vm_size_t) size, PAGE_SIZE);
+	IOBufferMemoryDescriptor * m = IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task,
+	    kIODirectionInOut | kIOMemoryKernelUserShared, (vm_size_t) size, PAGE_SIZE);
+	if (m != NULL) {
+		lgSync(m->getBytesNoCopy(), size);
+	}
+	return m;
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -678,7 +698,6 @@ LapisGPUSelfTest(void)
 {
 	const uint64_t kCmdVA = 0x10000000, kTgtVA = 0x20000000, kHoleVA = 0x30000000;
 	IOBufferMemoryDescriptor * cmd = NULL, * tgt = NULL;
-	IOMemoryMap * cmap = NULL, * tmap = NULL;
 	int vm = 0, slot = -1;
 	uint32_t ok = 0, worst = 0, sum = 0, first_bad = ~0u;
 	IOByteCount len = 0;
@@ -690,17 +709,9 @@ LapisGPUSelfTest(void)
 		IOLog("LapisGPU: self-test: no memory\n");
 		goto done;
 	}
-	/* the CPU's own write-combined view of each, not the descriptor's default one */
-	cmap = cmd->createMappingInTask(kernel_task, 0, kIOMapAnywhere | kIOMapWriteCombineCache);
-	tmap = tgt->createMappingInTask(kernel_task, 0, kIOMapAnywhere | kIOMapWriteCombineCache);
-	IOLog("LapisGPU: self-test: cmd pa %#llx kva %p map %#llx, tgt pa %#llx kva %p map %#llx\n",
+	IOLog("LapisGPU: self-test: cmd pa %#llx kva %p, tgt pa %#llx kva %p\n",
 	    (unsigned long long) cmd->getPhysicalSegment(0, &len, kIOMemoryMapperNone), cmd->getBytesNoCopy(),
-	    cmap ? (unsigned long long) cmap->getVirtualAddress() : 0ull,
-	    (unsigned long long) tgt->getPhysicalSegment(0, &len, kIOMemoryMapperNone), tgt->getBytesNoCopy(),
-	    tmap ? (unsigned long long) tmap->getVirtualAddress() : 0ull);
-	if (cmap == NULL || tmap == NULL) {
-		goto done;
-	}
+	    (unsigned long long) tgt->getPhysicalSegment(0, &len, kIOMemoryMapperNone), tgt->getBytesNoCopy());
 	lgStage("2 VM");
 	vm = lapis_gpu_vm_create();
 	if (vm <= 0) {
@@ -721,19 +732,20 @@ LapisGPUSelfTest(void)
 	}
 	lgStage("5 first stream");
 	{
-		volatile uint64_t * c = (volatile uint64_t *) cmap->getVirtualAddress();
-		volatile uint32_t * t = (volatile uint32_t *) tmap->getVirtualAddress();
+		volatile uint64_t * c = (volatile uint64_t *) cmd->getBytesNoCopy();
+		volatile uint32_t * t = (volatile uint32_t *) tgt->getBytesNoCopy();
 		for (uint32_t i = 0; i < 200; i++) {
 			uint32_t at = (i % 64) * 8, value = 0xbeef0000u | i;
 			c[at + 0] = (1ull << 56) | (kTgtVA + (i % 16) * 4);             /* MOVE48 r0 */
 			c[at + 1] = (2ull << 56) | (2ull << 48) | value;                /* MOVE32 r2 */
 			c[at + 2] = (21ull << 56) | (2ull << 48) | (1ull << 16);        /* STORE_MULTIPLE [r0] = r2 */
 			c[at + 3] = (3ull << 56) | (0xffffull << 16);                   /* WAIT all */
-			__asm__ volatile ("dsb sy" ::: "memory");
+			lgSync(&c[at], 32);
 			uint64_t t0 = mach_absolute_time(), ns;
 			uint32_t seq = lapis_gpu_group_submit(slot, kCmdVA + at * 8, 32);
 			int w = seq ? lapis_gpu_group_wait(slot, seq, 100000) : -4;
 			absolutetime_to_nanoseconds(mach_absolute_time() - t0, &ns);
+			lgSync(t, 64);
 			if (w == 0 && t[i % 16] == value) {
 				ok++;
 				sum += (uint32_t) (ns / 1000);
@@ -752,7 +764,7 @@ LapisGPUSelfTest(void)
 		c[1] = (2ull << 56) | (2ull << 48) | 0xdeadu;
 		c[2] = (21ull << 56) | (2ull << 48) | (1ull << 16);
 		c[3] = (3ull << 56) | (0xffffull << 16);
-		__asm__ volatile ("dsb sy" ::: "memory");
+		lgSync(c, 32);
 		uint32_t seq = lapis_gpu_group_submit(slot, kCmdVA, 32);
 		int w = seq ? lapis_gpu_group_wait(slot, seq, 200000) : -4;
 		IOLog("LapisGPU: self-test: store to an unbound address: wait %d, group fatal %d\n", w,
@@ -768,9 +780,11 @@ LapisGPUSelfTest(void)
 			c[1] = (2ull << 56) | (2ull << 48) | (0xcafe0000u | i);
 			c[2] = (21ull << 56) | (2ull << 48) | (1ull << 16);
 			c[3] = (3ull << 56) | (0xffffull << 16);
-			__asm__ volatile ("dsb sy" ::: "memory");
+			lgSync(c, 32);
 			uint32_t s2 = lapis_gpu_group_submit(slot, kCmdVA, 32);
-			if (s2 && lapis_gpu_group_wait(slot, s2, 100000) == 0 && t[0] == (0xcafe0000u | i)) {
+			int w2 = s2 ? lapis_gpu_group_wait(slot, s2, 100000) : -4;
+			lgSync(t, 64);
+			if (w2 == 0 && t[0] == (0xcafe0000u | i)) {
 				again++;
 			}
 		}
@@ -784,8 +798,6 @@ done:
 	if (vm > 0) {
 		lapis_gpu_vm_destroy(vm);
 	}
-	OSSafeReleaseNULL(cmap);
-	OSSafeReleaseNULL(tmap);
 	OSSafeReleaseNULL(cmd);
 	OSSafeReleaseNULL(tgt);
 	IOLog("LapisGPU: self-test: done\n");
