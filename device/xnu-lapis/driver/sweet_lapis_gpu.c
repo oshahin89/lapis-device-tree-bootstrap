@@ -201,7 +201,7 @@ lg_load_fw(unsigned *nsec)
 			if (!(fl & (1u << 5)) && ve > vs) {     /* PROT sections skipped */
 				uint32_t pages = (ve - vs) >> 12;
 				uint64_t pa = lg_alloc(pages);  /* zeroed */
-				if (!pa || de > size) {
+				if (!pa || de < ds || de > LG_FW_MAX) {  /* size is the header length */
 					return -4;
 				}
 				volatile uint8_t *dst = lg_pool_va(pa);
