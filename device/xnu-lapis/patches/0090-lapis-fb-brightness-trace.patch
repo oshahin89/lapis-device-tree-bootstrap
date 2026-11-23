@@ -1,7 +1,61 @@
 diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
 --- a/iokit/Kernel/arm/SweetFramebuffer.cpp
 +++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
-@@ -647,6 +647,36 @@
+@@ -43,6 +43,7 @@
+ #include <IOKit/IOUserClient.h>
+ #include <IOKit/IOKitKeys.h>
+ #include <IOKit/IOLib.h>
++#include <libkern/c++/OSCollectionIterator.h>
+ #include <IOKit/IOLocks.h>
+ #include <IOKit/IOWorkLoop.h>
+ #include <IOKit/IOTimerEventSource.h>
+@@ -120,6 +121,7 @@
+ 	uint32_t      fFadeStep;      /* fade-out steps done while off */
+ 
+ 	bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
++	IOReturn setProperties(OSObject *properties) APPLE_KEXT_OVERRIDE;
+ 	void addClient(IOMobileFramebufferUserClient *client);
+ 	void removeClient(IOMobileFramebufferUserClient *client);
+ 	void swap(const uint8_t *rec);
+@@ -153,6 +155,37 @@
+ 
+ OSDefineMetaClassAndStructors(IOMobileFramebufferUserClient, IOUserClient);
+ 
++/*
++ * lapis: OLED iPhones take brightness on the display service itself
++ * (e.g. IOMFBBrightnessLevel) rather than on a backlight; log every property
++ * userland sets here, with numbers, to find the key and its scale.
++ */
++IOReturn
++AppleCLCD::setProperties(OSObject *properties)
++{
++	static unsigned logs;
++	OSDictionary *dict = OSDynamicCast(OSDictionary, properties);
++	if (dict && logs < 200) {
++		char name[32];
++		proc_selfname(name, sizeof(name));
++		OSCollectionIterator *it = OSCollectionIterator::withCollection(dict);
++		if (it) {
++			OSSymbol *key;
++			while ((key = OSDynamicCast(OSSymbol, it->getNextObject())) && logs < 200) {
++				OSObject *o = dict->getObject(key);
++				OSNumber *n = OSDynamicCast(OSNumber, o);
++				logs++;
++				IOLog("LAPIS BR: %s set AppleCLCD %s = %s %#llx\n", name,
++				    key->getCStringNoCopy(),
++				    o ? o->getMetaClass()->getClassName() : "null",
++				    n ? n->unsigned64BitValue() : 0ULL);
++			}
++			it->release();
++		}
++	}
++	return kIOReturnSuccess;
++}
++
+ bool
+ AppleCLCD::start(IOService *provider)
+ {
+@@ -647,6 +680,36 @@
  	if (args->structureOutputDescriptor == NULL && args->structureOutput != NULL) {
  		bzero(args->structureOutput, args->structureOutputSize);
  	}
