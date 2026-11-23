@@ -49,6 +49,9 @@ extern kern_return_t IOConnectMapMemory64(io_connect_t connect, uint32_t memoryT
 extern kern_return_t IOConnectUnmapMemory64(io_connect_t connect, uint32_t memoryType, task_port_t fromTask,
     mach_vm_address_t atAddress);
 #define kIOMapAnywhere          0x00000001
+/* write-combined, as panthor maps buffers for Mesa: the cache mode comes
+ * from the program's options, not the driver's (lapis v49) */
+#define kIOMapWriteCombineCache 0x00000400
 
 #define LAPIS_WAIT              0x7d
 #define LAPIS_LOG               0x7f
@@ -642,7 +645,7 @@ lapis_drm_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	}
 	mach_vm_address_t at = 0;
 	mach_vm_size_t size = 0;
-	if (IOConnectMapMemory64(connection, (uint32_t)offset, mach_task_self(), &at, &size, kIOMapAnywhere) != KERN_SUCCESS) {
+	if (IOConnectMapMemory64(connection, (uint32_t)offset, mach_task_self(), &at, &size, kIOMapAnywhere | kIOMapWriteCombineCache) != KERN_SUCCESS) {
 		errno = ENOMEM;
 		return MAP_FAILED;
 	}

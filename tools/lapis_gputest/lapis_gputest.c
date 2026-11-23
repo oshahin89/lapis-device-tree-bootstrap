@@ -34,6 +34,10 @@ extern kern_return_t IOConnectCallStructMethod(mach_port_t connection, uint32_t 
 extern kern_return_t IOConnectMapMemory64(io_connect_t connect, uint32_t memoryType, task_port_t intoTask,
     mach_vm_address_t *atAddress, mach_vm_size_t *ofSize, uint32_t options);
 #define kIOMapAnywhere 0x00000001
+/* the cache mode is the program's to ask for: IOKit takes the mapping's
+ * cache bits from these options, not from the driver's clientMemoryForType
+ * (v49: asked without it, the "write-combined" round read stale memory) */
+#define kIOMapWriteCombineCache 0x00000400
 
 /* panthor_drm.h (MIT, Collabora) and LapisGPU.cpp: requests and structures */
 enum {
@@ -139,7 +143,7 @@ new_buffer(uint64_t size, uint32_t *handle, void **cpu)
 	mach_vm_address_t addr = 0;
 	mach_vm_size_t msize = 0;
 	if (kr == 0) {
-		kr = IOConnectMapMemory64(conn, (uint32_t)mo.offset, mach_task_self(), &addr, &msize, kIOMapAnywhere);
+		kr = IOConnectMapMemory64(conn, (uint32_t)mo.offset, mach_task_self(), &addr, &msize, kIOMapAnywhere | kIOMapWriteCombineCache);
 	}
 	if (kr) {
 		say("BO map %u: %#x", bo.handle, kr);
