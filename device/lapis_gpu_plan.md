@@ -81,8 +81,19 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   (lapis_boot_pack.py --gpufw), page pool at PA 0x58000000 (both below XNU's
   RAM). v39 failed at `firmware -4`: the header's size field (offset 16) is
   the header length (0x3c0), not the file length.
-- Next: keep the GPU up after boot (no stop), IRQ handler, and a
-  panthor-like user interface for Mesa.
+- ~~Milestone 5: the GPU stays up~~ **done (dual_v42, 2026-11-23).** No IRQ
+  line in this port, so a 20 ms service thread does panthor's IRQ work
+  (JOB_INT clear, GLB/CSG/CS event acks, GPU/MMU/CS fault logs); the queue
+  takes any number of submissions (sweet_lapis_gpu_submit). Self-test
+  (device/captures/sweetlog_v42_gpu.txt): 300 back-to-back streams all ran,
+  avg 21 us, worst 74 us, ring wrapped 4 times; a stream + PING at 1/10/30/
+  60/120 s all fine, MCU enabled, 0 faults; iOS boots as before.
+  **Submissions must be whole 64-byte blocks (NOP padded):** v41 sent
+  32-byte ones and every one at +32 in a block was skipped (extract still
+  reached insert): the stream replays its stale prefetch of the block.
+  lapisgpu=2 stops the GPU after the self-test.
+- Next: a panthor-like user interface (buffer objects, VM bind, group/queue
+  create, submit, sync) for Mesa panfrost, and real shaders.
 
 ## tgpu v1 on the phone (dual_v29, 2026-11-23)
 
