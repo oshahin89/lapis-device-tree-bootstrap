@@ -65,11 +65,15 @@ if ! ninja -C build > ninja.log 2>&1; then
 fi
 
 mkdir -p out
-cp build/src/gallium/targets/osmesa/libOSMesa*.dylib build/src/mapi/shared-glapi/libglapi*.dylib out/ 2>/dev/null || true
 OSMESA=$(ls build/src/gallium/targets/osmesa/libOSMesa.*.dylib | head -1)
+cp "$OSMESA" out/
 "$CC" -arch arm64 -isysroot "$SDK" -miphoneos-version-min=16.0 -O2 -Wall \
 	-I mesa-$VERSION/include -o out/lapis_osmesatest "$ROOT/tools/lapis_osmesatest/lapis_osmesatest.c" \
-	"$OSMESA" -Wl,-rpath,@executable_path -framework IOKit -framework CoreFoundation
+	"$OSMESA" -framework IOKit -framework CoreFoundation
+# on the phone the library sits in the bbfw slot (tools/lapis_rootslot.sh):
+# the program asks dyld for it there, by that file's path
+install_name_tool -change @rpath/$(basename "$OSMESA") \
+	"${LAPIS_OSMESA_PATH:-/usr/standalone/update/ICE17.Release.bbfw}" out/lapis_osmesatest
 for f in out/*; do codesign -s - -f "$f"; done
 ls -la out
 otool -L out/lapis_osmesatest out/libOSMesa*.dylib | head -40
