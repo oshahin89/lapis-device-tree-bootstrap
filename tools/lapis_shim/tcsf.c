@@ -20,7 +20,9 @@
  * 0x501) and nothing ran; v3 kicked CS0 again: CSG doorbell ack stuck at 1.
  * v4: group start and stream start as two steps, each ack waited for:
  * CSG doorbell acked, CS0 still ack 0. v5: no tiler endpoint (TILER_PRESENT
- * reads 0), read-backs, CSG_STATUS_UPDATE, the queue's user doorbell.
+ * reads 0), read-backs, CSG_STATUS_UPDATE, the queue's user doorbell: no CSG
+ * request acked after START, JOB_INT 0x80000001 pending. v6 services the
+ * IRQs (JOB_INT clear, GLB/CSG event acks, cs_irq_ack) before retrying.
  * Writes: the GPUEB mailbox, the GPU, and DRAM at POOL.
  */
 #include <stdint.h>
@@ -247,7 +249,7 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	(void)dtb; (void)entry_el;
 	con_clear(BLUE);
 	con_skip();		/* the camera hole covers the first lines */
-	con_str("LAPIS", "tcsf v5: CSF boot + first command stream");
+	con_str("LAPIS", "tcsf v6: CSF boot + first command stream");
 	if ((rd(0x1c001eb4) & 0xc0000000u) != 0xc0000000u) {
 		con_str("FAIL", "mfg0 domain off");
 		goto out;
@@ -400,6 +402,23 @@ void shim_main(uint64_t dtb, uint64_t entry_el)
 	con_hex2("CS0IN", "ring lo=", csin[0x10 / 4], "size=", csin[0x18 / 4]);
 	con_hex2("CS0IN", "uin=", csin[0x30 / 4], "uout=", csin[0x38 / 4]);
 	con_hex2("CS0IN", "config=", csin[0x04 / 4], "irqmask=", csin[0x0c / 4]);
+	/* v6: service the pending interrupts the way panthor's handlers do:
+	 * clear JOB_INT, ack GLB events, ack CSG0 events and its CS irqs, then
+	 * ring the CSG doorbell */
+	uint32_t raw = g(JOB_INT_RAWSTAT);
+	con_hex2("IRQ", "job_raw=", raw, "csg req/ack=", (csgin[0] & 0xffff0000u) | (csgout[0] >> 16));
+	con_hex2("IRQ", "csg req=", csgin[0], "csg ack=", csgout[0]);
+	con_hex2("IRQ", "glb req=", gin[0], "glb ack=", gout[0]);
+	gw(JOB_INT_CLEAR, raw);
+	gin[0] = (gin[0] & ~0x07f00000u) | (gout[0] & 0x07f00000u);	/* GLB_EVT_MASK */
+	csgin[0x0c / 4] = csgout[0x0c / 4];				/* cs_irq_ack */
+	csgin[0] = (csgin[0] & ~0xb0000000u) | (csgout[0] & 0xb0000000u);	/* SYNC_UPDATE|IDLE|PROGRESS */
+	__asm__ volatile("dsb sy" ::: "memory");
+	toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);
+	gw(0x80000, 1);
+	udelay(1000);
+	uint32_t c7 = wait_acked(&csin[0], &csout[0], 7u, 10000);
+	con_hex2("IRQ", "serviced, cs start ack x10us=", c7, "job_raw now=", g(JOB_INT_RAWSTAT));
 	toggle(&csgin[0], csgout[0], 1u << 5);	/* CSG_STATUS_UPDATE */
 	toggle(&gin[0x08 / 4], gout[0x08 / 4], 1u);
 	gw(0x80000, 1);
