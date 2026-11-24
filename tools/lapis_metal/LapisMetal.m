@@ -360,7 +360,9 @@ deviceNewBufferNoCopy(id self, SEL _cmd, void *bytes, NSUInteger length, MTLReso
 {
 	(void)self;
 	(void)_cmd;
-	return newBuffer(bytes, length, options, deallocator ? [deallocator copy] : ^(void *p, NSUInteger n) { (void)p; (void)n; });
+	void (^keep)(void *, NSUInteger) = deallocator ? (void (^)(void *, NSUInteger))[deallocator copy]
+	                                              : ^(void *p, NSUInteger n) { (void)p; (void)n; };
+	return newBuffer(bytes, length, options, keep);
 }
 
 static void
