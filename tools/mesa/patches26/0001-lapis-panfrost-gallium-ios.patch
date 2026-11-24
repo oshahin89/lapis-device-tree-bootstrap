@@ -33,7 +33,17 @@ diff -ruN a/meson.build b/meson.build
    pre_args += '-DHAVE_LIBDRM'
    if with_dri_platform == 'drm' and with_dri
      with_gallium_drisw_kms = true
-@@ -2556,6 +2568,19 @@
+@@ -1063,6 +1075,9 @@
+   with_any_opengl,
+   with_any_vk,
+   with_clc,
++  # lapis: gallium panfrost used directly (src/gallium/targets/lapis), no
++  # GL or Vulkan frontend: it still needs NIR and gallium's cso cache
++  host_machine.system() == 'darwin' and with_gallium_panfrost,
+   with_gallium_va and with_video_encode,
+   with_gallium_mediafoundation and with_video_encode,
+ ].contains(true)
+@@ -2556,6 +2571,19 @@
    vulkan_manifest_suffix = 'json'
  endif
  
@@ -270,7 +280,7 @@ diff -ruN a/src/gallium/targets/lapis/meson.build b/src/gallium/targets/lapis/me
 +    inc_gallium_drivers,
 +  ],
 +  link_with : [libgallium],
-+  dependencies : [driver_panfrost, idep_mesautil, idep_xmlconfig, dep_libdrm],
++  dependencies : [driver_panfrost, idep_nir, idep_mesautil, idep_xmlconfig, dep_libdrm],
 +  gnu_symbol_visibility : 'hidden',
 +  install : true,
 +)
