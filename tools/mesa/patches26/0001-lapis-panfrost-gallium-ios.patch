@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1040 @@
+@@ -0,0 +1,1048 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -604,9 +604,17 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   return true;
 +}
 +
++/*
++ * What gallium's own frontends do before a driver sees NIR and air_to_nir
++ * leaves to the runtime: system values read through derefs of `system`
++ * variables (Metal's [[position]] in a fragment shader) become intrinsics.
++ * panfrost's compiler crashed on the deref (sweetlog_m5c: SIGSEGV in
++ * bi_alu_src_index compiling lapis_fs_pos).
++ */
 +static void
 +shift_ubos(nir_shader *nir)
 +{
++   NIR_PASS(_, nir, nir_lower_system_values);
 +   if (nir_shader_intrinsics_pass(nir, shift_ubo, nir_metadata_control_flow, NULL))
 +      nir->info.num_ubos += LAPIS_UBO_SHIFT;
 +}
