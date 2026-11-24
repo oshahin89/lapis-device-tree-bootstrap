@@ -79,8 +79,8 @@ meson setup build mesa-$VERSION --cross-file cross-ios.ini --wrap-mode=nofallbac
 	--prefix=/usr/local/lapis --libdir=lib --buildtype=release -Db_ndebug=true "${COMMON[@]}" \
 	-Dllvm=disabled -Dmesa-clc=system -Dprecomp-compiler=system > meson-setup.log 2>&1 \
 	|| { tail -60 meson-setup.log; exit 1; }
-if ! ninja -C build src/gallium/targets/lapis/liblapis_gallium.dylib > ninja.log 2>&1; then
-	grep -E "error:|FAILED|Undefined|referenced from" ninja.log | head -80
+if ! ninja -k 0 -C build src/gallium/targets/lapis/liblapis_gallium.dylib > ninja.log 2>&1; then
+	grep -E "error:|FAILED|Undefined|referenced from" ninja.log | sort -u | head -200
 	tail -40 ninja.log
 	exit 1
 fi

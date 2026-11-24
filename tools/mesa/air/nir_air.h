@@ -18,6 +18,10 @@
 
 #include "compiler/shader_enums.h"
 
+/* lapis: Mesa 26 renamed gl_shader_stage to mesa_shader_stage (this front end
+ * was written for Mesa 25.0.7) */
+typedef mesa_shader_stage gl_shader_stage;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
