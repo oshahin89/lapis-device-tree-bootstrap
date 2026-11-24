@@ -78,6 +78,68 @@ static id gDevice;
 static Protocol *gProtocols[64];
 static unsigned gProtocolCount;
 
+/*
+ * How Metal takes the class: the first run (sweetlog_m2) loaded this dylib
+ * and registered LapisMetalDevice, yet MTLCreateSystemDefaultDevice() gave
+ * nil without ever sending -initWithAcceleratorPort:. A class made at run
+ * time is in no image, so a bundle's -classNamed: and -principalClass do not
+ * find it: both are answered here for this bundle (AGXMetalA11.bundle) with
+ * our class, and every call is logged, to see what Metal asks.
+ */
+static IMP gClassNamed, gPrincipalClass;
+static Class gDeviceClass;
+
+static BOOL
+isOurBundle(NSBundle *b)
+{
+	return [b.bundlePath hasSuffix:@"/AGXMetalA11.bundle"];
+}
+
+static Class
+bundleClassNamed(NSBundle *self, SEL _cmd, NSString *name)
+{
+	Class c = ((Class (*)(id, SEL, NSString *))gClassNamed)(self, _cmd, name);
+	if (isOurBundle(self)) {
+		if (!c && gDeviceClass && [name isEqualToString:@"LapisMetalDevice"]) {
+			c = gDeviceClass;
+		}
+		say([NSString stringWithFormat:@"-[NSBundle classNamed:%@] -> %s", name, c ? class_getName(c) : "nil"]);
+	}
+	return c;
+}
+
+static Class
+bundlePrincipalClass(NSBundle *self, SEL _cmd)
+{
+	Class c = ((Class (*)(id, SEL))gPrincipalClass)(self, _cmd);
+	if (isOurBundle(self)) {
+		if (gDeviceClass) {
+			c = gDeviceClass;
+		}
+		say([NSString stringWithFormat:@"-[NSBundle principalClass] -> %s", c ? class_getName(c) : "nil"]);
+	}
+	return c;
+}
+
+static void
+hookBundle(void)
+{
+	Method m = class_getInstanceMethod([NSBundle class], @selector(classNamed:));
+	gClassNamed = method_setImplementation(m, (IMP)bundleClassNamed);
+	m = class_getInstanceMethod([NSBundle class], @selector(principalClass));
+	gPrincipalClass = method_setImplementation(m, (IMP)bundlePrincipalClass);
+}
+
+/* class methods too: Metal may ask the class itself before -init (logged) */
+static id
+deviceAllocWithZone(Class self, SEL _cmd, void *zone)
+{
+	say([NSString stringWithFormat:@"+[%s allocWithZone:]", class_getName(self)]);
+	struct objc_super sup = { (id)self, object_getClass(gBase) };
+	id (*send)(struct objc_super *, SEL, void *) = (id (*)(struct objc_super *, SEL, void *))objc_msgSendSuper;
+	return send(&sup, _cmd, zone);
+}
+
 static void
 addProtocols(Class cls, const char *const *names)
 {
@@ -217,7 +279,9 @@ registerClasses(void)
 		return;
 	}
 	Class device = objc_allocateClassPair(gBase, "LapisMetalDevice", 0);
-	static const char *const deviceProtocols[] = { "MTLDevice", "MTLDeviceSPI", NULL };
+	class_addProtocol(device, @protocol(MTLDevice));
+	gProtocols[gProtocolCount++] = @protocol(MTLDevice);
+	static const char *const deviceProtocols[] = { "MTLDeviceSPI", NULL };
 	addProtocols(device, deviceProtocols);
 	class_addMethod(device, @selector(initWithAcceleratorPort:), (IMP)deviceInit, "@@:I");
 	class_addMethod(device, @selector(name), (IMP)deviceName, "@@:");
@@ -228,11 +292,16 @@ registerClasses(void)
 	class_addMethod(device, sel_registerName("newCommandQueueWithMaxCommandBufferCount:"), (IMP)deviceNewQueueMax, "@@:Q");
 	class_addMethod(device, sel_registerName("methodSignatureForSelector:"), (IMP)stubSignature, "@@::");
 	class_addMethod(device, sel_registerName("forwardInvocation:"), (IMP)stubForward, "v@:@");
+	class_addMethod(object_getClass(device), sel_registerName("allocWithZone:"), (IMP)deviceAllocWithZone, "@@:^v");
 	objc_registerClassPair(device);
+	gDeviceClass = device;
+	hookBundle();
 
 	if (gQueueBase) {
 		gQueueClass = objc_allocateClassPair(gQueueBase, "LapisMetalCommandQueue", 0);
-		static const char *const queueProtocols[] = { "MTLCommandQueue", "MTLCommandQueueSPI", NULL };
+		class_addProtocol(gQueueClass, @protocol(MTLCommandQueue));
+		gProtocols[gProtocolCount++] = @protocol(MTLCommandQueue);
+		static const char *const queueProtocols[] = { "MTLCommandQueueSPI", NULL };
 		addProtocols(gQueueClass, queueProtocols);
 		class_addMethod(gQueueClass, sel_registerName("methodSignatureForSelector:"), (IMP)stubSignature, "@@::");
 		class_addMethod(gQueueClass, sel_registerName("forwardInvocation:"), (IMP)stubForward, "v@:@");

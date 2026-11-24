@@ -1,0 +1,14 @@
+LapisGPU: IOAcceleratorES published (lapismetal=1): MetalPluginName AGXMetalA11, class LapisMetalDevice
+LapisGPU client: metaltest: start (pid 88); IOAcceleratorES present
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: loaded
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: no protocol MTLCommandQueue in this system's Metal
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: no protocol MTLCommandQueueSPI in this system's Metal
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: LapisMetalDevice registered (a subclass of _MTLDevice)
+LapisGPU client: metaltest: MTLCreateSystemDefaultDevice: nil ""
+LapisGPU client: metaltest: done
+LapisGPU client: LapisMetal[backboardd 56]: loaded
+LapisGPU client: LapisMetal[backboardd 56]: not shown the device (lapismetal=1: 1 the test program, 2 all but backboardd, 3 all)
+LapisGPU client: LapisMetal[SpringBoard 26]: loaded
+LapisGPU client: LapisMetal[SpringBoard 26]: not shown the device (lapismetal=1: 1 the test program, 2 all but backboardd, 3 all)
+LapisGPU client: LapisMetal[chronod 100]: loaded
+LapisGPU client: LapisMetal[chronod 100]: not shown the device (lapismetal=1: 1 the test program, 2 all but backboardd, 3 all)
