@@ -1,0 +1,38 @@
+LapisGPU client: metaltest: start (pid 88); IOAcceleratorES present
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: loaded
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: no protocol MTLCommandQueueSPI in this system's Metal
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: LapisMetalDevice registered (a subclass of _MTLDevice)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: -[NSBundle principalClass] -> LapisMetalDevice
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: +[LapisMetalDevice allocWithZone:]
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: a device for the accelerator port 6147 (made)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: asked and not implemented: LapisMetalDevice -featureProfile (returns Q, answered with 
+LapisGPU client: metaltest: MTLCreateSystemDefaultDevice: LapisMetalDevice "Mali-G615 MC2 (lapis, Mesa panfrost)"
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newCommandQueue: a queue that queues nothing (yet)
+LapisGPU client: metaltest: newCommandQueue: LapisMetalCommandQueue
+LapisGPU client: lapis-drm: cache sync #1: 9 maps, 144 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #2: 9 maps, 144 KiB, avg 31 us
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: GPU: Mesa panfrost over LapisGPU
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:4096 options:0 -> GPU memory
+LapisGPU client: metaltest: newBufferWithLength: LapisMetalBuffer length 4096 contents 0x106d30000
+LapisGPU client: metaltest: buffer: 1024/1024 words written and read back; storage mode 0
+LapisGPU client: metaltest: newBufferWithBytes: LapisMetalBuffer [1 2 3 4]
+LapisGPU client: metaltest: commandBuffer: LapisMetalCommandBuffer
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:1048576 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:1048576 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:65536 options:0 -> GPU memory
+LapisGPU client: metaltest: blitCommandEncoder: LapisMetalBlitCommandEncoder
+LapisGPU client: lapis-drm: cache sync #3: 17 maps, 2448 KiB, avg 71 us
+LapisGPU client: lapis-drm: cache sync #4: 17 maps, 2448 KiB, avg 85 us
+LapisGPU client: metaltest: blit: 7.96 ms, status 4, handler saw 4; copy 262144/262144 words, fill 65536/65536 bytes
+LapisGPU client: lapis-drm: cache sync #50: 17 maps, 2448 KiB, avg 601 us
+LapisGPU client: lapis-drm: cache sync #100: 17 maps, 2448 KiB, avg 358 us
+LapisGPU client: lapis-drm: cache sync #150: 17 maps, 2448 KiB, avg 274 us
+LapisGPU client: lapis-drm: cache sync #200: 17 maps, 2448 KiB, avg 262 us
+LapisGPU client: lapis-drm: cache sync #250: 17 maps, 2448 KiB, avg 239 us
+LapisGPU client: lapis-drm: cache sync #300: 17 maps, 2448 KiB, avg 223 us
+LapisGPU client: lapis-drm: cache sync #350: 17 maps, 2448 KiB, avg 706 us
+LapisGPU client: lapis-drm: cache sync #400: 17 maps, 2448 KiB, avg 632 us
+LapisGPU client: lapis-drm: cache sync #450: 17 maps, 2448 KiB, avg 573 us
+LapisGPU client: lapis-drm: cache sync #500: 17 maps, 2448 KiB, avg 527 us
+LapisGPU client: metaltest: 100 command buffers: 100 right, 5.623 ms each
+LapisGPU client: metaltest: done

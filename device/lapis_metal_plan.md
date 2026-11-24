@@ -57,7 +57,17 @@ work that lets CoreAnimation draw on the GPU.
      `MTLIOAccelDevice` has.
    - ARC retains a C function's `id self`: every `-dealloc` IMP takes it
      `__unsafe_unretained`, or it is released after being freed.
-3. (next) command buffers, a blit and a compute kernel through Metal's own
-   objects over gallium; buffers in GPU memory (liblapis_gallium).
+3. ~~Command buffers and blits on the GPU~~ **done (2026-11-25,
+   device/captures/sweetlog_m3_metal.txt).** liblapis_gallium exports
+   `lapis_gpu_*` (persistently mapped buffers, copy, fill, flush, fence
+   wait), which LapisMetal reaches by dlopen: buffers in GPU memory,
+   `LapisMetalCommandBuffer` (commit = one submission, its fence waited for
+   off-thread, then the completed handlers) and
+   `LapisMetalBlitCommandEncoder`. Through Metal's own API: a 1 MiB copy
+   262144/262144 words, fills (one unaligned) 65536/65536 bytes, status
+   Completed seen by the handler, 100 command buffers right (5.6 ms each at
+   boot; every submission syncs the CPU caches over all of Mesa's maps,
+   2.4 MiB).
+   Still to do: compute kernels (needs Apple's AIR -> NIR: hakios's front end).
 4. Render pass: a triangle through `MTLRenderCommandEncoder`.
 5. IOSurface textures; then backboardd (CoreAnimation) on the device.
