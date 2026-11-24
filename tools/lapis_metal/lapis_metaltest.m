@@ -220,6 +220,101 @@ main(void)
 				say(@"%@: %.2f ms, status %ld; %u/%u right%@", name, ms, (long)c3.status, right, total,
 				    firstBad != ~0u ? [NSString stringWithFormat:@" (first wrong [%u] = %#x)", firstBad, z[firstBad]] : @"");
 			}
+
+			/* milestone 5: a triangle through a render pass */
+			{
+				MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+				                                                                                width:256
+				                                                                               height:256
+				                                                                            mipmapped:NO];
+				td.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+				id<MTLTexture> tex = [dev newTextureWithDescriptor:td];
+				say(@"newTextureWithDescriptor: %s %lux%lu", tex ? object_getClassName(tex) : "nil", (unsigned long)tex.width,
+				    (unsigned long)tex.height);
+				MTLRenderPipelineDescriptor *pd = [MTLRenderPipelineDescriptor new];
+				pd.vertexFunction = [lib newFunctionWithName:@"lapis_tri_vs"];
+				pd.fragmentFunction = [lib newFunctionWithName:@"lapis_tri_fs"];
+				pd.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm;
+				err = nil;
+				t0 = [NSDate date];
+				id<MTLRenderPipelineState> rp = (pd.vertexFunction && pd.fragmentFunction)
+				    ? [dev newRenderPipelineStateWithDescriptor:pd error:&err] : nil;
+				say(@"render pipeline: %s in %.1f ms %@", rp ? object_getClassName(rp) : "nil", -[t0 timeIntervalSinceNow] * 1000,
+				    err ? err.localizedDescription : @"");
+				if (tex && rp) {
+					static const float red[3][2][4] = {
+						{ { -0.8f, -0.8f, 0, 1 }, { 1, 0, 0, 1 } },
+						{ { 0.8f, -0.8f, 0, 1 }, { 1, 0, 0, 1 } },
+						{ { 0.0f, 0.8f, 0, 1 }, { 1, 0, 0, 1 } },
+					};
+					static const float rgb[3][2][4] = {
+						{ { -0.8f, -0.8f, 0, 1 }, { 1, 0, 0, 1 } },
+						{ { 0.8f, -0.8f, 0, 1 }, { 0, 1, 0, 1 } },
+						{ { 0.0f, 0.8f, 0, 1 }, { 0, 0, 1, 1 } },
+					};
+					id<MTLBuffer> vRed = [dev newBufferWithBytes:red length:sizeof(red) options:0];
+					id<MTLBuffer> vRgb = [dev newBufferWithBytes:rgb length:sizeof(rgb) options:0];
+					static uint32_t px[256 * 256];
+					for (int round = 0; round < 2; round++) {
+						MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
+						rpd.colorAttachments[0].texture = tex;
+						rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
+						rpd.colorAttachments[0].storeAction = MTLStoreActionStore;
+						rpd.colorAttachments[0].clearColor = MTLClearColorMake(0, 0.5, 1, 1);
+						id<MTLCommandBuffer> c4 = [q commandBuffer];
+						id<MTLRenderCommandEncoder> re = [c4 renderCommandEncoderWithDescriptor:rpd];
+						if (!round) {
+							say(@"renderCommandEncoderWithDescriptor: %s", re ? object_getClassName(re) : "nil");
+						}
+						float tint[4] = { 1, 1, 1, 1 };
+						[re setRenderPipelineState:rp];
+						[re setVertexBuffer:(round ? vRgb : vRed) offset:0 atIndex:0];
+						[re setFragmentBytes:tint length:sizeof(tint) atIndex:0];
+						[re drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+						[re endEncoding];
+						t0 = [NSDate date];
+						[c4 commit];
+						[c4 waitUntilCompleted];
+						ms = -[t0 timeIntervalSinceNow] * 1000;
+						[tex getBytes:px bytesPerRow:256 * 4 fromRegion:MTLRegionMake2D(0, 0, 256, 256) mipmapLevel:0];
+						/* RGBA8 bytes read as a little-endian word: red ff0000ff, the clear ffff8000 */
+						say(@"triangle %s: %.2f ms, status %ld; centre %08x, (30,230) %08x (inside: the base is at the bottom), "
+						    @"(30,25) %08x (outside), (4,4) %08x (the clear)",
+						    round ? "rgb" : "red", ms, (long)c4.status, px[128 * 256 + 128], px[230 * 256 + 30], px[25 * 256 + 30],
+						    px[4 * 256 + 4]);
+					}
+					unsigned redCount = 0, clearCount = 0;
+					[tex getBytes:px bytesPerRow:256 * 4 fromRegion:MTLRegionMake2D(0, 0, 256, 256) mipmapLevel:0];
+					for (unsigned i = 0; i < 256 * 256; i++) {
+						clearCount += px[i] == 0xffff8000u;
+					}
+					t0 = [NSDate date];
+					for (unsigned i = 0; i < 100; i++) {
+						MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
+						rpd.colorAttachments[0].texture = tex;
+						rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
+						rpd.colorAttachments[0].clearColor = MTLClearColorMake(0, 0.5, 1, 1);
+						id<MTLCommandBuffer> c5 = [q commandBuffer];
+						id<MTLRenderCommandEncoder> re = [c5 renderCommandEncoderWithDescriptor:rpd];
+						float tint[4] = { 1, 1, 1, 1 };
+						[re setRenderPipelineState:rp];
+						[re setVertexBuffer:vRed offset:0 atIndex:0];
+						[re setFragmentBytes:tint length:sizeof(tint) atIndex:0];
+						[re drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+						[re endEncoding];
+						[c5 commit];
+						[c5 waitUntilCompleted];
+					}
+					double each = -[t0 timeIntervalSinceNow] * 10;
+					[tex getBytes:px bytesPerRow:256 * 4 fromRegion:MTLRegionMake2D(0, 0, 256, 256) mipmapLevel:0];
+					for (unsigned i = 0; i < 256 * 256; i++) {
+						redCount += px[i] == 0xff0000ffu;
+					}
+					/* the triangle covers 0.8 * 1.6 / 4 of the target: ~20972 of 65536 pixels */
+					say(@"100 frames: %.3f ms each; the red triangle covers %u pixels (want ~20972); the rgb frame left %u clear",
+					    each, redCount, clearCount);
+				}
+			}
 		}
 		say(@"done");
 	}

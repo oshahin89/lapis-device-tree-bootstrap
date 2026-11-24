@@ -37,3 +37,25 @@ kernel void lapis_sum(device const float *in [[buffer(0)]], device float *out [[
 	if (l == 0)
 		out[g] = part[0];
 }
+
+/* milestone 5: a triangle through a render pass. The vertices are read out of
+ * a constant buffer by vertex_id (no vertex descriptor): a position and a
+ * colour each; the fragment shader multiplies the interpolated colour by a
+ * tint given with setFragmentBytes. */
+struct lapis_vout {
+	float4 position [[position]];
+	float4 color;
+};
+
+vertex lapis_vout lapis_tri_vs(uint vid [[vertex_id]], constant float4 *verts [[buffer(0)]])
+{
+	lapis_vout o;
+	o.position = verts[vid * 2];
+	o.color = verts[vid * 2 + 1];
+	return o;
+}
+
+fragment float4 lapis_tri_fs(lapis_vout in [[stage_in]], constant float4 &tint [[buffer(0)]])
+{
+	return in.color * tint;
+}
