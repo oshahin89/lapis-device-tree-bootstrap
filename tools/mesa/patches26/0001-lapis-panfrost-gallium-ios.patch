@@ -12,7 +12,7 @@ target "lapis" (liblapis_gallium: the panfrost screen + a self-test).
 diff -ruN a/meson.build b/meson.build
 --- a/meson.build
 +++ b/meson.build
-@@ -816,7 +816,16 @@
+@@ -816,7 +816,19 @@
    # dependencies (such as vk-runtime) linking to it
    dep_libdrm = null_dep
  endif
@@ -26,11 +26,14 @@ diff -ruN a/meson.build b/meson.build
 +  dep_libdrm = declare_dependency(
 +    include_directories : include_directories('src/lapis-drm'),
 +  )
++  # what libdrm users test for (util/u_sync_provider.h and friends): the
++  # stand-in has the syncobj API they call
++  pre_args += '-DHAVE_LIBDRM'
 +elif dep_libdrm.found()
    pre_args += '-DHAVE_LIBDRM'
    if with_dri_platform == 'drm' and with_dri
      with_gallium_drisw_kms = true
-@@ -2556,6 +2565,19 @@
+@@ -2556,6 +2568,19 @@
    vulkan_manifest_suffix = 'json'
  endif
  
