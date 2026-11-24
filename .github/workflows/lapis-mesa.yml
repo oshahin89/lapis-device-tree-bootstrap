@@ -9,7 +9,11 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - tools/mesa/**
+      # Mesa 25.0.7 + OSMesa (no G615: softpipe only on lapis, v49d); kept
+      # for reference, built only when its own files change. The current
+      # build is lapis-mesa26.yml.
+      - tools/mesa/patches/**
+      - tools/mesa/build-mesa-ios.sh
       - tools/lapis_osmesatest/**
       - .github/workflows/lapis-mesa.yml
 
