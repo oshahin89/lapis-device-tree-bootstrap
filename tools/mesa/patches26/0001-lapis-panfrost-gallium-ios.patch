@@ -95,7 +95,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,283 @@
+@@ -0,0 +1,297 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -272,10 +272,24 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   cso_set_vertex_shader_handle(cso, vs);
 +   cso_set_fragment_shader_handle(cso, fs);
 +
++   /* the vertex layout: position then color, float4 each, 32 bytes a vertex
++    * (v49j crashed in u_vbuf_draw_vbo without it: util_draw_vertex_buffer
++    * expects the caller to have set it) */
++   struct cso_velems_state velems;
++   memset(&velems, 0, sizeof(velems));
++   velems.count = 2;
++   for (unsigned i = 0; i < 2; i++) {
++      velems.velems[i].src_offset = i * 16;
++      velems.velems[i].vertex_buffer_index = 0;
++      velems.velems[i].src_format = PIPE_FORMAT_R32G32B32A32_FLOAT;
++      velems.velems[i].src_stride = 32;
++   }
++   cso_set_vertex_elements(cso, &velems);
++
 +   uint32_t px[3] = { 0, 0, 0 };
 +   t0 = os_time_get_nano();
 +   ctx->clear(ctx, PIPE_CLEAR_COLOR0, 0xf, 0, NULL, &blue, 0.0, 0);
-+   util_draw_vertex_buffer(ctx, cso, vb_red, 0, MESA_PRIM_TRIANGLES, 2, 3);
++   util_draw_vertex_buffer(ctx, cso, vb_red, 0, MESA_PRIM_TRIANGLES, 3, 2);
 +   bool done = finish_and_read(screen, ctx, rt, px);
 +   say(log, "triangle: first draw %s in %lld us; center %08x (want ff0000ff) corner %08x (want ffff8000) %08x",
 +       done ? "fenced" : "NOT fenced", (long long)((os_time_get_nano() - t0) / 1000), px[0], px[1], px[2]);
@@ -284,7 +298,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   unsigned fenced = 0;
 +   for (unsigned i = 0; i < 100; i++) {
 +      ctx->clear(ctx, PIPE_CLEAR_COLOR0, 0xf, 0, NULL, &blue, 0.0, 0);
-+      util_draw_vertex_buffer(ctx, cso, vb_rgb, 0, MESA_PRIM_TRIANGLES, 2, 3);
++      util_draw_vertex_buffer(ctx, cso, vb_rgb, 0, MESA_PRIM_TRIANGLES, 3, 2);
 +      fenced += finish_and_read(screen, ctx, rt, NULL);
 +   }
 +   int64_t frames = os_time_get_nano() - t0;
