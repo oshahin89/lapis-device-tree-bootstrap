@@ -1,0 +1,26 @@
+LapisGPU client: galliumtest: waiting 60 s for iOS to settle
+LapisGPU client: galliumtest: start
+LapisGPU client: gallium: screen in 54 ms: Mali-G615 MC2 (Panfrost) / Mesa / Arm
+LapisGPU client: lapis-drm: cache sync #1: 9 maps, 144 KiB, avg 41 us
+LapisGPU client: lapis-drm: cache sync #2: 9 maps, 144 KiB, avg 31 us
+LapisGPU client: lapis-drm: cache sync #3: 13 maps, 336 KiB, avg 46 us
+LapisGPU client: lapis-drm: cache sync #4: 13 maps, 336 KiB, avg 42 us
+LapisGPU client: gallium: clear on the GPU: fence done in 1745 us; pixels ffff8000 ffff8000 ffff8000 (want ffff8000)
+LapisGPU client: gallium: second clear: fence done in 352 us; pixels ff0000ff ff0000ff ff0000ff (want ff0000ff)
+LapisGPU client: lapis-drm: cache sync #50: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #100: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #150: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #200: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #250: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #300: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #350: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #400: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #450: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #500: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #550: 14 maps, 608 KiB, avg 39 us
+LapisGPU client: lapis-drm: cache sync #600: 14 maps, 608 KiB, avg 38 us
+LapisGPU client: lapis-drm: cache sync #650: 14 maps, 608 KiB, avg 38 us
+LapisGPU client: lapis-drm: cache sync #700: 14 maps, 608 KiB, avg 38 us
+LapisGPU client: gallium: 100 clears: 100 fenced, 423 us each; then green: ff00ff00 (want ff00ff00)
+LapisGPU client: gallium: done
+LapisGPU client: galliumtest: finished

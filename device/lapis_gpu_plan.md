@@ -132,7 +132,24 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   the program's blocks over /usr/bin/IOMFB_FDR_Loader, which iOS runs once
   per boot as root; tools/hfsplus_find.py found them in the image without
   mounting. `restore` puts the original back.
-- Milestone 8 (in progress, 2026-11-24): Mesa. What it needed from LapisGPU,
+- ~~Milestone 9: Mesa's panfrost drives the G615 from an iOS program~~
+  **done (dual_v49 + Mesa 26.3.1, 2026-11-24).** Mesa 25.0.7 has no v11
+  (G615): OSMesa ran on softpipe (v49d). Mesa 26.3.1 has G615 but no OSMesa
+  and needs CL kernels at build time: tools/mesa/build-mesa26-ios.sh builds
+  the Mac's mesa_clc / vtn_bindgen2 / panfrost_compile (Homebrew LLVM)
+  first, then the iOS cross build with tools/mesa/patches26 (Darwin fixes,
+  lapis-drm as libdrm, panthor-only kmod, with_gfx_compute, and a gallium
+  target "lapis": liblapis_gallium = the panfrost screen + a self-test).
+  On the phone (device/captures/sweetlog_v49i_gallium.txt): "Mali-G615 MC2
+  (Panfrost)" screen in 54 ms, tiler heap, GPU clears read back exactly,
+  100/100 fences, **423 us a clear** (42 ms before the fixes). What it took
+  in lapis-drm: sync files within the process (panfrost makes every fence
+  from one), keeping buffer mappings across panfrost's unmap/map (an IOKit
+  map is a kernel round trip), answering BO_MMAP_OFFSET locally, and
+  measuring after boot (iOS's first minute slows every round trip down).
+  Next: draw (shaders: a triangle through u_simple_shaders), then hakios's
+  Metal path (AIR -> NIR -> this gallium screen) for CoreAnimation.
+- Milestone 8 (2026-11-24): Mesa. What it needed from LapisGPU,
   proven by gputest v2..v4 on dual_v49 (device/captures/sweetlog_v49c_gputest.txt):
   tiler heaps (TILER_HEAP_CREATE/DESTROY, 5 x 2 MiB as gallium asks) work;
   **write-combined mappings panic this kernel** (v44 kernel-side, v49b when a
