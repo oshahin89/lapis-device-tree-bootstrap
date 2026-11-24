@@ -105,6 +105,10 @@ main(void)
 		pthread_create(&t, NULL, stderr_reader, NULL);
 	}
 	setenv("MESA_LOG", "stderr", 1);
+	/* the first seconds of iOS boot slow every round trip down (gputest v4:
+	 * 2 ms during boot, 46 us after): start once it has settled */
+	log_line("galliumtest: waiting 60 s for iOS to settle");
+	sleep(60);
 	log_line("galliumtest: start");
 	int r = lapis_gallium_test(log_line);
 	fflush(stderr);

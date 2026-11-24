@@ -1,0 +1,27 @@
+LapisGPU client: galliumtest: start
+LapisGPU client: gallium: screen in 495 ms: Mali-G615 MC2 (Panfrost) / Mesa / Arm
+LapisGPU client: lapis-drm: cache sync #1: 9 maps, 144 KiB, avg 45 us
+LapisGPU client: lapis-drm: cache sync #2: 9 maps, 144 KiB, avg 34 us
+LapisGPU client: lapis-drm: cache sync #3: 13 maps, 336 KiB, avg 77 us
+LapisGPU client: lapis-drm: cache sync #4: 13 maps, 336 KiB, avg 65 us
+LapisGPU client: gallium: clear on the GPU: fence done in 61995 us; pixels ffff8000 ffff8000 ffff8000 (want ffff8000)
+LapisGPU client: gallium: second clear: fence done in 1739 us; pixels ff0000ff ff0000ff ff0000ff (want ff0000ff)
+LapisGPU client: lapis-drm: cache sync #50: 14 maps, 608 KiB, avg 3176 us
+LapisGPU client: lapis-drm: cache sync #100: 14 maps, 608 KiB, avg 1702 us
+LapisGPU client: lapis-drm: cache sync #150: 14 maps, 608 KiB, avg 1227 us
+LapisGPU client: lapis-drm: cache sync #200: 14 maps, 608 KiB, avg 969 us
+LapisGPU client: lapis-drm: cache sync #250: 14 maps, 608 KiB, avg 794 us
+LapisGPU client: lapis-drm: cache sync #300: 14 maps, 608 KiB, avg 668 us
+LapisGPU client: lapis-drm: cache sync #350: 14 maps, 608 KiB, avg 579 us
+LapisGPU client: lapis-drm: cache sync #400: 14 maps, 608 KiB, avg 511 us
+LapisGPU client: lapis-drm: cache sync #450: 14 maps, 608 KiB, avg 462 us
+LapisGPU client: lapis-drm: cache sync #500: 14 maps, 608 KiB, avg 429 us
+LapisGPU client: lapis-drm: 500 calls: 40:2/228us 41:1/365us 43:15/1211us 45:15/518us 46:307/696us 47:1/574us 49:75/52us
+LapisGPU client: lapis-drm: 500 calls: 4b:1/6848us 7d:83/6986us; map 14/1845us unmap 0/0us
+LapisGPU client: lapis-drm: cache sync #550: 14 maps, 608 KiB, avg 393 us
+LapisGPU client: lapis-drm: cache sync #600: 14 maps, 608 KiB, avg 364 us
+LapisGPU client: lapis-drm: cache sync #650: 14 maps, 608 KiB, avg 340 us
+LapisGPU client: lapis-drm: cache sync #700: 14 maps, 608 KiB, avg 318 us
+LapisGPU client: gallium: 100 clears: 100 fenced, 14697 us each; then green: ff00ff00 (want ff00ff00)
+LapisGPU client: gallium: done
+LapisGPU client: galliumtest: finished

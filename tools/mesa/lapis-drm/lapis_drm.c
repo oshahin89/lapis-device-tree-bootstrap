@@ -602,7 +602,13 @@ drmIoctl(int fd, unsigned long request, void *arg)
 	int error;
 
 	(void)fd;
-	if (nr == (DRM_IOCTL_GEM_CLOSE & 0xff)) {
+	if (nr == DRM_COMMAND_BASE + DRM_PANTHOR_BO_MMAP_OFFSET) {
+		/* LapisGPU's answer is the handle itself (client memory type = handle):
+		 * no kernel round trip for it (v49h: 307 of them, 0.7 ms each) */
+		struct drm_panthor_bo_mmap_offset *mo = arg;
+		mo->offset = mo->handle;
+		error = 0;
+	} else if (nr == (DRM_IOCTL_GEM_CLOSE & 0xff)) {
 		unmap_handle(((struct drm_gem_close *)arg)->handle);
 		error = call(nr, arg, size);
 	} else if (nr == DRM_COMMAND_BASE + DRM_PANTHOR_GROUP_SUBMIT) {
