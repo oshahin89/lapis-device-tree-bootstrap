@@ -300,6 +300,7 @@ static struct {
 	int (*pass_begin)(void *, void *, int, const double[4]);
 	int (*draw)(void *, void *, void *const *, const uint64_t *, void *const *, const uint64_t *, unsigned, unsigned,
 	    unsigned, unsigned, unsigned);
+	size_t (*render_nir)(void *, int, char *, size_t);   /* debugging; optional */
 } G;
 
 static void *
@@ -340,6 +341,7 @@ gpu(void)
 		G.render_free = dlsym(h, "lapis_gpu_render_free");
 		G.pass_begin = dlsym(h, "lapis_gpu_pass_begin");
 		G.draw = dlsym(h, "lapis_gpu_draw");
+		G.render_nir = dlsym(h, "lapis_gpu_render_nir");
 		if (!G.tex_new || !G.tex_free || !G.tex_read || !G.tex_write || !G.render_new || !G.render_free ||
 		    !G.pass_begin || !G.draw) {
 			say(@"the GPU library has no render interface: no textures or render passes");
@@ -1321,6 +1323,21 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	}
 	say([NSString stringWithFormat:@"render pipeline %@ + %@: compiled in %.2f ms (colour format %lu)", vs.name, fs.name,
 	    (nowNs() - t0) / 1e6, (unsigned long)d.colorAttachments[0].pixelFormat]);
+	/* the NIR the shaders became, into the log: the vertex shader the first time, every fragment shader */
+	static BOOL vsShown;
+	for (int frag = vsShown ? 1 : 0; G.render_nir && frag < 2; frag++) {
+		size_t n = G.render_nir(r, frag, NULL, 0);
+		char *text = malloc(n + 1);
+		G.render_nir(r, frag, text, n + 1);
+		say([NSString stringWithFormat:@"NIR of %@ (%zu bytes):", frag ? fs.name : vs.name, n]);
+		for (NSString *line in [@(text) componentsSeparatedByString:@"\n"]) {
+			if (line.length) {
+				say([@"  " stringByAppendingString:line]);
+			}
+		}
+		free(text);
+	}
+	vsShown = YES;
 	LapisRenderPipeState *st = [LapisRenderPipeState new];
 	st.render = r;
 	return plainNew(gRenderPipelineClass, st);

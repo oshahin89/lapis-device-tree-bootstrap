@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,985 @@
+@@ -0,0 +1,1011 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -786,6 +786,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +};
 +
 +struct lapis_gpu_stage {
++   char *nir_text;   /* the NIR air_to_nir made, as text (lapis_gpu_render_nir) */
 +   void *cso;
 +   unsigned num_res;
 +   struct { int kind; unsigned index; bool write; } res[LAPIS_GPU_MAX_RES];
@@ -807,6 +808,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +                                                     const char *vs_entry, const void *fs, size_t fs_size,
 +                                                     const char *fs_entry, char *error, size_t error_size);
 +PUBLIC void lapis_gpu_render_free(struct lapis_gpu *gpu, struct lapis_gpu_render *r);
++PUBLIC size_t lapis_gpu_render_nir(struct lapis_gpu_render *r, int fragment, char *out, size_t size);
 +PUBLIC int lapis_gpu_pass_begin(struct lapis_gpu *gpu, struct lapis_gpu_tex *target, int clear, const double rgba[4]);
 +PUBLIC int lapis_gpu_draw(struct lapis_gpu *gpu, struct lapis_gpu_render *r, struct lapis_gpu_buf *const *vbufs,
 +                          const uint64_t *voffsets, struct lapis_gpu_buf *const *fbufs, const uint64_t *foffsets,
@@ -930,6 +932,16 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   }
 +   if (num_attribs)
 +      *num_attribs = info.num_vertex_attributes;
++   {
++      char *text = NULL;
++      size_t len = 0;
++      FILE *f = open_memstream(&text, &len);
++      if (f) {
++         nir_print_shader(nir, f);
++         fclose(f);
++         st->nir_text = text;
++      }
++   }
 +   ralloc_steal(NULL, nir);
 +   ralloc_free(mem);
 +   struct pipe_shader_state ss = { .type = PIPE_SHADER_IR_NIR, .ir.nir = nir };
@@ -955,7 +967,21 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   if (r->fs.cso)
 +      gpu->ctx->delete_fs_state(gpu->ctx, r->fs.cso);
 +   pthread_mutex_unlock(&gpu->lock);
++   free(r->vs.nir_text);
++   free(r->fs.nir_text);
 +   free(r);
++}
++
++/* a stage's NIR as text into OUT (cut at SIZE - 1); its whole length */
++PUBLIC size_t
++lapis_gpu_render_nir(struct lapis_gpu_render *r, int fragment, char *out, size_t size)
++{
++   const char *t = r ? (fragment ? r->fs.nir_text : r->vs.nir_text) : NULL;
++   if (!t)
++      t = "";
++   if (size)
++      snprintf(out, size, "%s", t);
++   return strlen(t);
 +}
 +
 +PUBLIC struct lapis_gpu_render *
