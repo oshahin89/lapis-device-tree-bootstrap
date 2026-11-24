@@ -17,7 +17,7 @@ DEV=/dev/block/by-name/iosroot
 START=2094775
 COUNT=36
 ORIG=abf677d9fd40ed2faba2cca784ec8d16484a0ca94ac3e9b29fdbf40c8ab7212d
-NEW=6901521fff306deff3e7f26608b6b0081ceaa1b13d36aca4594a51ab95dc6ceb
+NEW=65a5231f66d8feccf92225aaa8cc4ce4893016b557bf96d2200677472baa4998
 DIR=/sdcard/Download
 BACKUP=$DIR/iomfb_fdr_loader_orig.blocks
 
