@@ -153,18 +153,31 @@ lapis_drm_log(const char *fmt, ...)
 	}
 }
 
+/* mmap/munmap through IOKit, timed like the requests (v49g: 303 BO_MMAP_OFFSET for 15 buffers) */
+static struct { uint32_t calls; int64_t ns; } map_stats[2];
+static void unmap_handle(uint32_t handle);
+
 static void
 call_stats_say(void)
 {
 	char line[120];
-	int at = snprintf(line, sizeof(line), "lapis-drm: %u calls:", call_total);
-	for (unsigned n = 0; n < 256 && at < (int)sizeof(line) - 24; n++) {
+	int at = 0;
+	line[0] = 0;
+	/* in lines that fit the kernel's 119 characters (v49g's was cut) */
+	for (unsigned n = 0; n < 256; n++) {
 		if (call_stats[n].calls) {
+			if (at > 80) {
+				lapis_drm_log("lapis-drm: %u calls:%s", call_total, line);
+				at = 0;
+				line[0] = 0;
+			}
 			at += snprintf(line + at, sizeof(line) - at, " %02x:%u/%lldus", n, call_stats[n].calls,
 			    (long long)(call_stats[n].ns / call_stats[n].calls / 1000));
 		}
 	}
-	lapis_drm_log("%s", line);
+	lapis_drm_log("lapis-drm: %u calls:%s; map %u/%lldus unmap %u/%lldus", call_total, line,
+	    map_stats[0].calls, (long long)(map_stats[0].calls ? map_stats[0].ns / map_stats[0].calls / 1000 : 0),
+	    map_stats[1].calls, (long long)(map_stats[1].calls ? map_stats[1].ns / map_stats[1].calls / 1000 : 0));
 }
 
 static int64_t
@@ -589,7 +602,10 @@ drmIoctl(int fd, unsigned long request, void *arg)
 	int error;
 
 	(void)fd;
-	if (nr == DRM_COMMAND_BASE + DRM_PANTHOR_GROUP_SUBMIT) {
+	if (nr == (DRM_IOCTL_GEM_CLOSE & 0xff)) {
+		unmap_handle(((struct drm_gem_close *)arg)->handle);
+		error = call(nr, arg, size);
+	} else if (nr == DRM_COMMAND_BASE + DRM_PANTHOR_GROUP_SUBMIT) {
 		error = group_submit(arg, size);
 	} else if (nr == DRM_COMMAND_BASE + DRM_PANTHOR_VM_BIND) {
 		error = vm_bind(arg, size);
@@ -751,7 +767,14 @@ int drmGetNodeTypeFromFd(int fd) { (void)fd; return DRM_NODE_RENDER; }
 /* --- mmap on the device --- */
 
 #define MAPS 4096
-static struct { uintptr_t base; size_t size; uint32_t handle; } maps[MAPS];
+/*
+ * A buffer's mapping is kept until the buffer is closed: Mesa unmaps a buffer
+ * whenever it goes back to its cache and maps it again when it is reused,
+ * cheap on Linux, a kernel round trip each through IOKit (v49g: 303 maps for
+ * 15 buffers). munmap only marks it unused; mmap of the same buffer gets it
+ * back; GEM_CLOSE unmaps it for real.
+ */
+static struct { uintptr_t base; size_t size; uint32_t handle; bool live; } maps[MAPS];
 static pthread_mutex_t map_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void
@@ -795,9 +818,22 @@ lapis_drm_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		/* LATEST_FLUSH: always 0 (LapisGPU ignores latest_flush) */
 		return mmap(NULL, length, PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0);
 	}
+	pthread_mutex_lock(&map_lock);
+	for (unsigned i = 0; i < MAPS; i++) {
+		if (maps[i].base != 0 && maps[i].handle == (uint32_t)offset && !maps[i].live && length <= maps[i].size) {
+			maps[i].live = true;
+			pthread_mutex_unlock(&map_lock);
+			return (void *)maps[i].base;
+		}
+	}
+	pthread_mutex_unlock(&map_lock);
 	mach_vm_address_t at = 0;
 	mach_vm_size_t size = 0;
-	if (IOConnectMapMemory64(connection, (uint32_t)offset, mach_task_self(), &at, &size, kIOMapAnywhere) != KERN_SUCCESS) {
+	int64_t t0 = now_ns();
+	kern_return_t mr = IOConnectMapMemory64(connection, (uint32_t)offset, mach_task_self(), &at, &size, kIOMapAnywhere);
+	__atomic_add_fetch(&map_stats[0].calls, 1, __ATOMIC_RELAXED);
+	__atomic_add_fetch(&map_stats[0].ns, now_ns() - t0, __ATOMIC_RELAXED);
+	if (mr != KERN_SUCCESS) {
 		errno = ENOMEM;
 		return MAP_FAILED;
 	}
@@ -807,6 +843,7 @@ lapis_drm_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			maps[i].base = (uintptr_t)at;
 			maps[i].size = length;
 			maps[i].handle = (uint32_t)offset;
+			maps[i].live = true;
 			break;
 		}
 	}
@@ -819,14 +856,31 @@ lapis_drm_munmap(void *addr, size_t length)
 {
 	pthread_mutex_lock(&map_lock);
 	for (unsigned i = 0; i < MAPS; i++) {
-		if (maps[i].base == (uintptr_t)addr) {
-			uint32_t handle = maps[i].handle;
-			maps[i].base = 0;
+		if (maps[i].base == (uintptr_t)addr && maps[i].live) {
+			maps[i].live = false;   /* kept for the buffer's next use */
 			pthread_mutex_unlock(&map_lock);
-			return IOConnectUnmapMemory64(connection, handle, mach_task_self(), (mach_vm_address_t)(uintptr_t)addr)
-			    == KERN_SUCCESS ? 0 : -1;
+			return 0;
 		}
 	}
 	pthread_mutex_unlock(&map_lock);
 	return munmap(addr, length);
+}
+
+/* the buffer is going: its mapping goes for real */
+static void
+unmap_handle(uint32_t handle)
+{
+	pthread_mutex_lock(&map_lock);
+	for (unsigned i = 0; i < MAPS; i++) {
+		if (maps[i].base != 0 && maps[i].handle == handle) {
+			uintptr_t base = maps[i].base;
+			maps[i].base = 0;
+			maps[i].live = false;
+			int64_t t0 = now_ns();
+			(void)IOConnectUnmapMemory64(connection, handle, mach_task_self(), (mach_vm_address_t)base);
+			__atomic_add_fetch(&map_stats[1].calls, 1, __ATOMIC_RELAXED);
+			__atomic_add_fetch(&map_stats[1].ns, now_ns() - t0, __ATOMIC_RELAXED);
+		}
+	}
+	pthread_mutex_unlock(&map_lock);
 }
