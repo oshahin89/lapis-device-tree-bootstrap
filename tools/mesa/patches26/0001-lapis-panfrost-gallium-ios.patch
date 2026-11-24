@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,660 @@
+@@ -0,0 +1,985 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -766,6 +766,331 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      g.last_block[k] = 0;
 +   }
 +   gpu->ctx->launch_grid(gpu->ctx, &g);
++   pthread_mutex_unlock(&gpu->lock);
++   return 0;
++}
++
++/*
++ * Rendering for LapisMetal (device/lapis_metal_plan.md, milestone 5):
++ * textures are 2D pipe_resources in a Metal pixel format, a render pipeline
++ * is a vertex and a fragment function made into panfrost shader states the
++ * same way as a kernel, a pass sets the framebuffer to one colour texture
++ * (cleared or kept), and draws bind each stage's buffers by Metal index.
++ * Metal's conventions are set here once: clip-space z in [0, 1]
++ * (clip_halfz) and y up in normalized device coordinates with the texture's
++ * first row at the top (a viewport with a negative y scale).
++ */
++struct lapis_gpu_tex {
++   struct pipe_resource *res;
++   unsigned width, height, bpp;
++};
++
++struct lapis_gpu_stage {
++   void *cso;
++   unsigned num_res;
++   struct { int kind; unsigned index; bool write; } res[LAPIS_GPU_MAX_RES];
++};
++
++struct lapis_gpu_render {
++   struct lapis_gpu_stage vs, fs;
++   unsigned num_attribs;
++};
++
++PUBLIC struct lapis_gpu_tex *lapis_gpu_tex_new(struct lapis_gpu *gpu, unsigned width, unsigned height,
++                                               unsigned mtl_format);
++PUBLIC void lapis_gpu_tex_free(struct lapis_gpu *gpu, struct lapis_gpu_tex *tex);
++PUBLIC int lapis_gpu_tex_read(struct lapis_gpu *gpu, struct lapis_gpu_tex *tex, unsigned x, unsigned y,
++                              unsigned w, unsigned h, void *dst, size_t dst_stride);
++PUBLIC int lapis_gpu_tex_write(struct lapis_gpu *gpu, struct lapis_gpu_tex *tex, unsigned x, unsigned y,
++                               unsigned w, unsigned h, const void *src, size_t src_stride);
++PUBLIC struct lapis_gpu_render *lapis_gpu_render_new(struct lapis_gpu *gpu, const void *vs, size_t vs_size,
++                                                     const char *vs_entry, const void *fs, size_t fs_size,
++                                                     const char *fs_entry, char *error, size_t error_size);
++PUBLIC void lapis_gpu_render_free(struct lapis_gpu *gpu, struct lapis_gpu_render *r);
++PUBLIC int lapis_gpu_pass_begin(struct lapis_gpu *gpu, struct lapis_gpu_tex *target, int clear, const double rgba[4]);
++PUBLIC int lapis_gpu_draw(struct lapis_gpu *gpu, struct lapis_gpu_render *r, struct lapis_gpu_buf *const *vbufs,
++                          const uint64_t *voffsets, struct lapis_gpu_buf *const *fbufs, const uint64_t *foffsets,
++                          unsigned num_bufs, unsigned mtl_prim, unsigned start, unsigned count, unsigned instances);
++
++static enum pipe_format
++mtl_format(unsigned f, unsigned *bpp)
++{
++   *bpp = 4;
++   switch (f) {
++   case 10: *bpp = 1; return PIPE_FORMAT_R8_UNORM;          /* MTLPixelFormatR8Unorm */
++   case 55: return PIPE_FORMAT_R32_FLOAT;                   /* R32Float */
++   case 70: return PIPE_FORMAT_R8G8B8A8_UNORM;              /* RGBA8Unorm */
++   case 71: return PIPE_FORMAT_R8G8B8A8_SRGB;               /* RGBA8Unorm_sRGB */
++   case 80: return PIPE_FORMAT_B8G8R8A8_UNORM;              /* BGRA8Unorm */
++   case 81: return PIPE_FORMAT_B8G8R8A8_SRGB;               /* BGRA8Unorm_sRGB */
++   case 115: *bpp = 8; return PIPE_FORMAT_R16G16B16A16_FLOAT;  /* RGBA16Float */
++   case 125: *bpp = 16; return PIPE_FORMAT_R32G32B32A32_FLOAT; /* RGBA32Float */
++   default: return PIPE_FORMAT_NONE;
++   }
++}
++
++PUBLIC struct lapis_gpu_tex *
++lapis_gpu_tex_new(struct lapis_gpu *gpu, unsigned width, unsigned height, unsigned format)
++{
++   unsigned bpp;
++   enum pipe_format pf = mtl_format(format, &bpp);
++   if (!gpu || pf == PIPE_FORMAT_NONE || !width || !height || width > 16384 || height > 16384)
++      return NULL;
++   struct pipe_resource templ = {
++      .target = PIPE_TEXTURE_2D,
++      .format = pf,
++      .width0 = width,
++      .height0 = (uint16_t)height,
++      .depth0 = 1,
++      .array_size = 1,
++      .bind = PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW | PIPE_BIND_LINEAR,
++      .usage = PIPE_USAGE_DEFAULT,
++   };
++   struct lapis_gpu_tex *t = calloc(1, sizeof(*t));
++   pthread_mutex_lock(&gpu->lock);
++   t->res = gpu->screen->resource_create(gpu->screen, &templ);
++   pthread_mutex_unlock(&gpu->lock);
++   if (!t->res) {
++      free(t);
++      return NULL;
++   }
++   t->width = width;
++   t->height = height;
++   t->bpp = bpp;
++   return t;
++}
++
++PUBLIC void
++lapis_gpu_tex_free(struct lapis_gpu *gpu, struct lapis_gpu_tex *tex)
++{
++   if (!tex)
++      return;
++   pthread_mutex_lock(&gpu->lock);
++   pipe_resource_reference(&tex->res, NULL);
++   pthread_mutex_unlock(&gpu->lock);
++   free(tex);
++}
++
++/* the CPU's copy of a region; waits for the GPU work that writes it */
++PUBLIC int
++lapis_gpu_tex_read(struct lapis_gpu *gpu, struct lapis_gpu_tex *tex, unsigned x, unsigned y, unsigned w,
++                   unsigned h, void *dst, size_t dst_stride)
++{
++   if (!tex || !w || !h || x + w > tex->width || y + h > tex->height)
++      return -1;
++   struct pipe_transfer *xfer = NULL;
++   pthread_mutex_lock(&gpu->lock);
++   const uint8_t *map = pipe_texture_map(gpu->ctx, tex->res, 0, 0, PIPE_MAP_READ, x, y, w, h, &xfer);
++   if (map) {
++      for (unsigned r = 0; r < h; r++)
++         memcpy((uint8_t *)dst + r * dst_stride, map + r * xfer->stride, (size_t)w * tex->bpp);
++      pipe_texture_unmap(gpu->ctx, xfer);
++   }
++   pthread_mutex_unlock(&gpu->lock);
++   return map ? 0 : -1;
++}
++
++PUBLIC int
++lapis_gpu_tex_write(struct lapis_gpu *gpu, struct lapis_gpu_tex *tex, unsigned x, unsigned y, unsigned w,
++                    unsigned h, const void *src, size_t src_stride)
++{
++   if (!tex || !w || !h || x + w > tex->width || y + h > tex->height)
++      return -1;
++   struct pipe_box box;
++   u_box_2d((int)x, (int)y, (int)w, (int)h, &box);
++   pthread_mutex_lock(&gpu->lock);
++   gpu->ctx->texture_subdata(gpu->ctx, tex->res, 0, PIPE_MAP_WRITE, &box, src, (unsigned)src_stride, 0);
++   pthread_mutex_unlock(&gpu->lock);
++   return 0;
++}
++
++/* one stage of a pipeline: AIR -> NIR -> a panfrost shader state */
++static bool
++stage_new(struct lapis_gpu *gpu, struct lapis_gpu_stage *st, mesa_shader_stage want, const void *bc,
++          size_t size, const char *entry, unsigned *num_attribs, char *error, size_t error_size)
++{
++   void *mem = ralloc_context(NULL);
++   struct air_shader_info info;
++   struct air_to_nir_options opts;
++   const char *why = NULL;
++   memset(&info, 0, sizeof(info));
++   memset(&opts, 0, sizeof(opts));
++   nir_shader *nir = air_to_nir(mem, bc, size, entry, &opts, gpu->screen->nir_options[want], &info, &why);
++   if (!nir || nir->info.stage != want) {
++      snprintf(error, error_size, "%s: %s", entry,
++               !nir ? (why ? why : "air_to_nir failed") : "not the stage the pipeline wants it for");
++      ralloc_free(mem);
++      return false;
++   }
++   for (unsigned i = 0; i < info.num_resources && st->num_res < LAPIS_GPU_MAX_RES; i++) {
++      st->res[st->num_res].kind = info.resources[i].kind;
++      st->res[st->num_res].index = info.resources[i].index;
++      st->res[st->num_res].write = info.resources[i].write || info.resources[i].ir_write;
++      st->num_res++;
++   }
++   if (num_attribs)
++      *num_attribs = info.num_vertex_attributes;
++   ralloc_steal(NULL, nir);
++   ralloc_free(mem);
++   struct pipe_shader_state ss = { .type = PIPE_SHADER_IR_NIR, .ir.nir = nir };
++   pthread_mutex_lock(&gpu->lock);
++   st->cso = want == MESA_SHADER_VERTEX ? gpu->ctx->create_vs_state(gpu->ctx, &ss)
++                                        : gpu->ctx->create_fs_state(gpu->ctx, &ss);
++   pthread_mutex_unlock(&gpu->lock);
++   if (!st->cso) {
++      snprintf(error, error_size, "%s: panfrost refused the shader", entry);
++      return false;
++   }
++   return true;
++}
++
++PUBLIC void
++lapis_gpu_render_free(struct lapis_gpu *gpu, struct lapis_gpu_render *r)
++{
++   if (!r)
++      return;
++   pthread_mutex_lock(&gpu->lock);
++   if (r->vs.cso)
++      gpu->ctx->delete_vs_state(gpu->ctx, r->vs.cso);
++   if (r->fs.cso)
++      gpu->ctx->delete_fs_state(gpu->ctx, r->fs.cso);
++   pthread_mutex_unlock(&gpu->lock);
++   free(r);
++}
++
++PUBLIC struct lapis_gpu_render *
++lapis_gpu_render_new(struct lapis_gpu *gpu, const void *vs, size_t vs_size, const char *vs_entry, const void *fs,
++                     size_t fs_size, const char *fs_entry, char *error, size_t error_size)
++{
++   struct lapis_gpu_render *r = calloc(1, sizeof(*r));
++   if (!stage_new(gpu, &r->vs, MESA_SHADER_VERTEX, vs, vs_size, vs_entry, &r->num_attribs, error, error_size) ||
++       !stage_new(gpu, &r->fs, MESA_SHADER_FRAGMENT, fs, fs_size, fs_entry, NULL, error, error_size)) {
++      lapis_gpu_render_free(gpu, r);
++      return NULL;
++   }
++   if (r->num_attribs) {
++      snprintf(error, error_size, "%s: [[stage_in]] vertex attributes are not done yet", vs_entry);
++      lapis_gpu_render_free(gpu, r);
++      return NULL;
++   }
++   return r;
++}
++
++/* the render pass state the draws use, kept from lapis_gpu_pass_begin */
++static struct cso_context *lapis_cso;
++static unsigned pass_w, pass_h;
++
++PUBLIC int
++lapis_gpu_pass_begin(struct lapis_gpu *gpu, struct lapis_gpu_tex *target, int clear, const double rgba[4])
++{
++   if (!target)
++      return -1;
++   pthread_mutex_lock(&gpu->lock);
++   if (!lapis_cso)
++      lapis_cso = cso_create_context(gpu->ctx, 0);
++   struct pipe_framebuffer_state fb;
++   memset(&fb, 0, sizeof(fb));
++   fb.width = target->width;
++   fb.height = target->height;
++   fb.layers = 1;
++   fb.nr_cbufs = 1;
++   fb.cbufs[0].format = target->res->format;
++   fb.cbufs[0].texture = target->res;
++   cso_set_framebuffer(lapis_cso, &fb);
++   pass_w = target->width;
++   pass_h = target->height;
++
++   struct pipe_blend_state blend;
++   memset(&blend, 0, sizeof(blend));
++   blend.rt[0].colormask = PIPE_MASK_RGBA;
++   struct pipe_rasterizer_state rast;
++   memset(&rast, 0, sizeof(rast));
++   rast.cull_face = PIPE_FACE_NONE;
++   rast.half_pixel_center = 1;
++   rast.bottom_edge_rule = 1;
++   rast.depth_clip_near = 1;
++   rast.depth_clip_far = 1;
++   rast.clip_halfz = 1;
++   struct pipe_depth_stencil_alpha_state dsa;
++   memset(&dsa, 0, sizeof(dsa));
++   cso_set_blend(lapis_cso, &blend);
++   cso_set_rasterizer(lapis_cso, &rast);
++   cso_set_depth_stencil_alpha(lapis_cso, &dsa);
++   struct pipe_viewport_state vp = {
++      .scale = { pass_w / 2.0f, -(pass_h / 2.0f), 1.0f },
++      .translate = { pass_w / 2.0f, pass_h / 2.0f, 0.0f },
++      .swizzle_x = PIPE_VIEWPORT_SWIZZLE_POSITIVE_X,
++      .swizzle_y = PIPE_VIEWPORT_SWIZZLE_POSITIVE_Y,
++      .swizzle_z = PIPE_VIEWPORT_SWIZZLE_POSITIVE_Z,
++      .swizzle_w = PIPE_VIEWPORT_SWIZZLE_POSITIVE_W,
++   };
++   cso_set_viewport(lapis_cso, &vp);
++   struct cso_velems_state velems;
++   memset(&velems, 0, sizeof(velems));
++   cso_set_vertex_elements(lapis_cso, &velems);
++   if (clear) {
++      union pipe_color_union color = { .f = { (float)rgba[0], (float)rgba[1], (float)rgba[2], (float)rgba[3] } };
++      gpu->ctx->clear(gpu->ctx, PIPE_CLEAR_COLOR0, 0xf, 0, NULL, &color, 0.0, 0);
++   }
++   pthread_mutex_unlock(&gpu->lock);
++   return 0;
++}
++
++/* a stage's buffers by Metal index; false when one it uses is missing */
++static bool
++bind_stage(struct lapis_gpu *gpu, mesa_shader_stage stage, const struct lapis_gpu_stage *st,
++           struct lapis_gpu_buf *const *bufs, const uint64_t *offsets, unsigned num_bufs)
++{
++   struct pipe_shader_buffer ssbo[32];
++   unsigned num_ssbo = 0, writable = 0;
++   memset(ssbo, 0, sizeof(ssbo));
++   for (unsigned i = 0; i < st->num_res; i++) {
++      unsigned idx = st->res[i].index;
++      if (st->res[i].kind != AIR_RESOURCE_DEVICE_BUFFER && st->res[i].kind != AIR_RESOURCE_CONSTANT_BUFFER)
++         continue;
++      if (idx >= num_bufs || idx >= 32 || !bufs[idx])
++         return false;
++      uint64_t off = offsets ? offsets[idx] : 0;
++      if (st->res[i].kind == AIR_RESOURCE_DEVICE_BUFFER) {
++         ssbo[idx].buffer = bufs[idx]->res;
++         ssbo[idx].buffer_offset = (unsigned)off;
++         ssbo[idx].buffer_size = (unsigned)(bufs[idx]->size - off);
++         if (st->res[i].write)
++            writable |= 1u << idx;
++         if (idx + 1 > num_ssbo)
++            num_ssbo = idx + 1;
++      } else {
++         struct pipe_constant_buffer cb = {
++            .buffer = bufs[idx]->res,
++            .buffer_offset = (unsigned)off,
++            .buffer_size = (unsigned)(bufs[idx]->size - off),
++         };
++         gpu->ctx->set_constant_buffer(gpu->ctx, stage, idx, &cb);
++      }
++   }
++   if (num_ssbo)
++      gpu->ctx->set_shader_buffers(gpu->ctx, stage, 0, num_ssbo, ssbo, writable);
++   return true;
++}
++
++PUBLIC int
++lapis_gpu_draw(struct lapis_gpu *gpu, struct lapis_gpu_render *r, struct lapis_gpu_buf *const *vbufs,
++               const uint64_t *voffsets, struct lapis_gpu_buf *const *fbufs, const uint64_t *foffsets,
++               unsigned num_bufs, unsigned mtl_prim, unsigned start, unsigned count, unsigned instances)
++{
++   static const enum mesa_prim prims[] = { MESA_PRIM_POINTS, MESA_PRIM_LINES, MESA_PRIM_LINE_STRIP,
++                                           MESA_PRIM_TRIANGLES, MESA_PRIM_TRIANGLE_STRIP };
++   if (!r || !lapis_cso || mtl_prim > 4 || !count)
++      return -1;
++   pthread_mutex_lock(&gpu->lock);
++   if (!bind_stage(gpu, MESA_SHADER_VERTEX, &r->vs, vbufs, voffsets, num_bufs) ||
++       !bind_stage(gpu, MESA_SHADER_FRAGMENT, &r->fs, fbufs, foffsets, num_bufs)) {
++      pthread_mutex_unlock(&gpu->lock);
++      return -1;
++   }
++   cso_set_vertex_shader_handle(lapis_cso, r->vs.cso);
++   cso_set_fragment_shader_handle(lapis_cso, r->fs.cso);
++   cso_draw_arrays_instanced(lapis_cso, prims[mtl_prim], start, count, 0, instances ? instances : 1);
 +   pthread_mutex_unlock(&gpu->lock);
 +   return 0;
 +}
