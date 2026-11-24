@@ -3,7 +3,7 @@ name: lapis-metal
 # The LapisMetal plug-in (tools/lapis_metal/LapisMetal.m: Metal's device on
 # the lapis phone, over Apple's AGXMetalA11.bundle) and its test program
 # (lapis_metaltest.m), for the phone's iOS: arm64, ad-hoc signed.
-# device/lapis_metal_plan.md, milestone 2.
+# device/lapis_metal_plan.md, milestones 2-4.
 
 on:
   workflow_dispatch:
@@ -26,12 +26,18 @@ jobs:
           set -euxo pipefail
           mkdir -p out
           FLAGS="-arch arm64 -miphoneos-version-min=16.0 -O2 -fobjc-arc -Wall"
+          # the test kernels: Apple's AIR in a .metallib, embedded in the test program
+          xcrun --sdk iphoneos metal --version || xcodebuild -downloadComponent MetalToolchain
+          xcrun --sdk iphoneos metal -std=ios-metal2.4 -mios-version-min=16.0 -O2 \
+            -o out/lapis_test.metallib tools/lapis_metal/lapis_test.metal
+          (cd out && xxd -i lapis_test.metallib > lapis_test_metallib.h)
           xcrun --sdk iphoneos clang $FLAGS -dynamiclib -install_name /System/Library/Extensions/AGXMetalA11.bundle/ds.g10p \
             -o out/LapisMetal.dylib tools/lapis_metal/LapisMetal.m \
             -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
-          xcrun --sdk iphoneos clang $FLAGS -o out/lapis_metaltest tools/lapis_metal/lapis_metaltest.m \
+          xcrun --sdk iphoneos clang $FLAGS -o out/lapis_metaltest tools/lapis_metal/lapis_metaltest.m -Iout \
             -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
-          for f in out/*; do codesign -s - -f "$f"; done
+          rm out/lapis_test_metallib.h
+          for f in out/LapisMetal.dylib out/lapis_metaltest; do codesign -s - -f "$f"; done
           ls -la out
           otool -L out/LapisMetal.dylib out/lapis_metaltest
           shasum -a 256 out/* | tee out/SHA256.txt

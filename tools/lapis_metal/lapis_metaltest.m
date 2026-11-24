@@ -10,6 +10,7 @@
 #import <Metal/Metal.h>
 #import <mach/mach.h>
 #import <objc/runtime.h>
+#include "lapis_test_metallib.h"   /* lapis_test.metallib as bytes (CI: xxd -i) */
 
 typedef mach_port_t io_object_t, io_service_t, io_connect_t;
 extern CFMutableDictionaryRef IOServiceMatching(const char *name);
@@ -137,6 +138,88 @@ main(void)
 				ok += ((uint8_t *)B.contents)[4095] == (uint8_t)i;
 			}
 			say(@"100 command buffers: %u right, %.3f ms each", ok, -[t0 timeIntervalSinceNow] * 10);
+
+			/* milestone 4: compute kernels (Apple's AIR -> NIR -> panfrost) */
+			NSError *err = nil;
+			dispatch_data_t dd = dispatch_data_create(lapis_test_metallib, lapis_test_metallib_len, NULL,
+			    DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+			id<MTLLibrary> lib = [dev newLibraryWithData:dd error:&err];
+			say(@"newLibraryWithData: %s %@ %@", lib ? object_getClassName(lib) : "nil", lib.functionNames,
+			    err ? err.localizedDescription : @"");
+			const unsigned N = 4096;
+			for (NSString *name in @[ @"lapis_madd", @"lapis_ids", @"lapis_sum" ]) {
+				id<MTLFunction> fn = [lib newFunctionWithName:name];
+				err = nil;
+				t0 = [NSDate date];
+				id<MTLComputePipelineState> ps = fn ? [dev newComputePipelineStateWithFunction:fn error:&err] : nil;
+				say(@"%@: function %s, pipeline %s in %.1f ms %@", name, fn ? object_getClassName(fn) : "nil",
+				    ps ? object_getClassName(ps) : "nil", -[t0 timeIntervalSinceNow] * 1000,
+				    err ? err.localizedDescription : @"");
+				if (!ps) {
+					continue;
+				}
+				id<MTLBuffer> X = [dev newBufferWithLength:N * 4 options:0], Y = [dev newBufferWithLength:N * 4 options:0],
+				              Z = [dev newBufferWithLength:N * 4 options:0];
+				uint32_t *x = X.contents, *y = Y.contents, *z = Z.contents;
+				float *xf = X.contents;
+				for (unsigned i = 0; i < N; i++) {
+					x[i] = [name isEqualToString:@"lapis_sum"] ? 0 : i * 7 + 1;
+					if ([name isEqualToString:@"lapis_sum"]) {
+						xf[i] = (float)((i % 64) * (i % 64));
+					}
+					y[i] = 0x10000u + i;
+					z[i] = 0xeeeeeeeeu;
+				}
+				id<MTLCommandBuffer> c3 = [q commandBuffer];
+				id<MTLComputeCommandEncoder> ce = [c3 computeCommandEncoder];
+				[ce setComputePipelineState:ps];
+				uint32_t k = 3;
+				if ([name isEqualToString:@"lapis_madd"]) {
+					[ce setBuffer:X offset:0 atIndex:0];
+					[ce setBuffer:Y offset:0 atIndex:1];
+					[ce setBuffer:Z offset:0 atIndex:2];
+					[ce setBytes:&k length:4 atIndex:3];
+				} else if ([name isEqualToString:@"lapis_ids"]) {
+					[ce setBuffer:Z offset:0 atIndex:0];
+				} else {
+					[ce setBuffer:X offset:0 atIndex:0];
+					[ce setBuffer:Z offset:0 atIndex:1];
+				}
+				[ce dispatchThreadgroups:MTLSizeMake(N / 64, 1, 1) threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+				[ce endEncoding];
+				t0 = [NSDate date];
+				[c3 commit];
+				[c3 waitUntilCompleted];
+				ms = -[t0 timeIntervalSinceNow] * 1000;
+				unsigned right = 0, total = N, firstBad = ~0u;
+				for (unsigned i = 0; i < N; i++) {
+					uint32_t want;
+					BOOL good;
+					if ([name isEqualToString:@"lapis_madd"]) {
+						want = (i * 7 + 1) * 3 + 0x10000u + i;
+						good = z[i] == want;
+					} else if ([name isEqualToString:@"lapis_ids"]) {
+						want = ((i / 64) << 16) | (i % 64);
+						good = z[i] == want;
+					} else {
+						if (i >= N / 64) {
+							break;
+						}
+						total = N / 64;
+						float sum = 0;
+						for (unsigned j = 0; j < 64; j++) {
+							sum += sqrtf((float)(j * j)) * 2.0f;
+						}
+						good = fabsf(((float *)z)[i] - sum) < 0.01f;
+					}
+					right += good;
+					if (!good && firstBad == ~0u) {
+						firstBad = i;
+					}
+				}
+				say(@"%@: %.2f ms, status %ld; %u/%u right%@", name, ms, (long)c3.status, right, total,
+				    firstBad != ~0u ? [NSString stringWithFormat:@" (first wrong [%u] = %#x)", firstBad, z[firstBad]] : @"");
+			}
 		}
 		say(@"done");
 	}

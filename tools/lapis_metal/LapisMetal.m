@@ -283,6 +283,13 @@ static struct {
 	void *(*flush)(void *);
 	int (*fence_wait)(void *, void *, uint64_t);
 	void (*fence_free)(void *, void *);
+	/* compute (Apple's AIR -> NIR -> panfrost); optional */
+	int (*metallib_names)(const void *, size_t, char *, size_t);
+	int (*metallib_function)(const void *, size_t, const char *, const void **, size_t *);
+	void *(*compute_new)(void *, const void *, size_t, const char *, char *, size_t);
+	unsigned (*compute_resources)(void *, int *, unsigned *, unsigned);
+	void (*compute_free)(void *, void *);
+	int (*dispatch)(void *, void *, void *const *, const uint64_t *, unsigned, const uint32_t[3], const uint32_t[3]);
 } G;
 
 static void *
@@ -304,6 +311,17 @@ gpu(void)
 		G.flush = dlsym(h, "lapis_gpu_flush");
 		G.fence_wait = dlsym(h, "lapis_gpu_fence_wait");
 		G.fence_free = dlsym(h, "lapis_gpu_fence_free");
+		G.metallib_names = dlsym(h, "lapis_gpu_metallib_names");
+		G.metallib_function = dlsym(h, "lapis_gpu_metallib_function");
+		G.compute_new = dlsym(h, "lapis_gpu_compute_new");
+		G.compute_resources = dlsym(h, "lapis_gpu_compute_resources");
+		G.compute_free = dlsym(h, "lapis_gpu_compute_free");
+		G.dispatch = dlsym(h, "lapis_gpu_dispatch");
+		if (!G.metallib_names || !G.metallib_function || !G.compute_new || !G.compute_resources ||
+		    !G.compute_free || !G.dispatch) {
+			say(@"the GPU library has no compute interface: no libraries or kernels");
+			G.compute_new = NULL;
+		}
 		if (!G.open || !G.buf_new || !G.buf_map || !G.buf_free || !G.copy || !G.fill || !G.flush ||
 		    !G.fence_wait || !G.fence_free) {
 			say(@"the GPU library has no lapis_gpu_* interface");
@@ -493,6 +511,7 @@ registerBufferClass(Class device)
 @property (atomic) NSInteger status;
 @property (nonatomic, copy) NSString *label;
 @property (nonatomic) uint64_t committedNs, completedNs;
+@property (nonatomic, strong) NSMutableArray *keep;     /* what its work uses, until it completes */
 @end
 @implementation LapisCBState
 @end
@@ -505,7 +524,7 @@ registerBufferClass(Class device)
 @end
 
 static char kStateKey;
-static Class gCommandBufferClass, gBlitClass;
+static Class gCommandBufferClass, gBlitClass, gComputeClass;
 
 static id stateOf(id self) { return objc_getAssociatedObject(self, &kStateKey); }
 
@@ -530,6 +549,7 @@ queueCommandBuffer(id self, SEL _cmd)
 	st.scheduled = [NSMutableArray new];
 	st.done = dispatch_semaphore_create(0);
 	st.status = MTLCommandBufferStatusNotEnqueued;
+	st.keep = [NSMutableArray new];
 	return gCommandBufferClass ? plainNew(gCommandBufferClass, st) : nil;
 }
 
@@ -616,6 +636,7 @@ cbCommit(id self, SEL _cmd)
 		for (void (^h)(id) in done) {
 			h(me);
 		}
+		[s2.keep removeAllObjects];
 		dispatch_semaphore_signal(s2.done);
 	});
 }
@@ -687,6 +708,456 @@ blitFill(id self, SEL _cmd, id buffer, NSRange range, uint8_t value)
 	}
 }
 
+/*
+ * Compute (milestone 4): libraries are .metallib files (Apple's AIR bitcode),
+ * a function is one of the library's entry points, a pipeline state is that
+ * function made into a panfrost compute shader by liblapis_gallium (hakios's
+ * AIR -> NIR front end, then Mesa's compiler), and a compute encoder binds
+ * buffers by Metal index and records dispatches on the GPU's context, which
+ * the command buffer's commit submits. Objects are plain-initialised subclasses
+ * of Metal's private bases (as the queue), their state in associated objects
+ * whose own -dealloc frees the C side.
+ */
+@interface LapisLibState : NSObject
+@property (nonatomic, strong) NSData *data;
+@property (nonatomic, strong) NSArray<NSString *> *names;
+@property (nonatomic, copy) NSString *label;
+@end
+@implementation LapisLibState
+@end
+
+@interface LapisFnState : NSObject
+@property (nonatomic, strong) LapisLibState *library;
+@property (nonatomic, copy) NSString *name, *label;
+@property (nonatomic) const void *bitcode;
+@property (nonatomic) size_t bitcodeSize;
+@end
+@implementation LapisFnState
+@end
+
+#define LAPIS_MAX_BINDINGS 31
+
+@interface LapisPipeState : NSObject
+@property (nonatomic) void *compute;
+@property (nonatomic, copy) NSString *label;
+@end
+@implementation LapisPipeState
+- (void)dealloc
+{
+	if (_compute) {
+		G.compute_free(G.gpu, _compute);
+	}
+}
+@end
+
+@interface LapisComputeState : NSObject {
+@public
+	__strong id buffers[LAPIS_MAX_BINDINGS];
+	uint64_t offsets[LAPIS_MAX_BINDINGS];
+}
+@property (nonatomic, strong) id commandBuffer;
+@property (nonatomic, strong) id pipeline;
+@property (nonatomic, copy) NSString *label;
+@end
+@implementation LapisComputeState
+@end
+
+static Class gLibraryClass, gFunctionClass, gPipelineClass;
+
+static NSError *
+metalError(NSString *domain, NSInteger code, NSString *what)
+{
+	say([NSString stringWithFormat:@"error: %@", what]);
+	return [NSError errorWithDomain:domain code:code userInfo:@{ NSLocalizedDescriptionKey : what }];
+}
+
+static id
+newLibrary(NSData *data, NSError **error)
+{
+	if (!gpu() || !G.compute_new || !gLibraryClass) {
+		if (error) {
+			*error = metalError(MTLLibraryErrorDomain, MTLLibraryErrorUnsupported, @"no compute on this GPU library");
+		}
+		return nil;
+	}
+	if (!data.length) {
+		if (error) {
+			*error = metalError(MTLLibraryErrorDomain, MTLLibraryErrorFileNotFound, @"no library data");
+		}
+		return nil;
+	}
+	char names[8192];
+	int n = G.metallib_names(data.bytes, data.length, names, sizeof(names));
+	if (n < 0) {
+		if (error) {
+			*error = metalError(MTLLibraryErrorDomain, MTLLibraryErrorInternal, @"not a metallib this front end reads");
+		}
+		return nil;
+	}
+	NSMutableArray *list = [NSMutableArray new];
+	for (const char *at = names; n-- > 0; at += strlen(at) + 1) {
+		[list addObject:@(at)];
+	}
+	LapisLibState *st = [LapisLibState new];
+	st.data = data;
+	st.names = list;
+	say([NSString stringWithFormat:@"library of %lu bytes: %@", (unsigned long)data.length, [list componentsJoinedByString:@", "]]);
+	return plainNew(gLibraryClass, st);
+}
+
+static id
+deviceNewLibraryData(id self, SEL _cmd, dispatch_data_t data, NSError **error)
+{
+	(void)self;
+	(void)_cmd;
+	NSMutableData *d = [NSMutableData new];
+	if (data) {
+		dispatch_data_apply(data, ^bool(dispatch_data_t r, size_t o, const void *buf, size_t size) {
+			(void)r;
+			(void)o;
+			[d appendBytes:buf length:size];
+			return true;
+		});
+	}
+	return newLibrary(d, error);
+}
+
+static id
+deviceNewLibraryURL(id self, SEL _cmd, NSURL *url, NSError **error)
+{
+	(void)self;
+	(void)_cmd;
+	return newLibrary([NSData dataWithContentsOfURL:url], error);
+}
+
+static id
+deviceNewLibraryFile(id self, SEL _cmd, NSString *path, NSError **error)
+{
+	(void)self;
+	(void)_cmd;
+	return newLibrary([NSData dataWithContentsOfFile:path], error);
+}
+
+static id
+deviceNewDefaultLibrary(id self, SEL _cmd)
+{
+	(void)self;
+	(void)_cmd;
+	NSString *path = [[NSBundle mainBundle] pathForResource:@"default" ofType:@"metallib"];
+	return path ? newLibrary([NSData dataWithContentsOfFile:path], NULL) : nil;
+}
+
+static id libNames(id self, SEL _cmd) { (void)_cmd; return ((LapisLibState *)stateOf(self)).names; }
+static id libLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisLibState *)stateOf(self)).label; }
+static void libSetLabel(id self, SEL _cmd, NSString *l) { (void)_cmd; ((LapisLibState *)stateOf(self)).label = l; }
+static NSInteger libType(id self, SEL _cmd) { (void)self; (void)_cmd; return 0; /* MTLLibraryTypeExecutable */ }
+
+static id
+libNewFunction(id self, SEL _cmd, NSString *name)
+{
+	(void)_cmd;
+	LapisLibState *lib = stateOf(self);
+	const void *bc = NULL;
+	size_t size = 0;
+	if (!name || G.metallib_function(lib.data.bytes, lib.data.length, name.UTF8String, &bc, &size) != 0) {
+		say([NSString stringWithFormat:@"no function %@ in the library", name]);
+		return nil;
+	}
+	LapisFnState *st = [LapisFnState new];
+	st.library = lib;
+	st.name = name;
+	st.bitcode = bc;
+	st.bitcodeSize = size;
+	return plainNew(gFunctionClass, st);
+}
+
+static id
+libNewFunctionError(id self, SEL _cmd, NSString *name, id constants, NSError **error)
+{
+	(void)_cmd;
+	(void)constants;
+	id f = libNewFunction(self, sel_registerName("newFunctionWithName:"), name);
+	if (!f && error) {
+		*error = metalError(MTLLibraryErrorDomain, MTLLibraryErrorFunctionNotFound, @"no such function");
+	}
+	return f;
+}
+
+static id fnName(id self, SEL _cmd) { (void)_cmd; return ((LapisFnState *)stateOf(self)).name; }
+static id fnLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisFnState *)stateOf(self)).label; }
+static void fnSetLabel(id self, SEL _cmd, NSString *l) { (void)_cmd; ((LapisFnState *)stateOf(self)).label = l; }
+static NSUInteger fnType(id self, SEL _cmd) { (void)self; (void)_cmd; return MTLFunctionTypeKernel; }
+static id fnEmpty(id self, SEL _cmd) { (void)self; (void)_cmd; return @[]; }
+
+static id
+deviceNewComputePipeline(id self, SEL _cmd, id function, NSError **error)
+{
+	(void)self;
+	(void)_cmd;
+	LapisFnState *fn = function ? stateOf(function) : nil;
+	if (![fn isKindOfClass:[LapisFnState class]] || !G.compute_new) {
+		if (error) {
+			*error = metalError(@"CompilerError", 1, @"not a LapisMetal function");
+		}
+		return nil;
+	}
+	char why[512] = "";
+	uint64_t t0 = nowNs();
+	void *c = G.compute_new(G.gpu, fn.bitcode, fn.bitcodeSize, fn.name.UTF8String, why, sizeof(why));
+	if (!c) {
+		if (error) {
+			*error = metalError(@"CompilerError", 2, [NSString stringWithFormat:@"%@: %s", fn.name, why]);
+		}
+		return nil;
+	}
+	int kinds[LAPIS_MAX_BINDINGS];
+	unsigned idx[LAPIS_MAX_BINDINGS];
+	unsigned nres = G.compute_resources(c, kinds, idx, LAPIS_MAX_BINDINGS);
+	NSMutableString *res = [NSMutableString new];
+	for (unsigned i = 0; i < nres && i < LAPIS_MAX_BINDINGS; i++) {
+		[res appendFormat:@" %d@%u", kinds[i], idx[i]];
+	}
+	say([NSString stringWithFormat:@"pipeline %@: compiled in %.2f ms, resources (kind@index):%@", fn.name,
+	    (nowNs() - t0) / 1e6, res]);
+	LapisPipeState *st = [LapisPipeState new];
+	st.compute = c;
+	return plainNew(gPipelineClass, st);
+}
+
+static id
+deviceNewComputePipelineOpts(id self, SEL _cmd, id function, NSUInteger options, id *reflection, NSError **error)
+{
+	(void)_cmd;
+	(void)options;
+	if (reflection) {
+		*reflection = nil;
+	}
+	return deviceNewComputePipeline(self, sel_registerName("newComputePipelineStateWithFunction:error:"), function, error);
+}
+
+static void
+deviceNewComputePipelineAsync(id self, SEL _cmd, id function, void (^done)(id, NSError *))
+{
+	(void)_cmd;
+	NSError *e = nil;
+	id p = deviceNewComputePipeline(self, sel_registerName("newComputePipelineStateWithFunction:error:"), function, &e);
+	if (done) {
+		done(p, e);
+	}
+}
+
+static NSUInteger pipeMaxThreads(id self, SEL _cmd) { (void)self; (void)_cmd; return 256; }
+static NSUInteger pipeWidth(id self, SEL _cmd) { (void)self; (void)_cmd; return 16; }
+static NSUInteger pipeZero(id self, SEL _cmd) { (void)self; (void)_cmd; return 0; }
+static id pipeLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisPipeState *)stateOf(self)).label; }
+
+static id
+cbComputeEncoder(id self, SEL _cmd)
+{
+	(void)_cmd;
+	LapisComputeState *es = [LapisComputeState new];
+	es.commandBuffer = self;
+	return gComputeClass ? plainNew(gComputeClass, es) : nil;
+}
+
+static id cbComputeEncoderType(id self, SEL _cmd, NSUInteger type) { (void)type; return cbComputeEncoder(self, _cmd); }
+
+static id ceLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisComputeState *)stateOf(self)).label; }
+static void ceSetLabel(id self, SEL _cmd, NSString *l) { (void)_cmd; ((LapisComputeState *)stateOf(self)).label = l; }
+static void cePipeline(id self, SEL _cmd, id p) { (void)_cmd; ((LapisComputeState *)stateOf(self)).pipeline = p; }
+
+static void
+ceSetBuffer(id self, SEL _cmd, id buffer, NSUInteger offset, NSUInteger index)
+{
+	(void)_cmd;
+	LapisComputeState *es = stateOf(self);
+	if (index >= LAPIS_MAX_BINDINGS) {
+		say(@"refused: a buffer index past 30");
+		return;
+	}
+	es->buffers[index] = buffer;
+	es->offsets[index] = offset;
+}
+
+static void
+ceSetBuffers(id self, SEL _cmd, const id __unsafe_unretained *buffers, const NSUInteger *offsets, NSRange range)
+{
+	for (NSUInteger i = 0; i < range.length; i++) {
+		ceSetBuffer(self, _cmd, buffers[i], offsets[i], range.location + i);
+	}
+}
+
+static void
+ceSetBufferOffset(id self, SEL _cmd, NSUInteger offset, NSUInteger index)
+{
+	(void)_cmd;
+	if (index < LAPIS_MAX_BINDINGS) {
+		((LapisComputeState *)stateOf(self))->offsets[index] = offset;
+	}
+}
+
+static void
+ceSetBytes(id self, SEL _cmd, const void *bytes, NSUInteger length, NSUInteger index)
+{
+	id b = gpuBuffer(length < 16 ? 16 : length, 0);
+	if (!b) {
+		return;
+	}
+	memcpy(bufferState(b)->memory, bytes, length);
+	ceSetBuffer(self, _cmd, b, 0, index);
+}
+
+static void
+ceDispatch(id self, uint32_t grid[3], uint32_t block[3])
+{
+	LapisComputeState *es = stateOf(self);
+	LapisPipeState *ps = es.pipeline ? stateOf(es.pipeline) : nil;
+	if (!ps.compute) {
+		say(@"refused: a dispatch without a compute pipeline state");
+		return;
+	}
+	void *bufs[LAPIS_MAX_BINDINGS];
+	LapisCBState *cb = stateOf(es.commandBuffer);
+	[cb.keep addObject:es.pipeline];
+	for (unsigned i = 0; i < LAPIS_MAX_BINDINGS; i++) {
+		bufs[i] = es->buffers[i] ? bufferState(es->buffers[i])->gpubuf : NULL;
+		if (es->buffers[i]) {
+			[cb.keep addObject:es->buffers[i]];
+		}
+	}
+	if (G.dispatch(G.gpu, ps.compute, bufs, es->offsets, LAPIS_MAX_BINDINGS, grid, block) != 0) {
+		say(@"refused: a dispatch with a buffer the kernel uses not bound (or not in GPU memory)");
+	}
+}
+
+static void
+ceDispatchGroups(id self, SEL _cmd, MTLSize groups, MTLSize threads)
+{
+	(void)_cmd;
+	uint32_t g[3] = { (uint32_t)groups.width, (uint32_t)groups.height, (uint32_t)groups.depth };
+	uint32_t b[3] = { (uint32_t)threads.width, (uint32_t)threads.height, (uint32_t)threads.depth };
+	ceDispatch(self, g, b);
+}
+
+static void
+ceDispatchThreads(id self, SEL _cmd, MTLSize total, MTLSize threads)
+{
+	(void)_cmd;
+	NSUInteger t[3] = { total.width, total.height, total.depth }, b[3] = { threads.width, threads.height, threads.depth };
+	uint32_t g3[3], b3[3];
+	for (int k = 0; k < 3; k++) {
+		b3[k] = (uint32_t)(b[k] ? b[k] : 1);
+		g3[k] = (uint32_t)((t[k] + b3[k] - 1) / b3[k]);
+		if (t[k] % b3[k]) {
+			static BOOL once;
+			if (!once) {
+				once = YES;
+				say(@"dispatchThreads: a partial threadgroup is run whole (no non-uniform groups yet)");
+			}
+		}
+	}
+	ceDispatch(self, g3, b3);
+}
+
+static void
+ceIgnored(id self, SEL _cmd, NSUInteger a, NSUInteger b)
+{
+	(void)self;
+	(void)a;
+	(void)b;
+	static BOOL once;
+	if (!once) {
+		once = YES;
+		say([NSString stringWithFormat:@"%s: not done yet (ignored)", sel_getName(_cmd)]);
+	}
+}
+
+static void
+addMethods(Class cls, const char *const *sels, const IMP *imps, const char *const *types, unsigned n)
+{
+	for (unsigned i = 0; i < n; i++) {
+		class_addMethod(cls, sel_registerName(sels[i]), imps[i], types[i]);
+	}
+}
+
+static Class
+computeSubclass(const char *base, const char *name, Protocol *proto)
+{
+	Class b = objc_getClass(base);
+	Class cls = objc_allocateClassPair(b ? b : [NSObject class], name, 0);
+	class_addProtocol(cls, proto);
+	gProtocols[gProtocolCount++] = proto;
+	class_addMethod(cls, sel_registerName("device"), (IMP)objDevice, "@@:");
+	class_addMethod(cls, sel_registerName("dealloc"), (IMP)deallocPlain, "v@:");
+	class_addMethod(cls, sel_registerName("methodSignatureForSelector:"), (IMP)stubSignature, "@@::");
+	class_addMethod(cls, sel_registerName("forwardInvocation:"), (IMP)stubForward, "v@:@");
+	return cls;
+}
+
+static void
+registerComputeClasses(Class device)
+{
+	gLibraryClass = computeSubclass("_MTLLibrary", "LapisMetalLibrary", @protocol(MTLLibrary));
+	{
+		const char *s[] = { "functionNames", "label", "setLabel:", "type", "newFunctionWithName:",
+		    "newFunctionWithName:constantValues:error:" };
+		IMP i[] = { (IMP)libNames, (IMP)libLabel, (IMP)libSetLabel, (IMP)libType, (IMP)libNewFunction,
+		    (IMP)libNewFunctionError };
+		const char *t[] = { "@@:", "@@:", "v@:@", "q@:", "@@:@", "@@:@@^@" };
+		addMethods(gLibraryClass, s, i, t, 6);
+	}
+	objc_registerClassPair(gLibraryClass);
+
+	gFunctionClass = computeSubclass("_MTLFunction", "LapisMetalFunction", @protocol(MTLFunction));
+	{
+		const char *s[] = { "name", "label", "setLabel:", "functionType", "vertexAttributes", "stageInputAttributes",
+		    "functionConstantsDictionary" };
+		IMP i[] = { (IMP)fnName, (IMP)fnLabel, (IMP)fnSetLabel, (IMP)fnType, (IMP)fnEmpty, (IMP)fnEmpty, (IMP)fnEmpty };
+		const char *t[] = { "@@:", "@@:", "v@:@", "Q@:", "@@:", "@@:", "@@:" };
+		addMethods(gFunctionClass, s, i, t, 7);
+	}
+	objc_registerClassPair(gFunctionClass);
+
+	gPipelineClass = computeSubclass("_MTLComputePipelineState", "LapisMetalComputePipelineState",
+	    @protocol(MTLComputePipelineState));
+	{
+		const char *s[] = { "maxTotalThreadsPerThreadgroup", "threadExecutionWidth", "staticThreadgroupMemoryLength",
+		    "label" };
+		IMP i[] = { (IMP)pipeMaxThreads, (IMP)pipeWidth, (IMP)pipeZero, (IMP)pipeLabel };
+		const char *t[] = { "Q@:", "Q@:", "Q@:", "@@:" };
+		addMethods(gPipelineClass, s, i, t, 4);
+	}
+	objc_registerClassPair(gPipelineClass);
+
+	gComputeClass = computeSubclass("_MTLComputeCommandEncoder", "LapisMetalComputeCommandEncoder",
+	    @protocol(MTLComputeCommandEncoder));
+	gProtocols[gProtocolCount++] = @protocol(MTLCommandEncoder);
+	{
+		const char *s[] = { "label", "setLabel:", "endEncoding", "setComputePipelineState:",
+		    "setBuffer:offset:atIndex:", "setBuffers:offsets:withRange:", "setBufferOffset:atIndex:",
+		    "setBytes:length:atIndex:", "dispatchThreadgroups:threadsPerThreadgroup:",
+		    "dispatchThreads:threadsPerThreadgroup:", "setThreadgroupMemoryLength:atIndex:",
+		    "memoryBarrierWithScope:", "dispatchType" };
+		IMP i[] = { (IMP)ceLabel, (IMP)ceSetLabel, (IMP)cbNothing, (IMP)cePipeline, (IMP)ceSetBuffer,
+		    (IMP)ceSetBuffers, (IMP)ceSetBufferOffset, (IMP)ceSetBytes, (IMP)ceDispatchGroups,
+		    (IMP)ceDispatchThreads, (IMP)ceIgnored, (IMP)cbNothing, (IMP)pipeZero };
+		const char *t[] = { "@@:", "v@:@", "v@:", "v@:@", "v@:@QQ", "v@:r^@r^Q{_NSRange=QQ}", "v@:QQ",
+		    "v@:r^vQQ", "v@:{?=QQQ}{?=QQQ}", "v@:{?=QQQ}{?=QQQ}", "v@:QQ", "v@:Q", "Q@:" };
+		addMethods(gComputeClass, s, i, t, 13);
+	}
+	objc_registerClassPair(gComputeClass);
+
+	const char *s[] = { "newLibraryWithData:error:", "newLibraryWithURL:error:", "newLibraryWithFile:error:",
+	    "newDefaultLibrary", "newComputePipelineStateWithFunction:error:",
+	    "newComputePipelineStateWithFunction:options:reflection:error:",
+	    "newComputePipelineStateWithFunction:completionHandler:" };
+	IMP i[] = { (IMP)deviceNewLibraryData, (IMP)deviceNewLibraryURL, (IMP)deviceNewLibraryFile,
+	    (IMP)deviceNewDefaultLibrary, (IMP)deviceNewComputePipeline, (IMP)deviceNewComputePipelineOpts,
+	    (IMP)deviceNewComputePipelineAsync };
+	const char *t[] = { "@@:@^@", "@@:@^@", "@@:@^@", "@@:", "@@:@^@", "@@:@Q^@^@", "v@:@@?" };
+	addMethods(device, s, i, t, 7);
+}
+
 static void
 registerCommandClasses(void)
 {
@@ -708,6 +1179,8 @@ registerCommandClasses(void)
 		{ "addCompletedHandler:", (IMP)cbAddCompleted, "v@:@?" },
 		{ "addScheduledHandler:", (IMP)cbAddScheduled, "v@:@?" },
 		{ "blitCommandEncoder", (IMP)cbBlitEncoder, "@@:" },
+		{ "computeCommandEncoder", (IMP)cbComputeEncoder, "@@:" },
+		{ "computeCommandEncoderWithDispatchType:", (IMP)cbComputeEncoderType, "@@:Q" },
 		{ "GPUStartTime", (IMP)cbGPUStart, "d@:" }, { "GPUEndTime", (IMP)cbGPUEnd, "d@:" },
 		{ "kernelStartTime", (IMP)cbTimeZero, "d@:" }, { "kernelEndTime", (IMP)cbTimeZero, "d@:" },
 		{ "dealloc", (IMP)deallocPlain, "v@:" },
@@ -820,5 +1293,6 @@ registerClasses(void)
 	}
 	registerBufferClass(device);
 	registerCommandClasses();
+	registerComputeClasses(device);
 	say(@"LapisMetalDevice registered (a subclass of _MTLDevice)");
 }
