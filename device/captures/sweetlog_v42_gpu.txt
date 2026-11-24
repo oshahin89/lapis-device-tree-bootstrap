@@ -1,0 +1,11 @@
+LAPIS GPU: GPUEB power-on 5 x100us, GPU_ID 0xb8a31030, MMU_FEATURES 0x2830
+LAPIS GPU: reset 0, L2 4 (x10us); firmware 0, 7 sections, pool 0xb9000 used
+LAPIS GPU: MCU boot 4 x10us, status 1, interface 0x2050000, 8 groups
+LAPIS GPU: GLB config 3 ping 1, CSG start 3, CS start 2 (x10us)
+LAPIS GPU: 300 streams: 300 ran, avg 21 us, worst 74 us, first miss -1, insert 0x4b00 extract 0x4b00
+LAPIS GPU: at 1s: stream ran 17 us, ping 1 x10us, MCU 1, events 1 faults 0
+LAPIS GPU: at 10s: stream ran 29 us, ping 1 x10us, MCU 1, events 2 faults 0
+LAPIS GPU: at 30s: stream ran 17 us, ping 1 x10us, MCU 1, events 3 faults 0
+LAPIS GPU: at 60s: stream ran 24 us, ping 1 x10us, MCU 1, events 4 faults 0
+LAPIS GPU: at 120s: stream ran 21 us, ping 1 x10us, MCU 1, events 5 faults 0
+LAPIS GPU: up, servicing events every 20 ms

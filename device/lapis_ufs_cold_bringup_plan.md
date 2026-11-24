@@ -1332,3 +1332,11 @@ containers, activation ark). `tools/lapis_iosroot_tweak.sh` builds
 `build/iosroot_tweaked.img` = iosroot.img + tweaks (sudo loop mount) + ICL
 NOP (SHA-checked). Next: run it on the PC (needs sudo), write the image to
 iosroot (push + on-device dd), boot.
+
+## 49. Run 6: reached the iOS lock screen
+
+User reports that the next boot reached the iOS lock screen. This advances the
+port beyond the Apple-logo/data-migration screen recorded in Run 5. The project
+notes do not yet include the exact image hash, boot duration, or a decoded log
+for this run; record those if available. Touch input and the remaining device
+drivers are still separate bring-up work.

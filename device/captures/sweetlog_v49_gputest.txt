@@ -1,0 +1,11 @@
+LapisGPU client: lapis_gputest: opened LapisGPU (pid 88)
+LapisGPU client: DEV_QUERY 0/0: gpu_id 0xb8a31030 csf 0x4100412 shaders 0x5 as 0xfc mmu 0x2830, csg 7 regs 96 sb 16
+LapisGPU client: VM 1, buffers 1/2 at 0x1006ec000/0x1006fc000, group 1
+LapisGPU client: 1000 streams, synced: 1000 ran, avg 2772 us, worst 2235236 us, first miss -1
+LapisGPU client: no syncs (write-combined): submission 0: submit 0 wait 0 seq 1001 target 0x50a003c0
+LapisGPU client: 1000 streams, no syncs (write-combined): 1 ran, avg 1580 us, worst 1580 us, first miss 0
+LapisGPU client: no syncs, 30 s later: submission 0: submit 0 wait 0 seq 2001 target 0x50a103c0
+LapisGPU client: 1000 streams, no syncs, 30 s later: 0 ran, avg 0 us, worst 0 us, first miss 0
+LapisGPU: tiler heap 0 on VM 1: 5 x 0x200000, context 0xff0040000000, first chunk 0xff0041800000
+LapisGPU client: TILER_HEAP_CREATE 0: heap 0 context 0xff0040000000 first chunk 0xff0041800000; destroy 0
+LapisGPU client: group state 0; destroy group 0, buffers 0, VM 0; done

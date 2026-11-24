@@ -62,6 +62,9 @@ def main():
     harness_seds(xnu)
 
     env = dict(os.environ, MACHINE_CONFIG="SWEET", MACOS_VERSION="13.5")
+    env.setdefault("LAPIS_NT38771_FIRMWARE",
+                   str(Path(__file__).resolve().parents[3] / "device" / "novatek_ts_fw_tm.bin"))
+    env.setdefault("LAPIS_PROJECT_ROOT", str(Path(__file__).resolve().parents[3]))
     if not a.no_scripts and shutil.which("xcrun") is None:
         # Linux preflight only: the stage scripts copy SDK headers that the
         # macOS build needs. Point xcrun at an empty placeholder SDK so the

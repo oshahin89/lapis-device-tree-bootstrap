@@ -1,0 +1,7 @@
+diff --git a/iokit/conf/files.arm64 b/iokit/conf/files.arm64
+--- a/iokit/conf/files.arm64
++++ b/iokit/conf/files.arm64
+@@ -18,2 +18,3 @@
+ iokit/Kernel/arm/SweetBattery.cpp                                optional iokitcpp
++iokit/Kernel/arm/LapisGPU.cpp                                    optional iokitcpp
+ iokit/Kernel/arm/hid/SweetHID.cpp                                optional iokitcpp

@@ -69,10 +69,17 @@ def parse(img):
                 orig=orig, vbmeta=img[vbo:vbo + vbs], footer=f)
 
 
-def assemble(stock, kernel):
+CMDLINE_OFF, CMDLINE_LEN = 44, 1536      # boot header v4 cmdline (LK appends it)
+
+
+def assemble(stock, kernel, cmdline=b""):
     s = parse(stock)
     hdr = bytearray(stock[:PAGE])
     struct.pack_into("<I", hdr, 8, len(kernel))
+    if cmdline:
+        if len(cmdline) >= CMDLINE_LEN or any(hdr[CMDLINE_OFF:CMDLINE_OFF + CMDLINE_LEN]):
+            sys.exit("--cmdline: too long, or the stock header already has one")
+        hdr[CMDLINE_OFF:CMDLINE_OFF + len(cmdline)] = cmdline
     body = bytes(hdr) + bytes(kernel) + b"\0" * (pad(len(kernel)) - len(kernel)) + s["trailer"]
     orig = len(body)
     if orig + len(s["vbmeta"]) > len(stock) - FOOTER:
@@ -86,15 +93,54 @@ def assemble(stock, kernel):
     return bytes(img)
 
 
-def build_image(stock, image, blob):
+STUB_AREA = 0x10000
+
+
+def stock_image(stock):
+    """The stock boot image's own decompressed Linux arm64 Image."""
+    raw = lz4.decompress(parse(stock)["kernel"])
+    if raw[0x38:0x3C] != b"ARMd":
+        sys.exit("stock kernel is not a Linux arm64 Image")
+    return raw
+
+
+GPUFW_OFF = 0x3800000   # sweet_lapis_gpu.c reads mali_csffw.bin at load base + this
+
+
+def build_image(stock, image, blob, android=None, cmdline=b"", gpufw=b""):
     if image[0x38:0x3C] != b"ARMd":
         sys.exit("--image is not a Linux arm64 Image")
     raw = bytearray(image)
     if blob:
         raw += b"\0" * (-len(raw) % 0x1000)
         raw += blob
+    if android:
+        # tools/lapis_shim/dual.c: Android's Image at a 2 MiB boundary, then a
+        # free area for chain_stub, which copies the Image down to the shim's
+        # load address. The area must lie beyond everything that Image covers
+        # there (its image_size, bss included) and beyond its own source.
+        android = bytes(android) + b"\0" * (-len(android) % 16)
+        a_size, = struct.unpack_from("<Q", android, 16)
+        raw += b"\0" * (-len(raw) % 0x200000)
+        a_off = len(raw)
+        raw += android
+        raw += b"\0" * (-len(raw) % 0x1000)
+        stub_off = len(raw)
+        if stub_off < a_size:
+            sys.exit("stub area would be overwritten by Android's kernel")
+        raw += b"\0" * STUB_AREA
+        struct.pack_into("<QQQ", raw, 0x20, a_off, len(android), stub_off)
+    if gpufw:
+        # the Mali CSF firmware at a fixed offset (RAM 0x43800000 with LK's
+        # 0x40000000 load base), for the xnu GPU driver; not in git
+        if len(raw) > GPUFW_OFF:
+            sys.exit("image already past the GPU firmware offset")
+        if gpufw[:4] != bytes.fromhex("6e3af1c3"):
+            sys.exit("--gpufw is not a Mali CSF firmware (magic)")
+        raw += b"\0" * (GPUFW_OFF - len(raw))
+        raw += gpufw
     struct.pack_into("<Q", raw, 16, len(raw))             # image_size covers the payload
-    return assemble(stock, lz4.compress(bytes(raw))), bytes(raw)
+    return assemble(stock, lz4.compress(bytes(raw)), cmdline), bytes(raw)
 
 
 def build(stock, payload):
@@ -140,9 +186,12 @@ def verify(stock, out, payload, raw0_stock):
     return len(diff)
 
 
-def verify_layout(stock, out):
+def verify_layout(stock, out, cmdline=b""):
     a, b = parse(stock), parse(out)
-    if stock[:8] + stock[12:PAGE] != out[:8] + out[12:PAGE]:
+    o = bytearray(out[:PAGE])
+    if cmdline and o[CMDLINE_OFF:CMDLINE_OFF + len(cmdline)] == cmdline:
+        o[CMDLINE_OFF:CMDLINE_OFF + len(cmdline)] = bytes(len(cmdline))
+    if stock[:8] + stock[12:PAGE] != bytes(o[:8]) + bytes(o[12:PAGE]):
         sys.exit("verify: header changed beyond kernel_size")
     if a["trailer"] != b["trailer"] or a["vbmeta"] != b["vbmeta"]:
         sys.exit("verify: boot signature or vbmeta changed")
@@ -158,6 +207,11 @@ def main():
     g.add_argument("--probe", help="small payload placed at Image+0x1000 of the stock kernel")
     g.add_argument("--image", help="replacement arm64 Image (e.g. the lapis shim)")
     ap.add_argument("--append", help="with --image: blob appended at the next 4 KiB boundary")
+    ap.add_argument("--android", action="store_true",
+                    help="with --image: also carry STOCK's own Android kernel (dual boot, lapis_shim dual)")
+    ap.add_argument("--gpufw", help="with --image: mali_csffw.bin placed at load base + 0x3800000")
+    ap.add_argument("--cmdline", default="",
+                    help="with --image: text for the boot header cmdline (LK appends it to bootargs)")
     ap.add_argument("--expect-stock-sha256")
     a = ap.parse_args()
     if a.append and not a.image:
@@ -177,11 +231,17 @@ def main():
     else:
         image = open(a.image, "rb").read()
         blob = open(a.append, "rb").read() if a.append else b""
-        out, raw = build_image(stock, image, blob)
-        o = verify_layout(stock, out)
+        android = stock_image(stock) if a.android else None
+        gpufw = open(a.gpufw, "rb").read() if a.gpufw else b""
+        out, raw = build_image(stock, image, blob, android, a.cmdline.encode(), gpufw)
+        if android and raw[struct.unpack_from("<Q", raw, 0x20)[0]:][:len(android)] != android:
+            sys.exit("verify: Android Image not where the header says")
+        o = verify_layout(stock, out, a.cmdline.encode())
         if lz4.decompress(o["kernel"]) != raw:
             sys.exit("verify: decompressed kernel differs from Image + payload")
-        what = (f"decompressed kernel == Image ({len(image)} B) + payload ({len(blob)} B), "
+        what = (f"decompressed kernel == Image ({len(image)} B) + payload ({len(blob)} B)"
+                + (f" + Android Image ({len(android)} B at {struct.unpack_from('<Q', raw, 0x20)[0]:#x})" if android else "")
+                + ", "
                 f"image_size {len(raw):#x}")
         how = "whole Image compressed"
     with open(a.out, "wb") as f:

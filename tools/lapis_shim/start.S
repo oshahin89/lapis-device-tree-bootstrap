@@ -35,12 +35,15 @@ _start:
 	 * 0x22 key first (confirmed on the device with the stage 1 probe).
 	 * XNU patch 0082 repeats the store.
 	 */
+#ifndef LAPIS_DUAL
 	movz	x0, #0xa000
 	movk	x0, #0x1c00, lsl #16
 	movz	w1, #0
 	movk	w1, #0x2200, lsl #16
 	str	w1, [x0]
 	dsb	sy
+#endif
+	/* LAPIS_DUAL: dual.c leaves it armed for Android and stops it for XNU */
 
 	/*
 	 * lapis enters at EL1 (GenieZone owns EL2). QEMU virt with
@@ -125,3 +128,47 @@ vectors:
 	vent 13
 	vent 14
 	vent 15
+
+/*
+ * chain_stub(dtb, dst, src, len): LAPIS_DUAL's way into Android's kernel.
+ * dual.c copies these instructions past the end of everything the shim
+ * needs and calls the copy, which moves Android's Image down onto the shim's
+ * own load address (dst < src: an ascending copy is safe), and enters it
+ * there the way LK would have: x0 = DTB, x1..x3 = 0, MMU and caches off.
+ */
+	.globl	chain_stub
+	.globl	chain_stub_end
+	.balign	16
+chain_stub:
+	mov	x4, x1
+1:	ldp	x5, x6, [x2], #16
+	stp	x5, x6, [x1], #16
+	subs	x3, x3, #16
+	b.hi	1b
+	dsb	sy
+	ic	iallu
+	dsb	sy
+	isb
+	mov	x1, xzr
+	mov	x2, xzr
+	mov	x3, xzr
+	br	x4
+chain_stub_end:
+
+/*
+ * sec_entry: a secondary core started by PSCI CPU_ON with context_id = its
+ * stack top (tcpu: big-core speed). MMU and caches off like the boot core.
+ */
+	.globl	sec_entry
+	.weak	sec_main		/* only tcpu has it; others never start a core */
+	.balign	16
+sec_entry:
+	msr	daifset, #0xf
+	mrs	x1, sctlr_el1		/* I-cache on (allowed with the MMU off): v3 timed */
+	orr	x1, x1, #(1 << 12)	/* an uncached fetch, ~1% of cpu0 */
+	msr	sctlr_el1, x1
+	isb
+	mov	sp, x0
+	bl	sec_main
+1:	wfe
+	b	1b

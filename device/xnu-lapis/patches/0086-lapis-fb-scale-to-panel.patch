@@ -1,0 +1,143 @@
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -104,6 +104,8 @@
+ 	uint32_t      fWidth, fHeight, fRowBytes;
+ 	uint32_t      fLogicalW, fLogicalH;     /* size reported to userland */
+ 	int32_t       fOffX, fOffY;             /* logical origin of the panel */
++	bool          fScale;           /* lapis: logical display scaled up to the panel */
++	uint16_t     *fXMap, *fYMap;    /* panel column/row -> logical column/row */
+ 	uintptr_t     fPixels;          /* kernel mapping of the panel memory */
+ 	IOMemoryMap  *fMap;
+ 	SweetSurface *fSurface;         /* the panel memory as an IOSurface */
+@@ -122,6 +124,8 @@
+ 	void removeClient(IOMobileFramebufferUserClient *client);
+ 	void swap(const uint8_t *rec);
+ 	void present(const uint8_t *rec);
++	void presentScaled(SweetSurface *s, uintptr_t src, uint32_t bpe,
++	    int32_t sx, int32_t sy, int32_t dx, int32_t dy, int32_t w, int32_t h);
+ };
+ 
+ OSDefineMetaClassAndStructors(AppleCLCD, IOMobileFramebuffer);
+@@ -174,8 +178,33 @@
+ 		fLogicalW = SWEET_FB_LOGICAL_W;
+ 		fLogicalH = SWEET_FB_LOGICAL_H;
+ 	}
+-	fOffX = (int32_t)(fLogicalW - fWidth) / 2;
+-	fOffY = (int32_t)(fLogicalH - fHeight) / 2;
++	/*
++	 * lapis: the panel (1280x2772) is larger than the iPhone X display but has
++	 * the same aspect ratio (to 0.02%). Keep presenting 1125x2436 to userland
++	 * and scale each layer up to the whole panel (nearest neighbour).
++	 */
++	fScale = false;
++	if (!native && fWidth > SWEET_FB_LOGICAL_W && fHeight > SWEET_FB_LOGICAL_H) {
++		uint64_t a = (uint64_t)fWidth * SWEET_FB_LOGICAL_H;
++		uint64_t b = (uint64_t)fHeight * SWEET_FB_LOGICAL_W;
++		if (a * 100 <= b * 101 && b * 100 <= a * 101) {
++			fXMap = (uint16_t *)IOMallocData(fWidth * sizeof(uint16_t));
++			fYMap = (uint16_t *)IOMallocData(fHeight * sizeof(uint16_t));
++			if (fXMap != NULL && fYMap != NULL) {
++				for (uint32_t x = 0; x < fWidth; x++) {
++					fXMap[x] = (uint16_t)((uint64_t)x * SWEET_FB_LOGICAL_W / fWidth);
++				}
++				for (uint32_t y = 0; y < fHeight; y++) {
++					fYMap[y] = (uint16_t)((uint64_t)y * SWEET_FB_LOGICAL_H / fHeight);
++				}
++				fScale = true;
++				fLogicalW = SWEET_FB_LOGICAL_W;
++				fLogicalH = SWEET_FB_LOGICAL_H;
++			}
++		}
++	}
++	fOffX = fScale ? 0 : (int32_t)(fLogicalW - fWidth) / 2;
++	fOffY = fScale ? 0 : (int32_t)(fLogicalH - fHeight) / 2;
+ 	fLock = IOLockAlloc();
+ 	fClients = OSArray::withCapacity(4);
+ 	fSurface = sweet_surface_create_physical(fPhys, fWidth, fHeight, fRowBytes, SWEET_FB_FORMAT_BGRA);
+@@ -201,8 +230,9 @@
+ 	setProperty("external", false);
+ 	setProperty("DisplayPipePlaneBaseAlignment", 64ULL, 32);
+ 	registerService();
+-	IOLog("SWEET FB: AppleCLCD %ux%u stride %u at 0x%llx, default surface %u, presented as %ux%u\n",
+-	    fWidth, fHeight, fRowBytes, fPhys, fSurface->id, fLogicalW, fLogicalH);
++	IOLog("SWEET FB: AppleCLCD %ux%u stride %u at 0x%llx, default surface %u, presented as %ux%u%s\n",
++	    fWidth, fHeight, fRowBytes, fPhys, fSurface->id, fLogicalW, fLogicalH,
++	    fScale ? " (scaled to the panel)" : "");
+ 	return true;
+ }
+ 
+@@ -359,6 +389,11 @@
+ 		if (dx < 0 || dy < 0) {
+ 			dx = dy = 0;
+ 		}
++		if (fScale) {
++			presentScaled(s, src, bpe, sx, sy, dx, dy, w, h);
++			s->release();
++			continue;
++		}
+ 		/* Logical (presented) display coordinates -> panel coordinates. */
+ 		dx -= fOffX;
+ 		dy -= fOffY;
+@@ -401,6 +436,62 @@
+ 	}
+ }
+ 
++/*
++ * lapis: draw one layer (logical rect dx,dy,w,h from surface sx,sy) scaled
++ * to the panel. Panel pixel (px,py) shows logical pixel (fXMap[px],
++ * fYMap[py]); the panel range is exactly the pixels whose logical pixel lies
++ * in the rect.
++ */
++void
++AppleCLCD::presentScaled(SweetSurface *s, uintptr_t src, uint32_t bpe,
++    int32_t sx, int32_t sy, int32_t dx, int32_t dy, int32_t w, int32_t h)
++{
++	if (src == 0 || bpe != 4 || s->elementWidth != 1 || s->elementHeight != 1 ||
++	    s->memory == NULL) {
++		return;
++	}
++	if (w > (int32_t)s->width - sx) {
++		w = (int32_t)s->width - sx;
++	}
++	if (h > (int32_t)s->height - sy) {
++		h = (int32_t)s->height - sy;
++	}
++	if (w > (int32_t)fLogicalW - dx) {
++		w = (int32_t)fLogicalW - dx;
++	}
++	if (h > (int32_t)fLogicalH - dy) {
++		h = (int32_t)fLogicalH - dy;
++	}
++	if (w <= 0 || h <= 0) {
++		return;
++	}
++	uint64_t last = (uint64_t)s->offset + (uint64_t)(sy + h - 1) * s->bytesPerRow +
++	    (uint64_t)(sx + w) * 4;
++	if (last > s->memory->getLength()) {
++		return;
++	}
++	/* ceil(l * panel / logical) = first panel pixel showing logical pixel l */
++	uint32_t px0 = (uint32_t)(((uint64_t)dx * fWidth + fLogicalW - 1) / fLogicalW);
++	uint32_t px1 = (uint32_t)(((uint64_t)(dx + w) * fWidth + fLogicalW - 1) / fLogicalW);
++	uint32_t py0 = (uint32_t)(((uint64_t)dy * fHeight + fLogicalH - 1) / fLogicalH);
++	uint32_t py1 = (uint32_t)(((uint64_t)(dy + h) * fHeight + fLogicalH - 1) / fLogicalH);
++	if (px1 > fWidth) {
++		px1 = fWidth;
++	}
++	if (py1 > fHeight) {
++		py1 = fHeight;
++	}
++	const uintptr_t base = src + s->offset + (uint64_t)sx * 4;
++	for (uint32_t py = py0; py < py1; py++) {
++		const uint32_t *srow = (const uint32_t *)(base +
++		    (uint64_t)(sy + (int32_t)fYMap[py] - dy) * s->bytesPerRow);
++		uint32_t *drow = (uint32_t *)(fPixels + (uint64_t)py * fRowBytes);
++		for (uint32_t px = px0; px < px1; px++) {
++			drow[px] = srow[fXMap[px] - (uint32_t)dx];
++		}
++	}
++}
++
+ bool
+ IOMobileFramebufferUserClient::initWithTask(task_t owningTask, void *securityID, UInt32 type)
+ {

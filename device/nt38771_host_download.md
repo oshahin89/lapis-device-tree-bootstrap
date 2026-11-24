@@ -26,7 +26,7 @@ bytes, one message per call).
 | `chip_ver_trim_addr` | `0x3F004` | 6 ID bytes; bytes 4–6 = `72 87 03` or `71 87 03` → NT38771 |
 | `swrst_sif_addr` | `0x3F0FE` | `0x69` = bootloader reset (MCU), `0xAA` = SW reset to idle |
 | `BOOT_RDY_ADDR` | `0x3F102` | write 1 after download |
-| `EVENT_BUF_ADDR` | `0x31400` | event page: `+0x50` host command (`0xAE` = enable FW CRC), `+0x60` reset-complete status (`0xA0` = `RESET_STATE_INIT`), `+0x78` FW info |
+| `EVENT_BUF_ADDR` | `0x2B400` on lapis (Android capture: page `FF 05 68`; GPL source says `0x31400`, wrong for this chip) | event page: `+0x50` host command (`0xAE` = enable FW CRC), `+0x60` reset-complete status (`0xA0` = `RESET_STATE_INIT`), `+0x78` FW info |
 | `RESX_DECOUPLE_ADDR` | `0x3F8D4` | write `AA 55`, read back, up to 3 tries, after the bootloader reset |
 | ILM CRC bank | DES `0x3F7B4`, LEN `0x3F7B8` (3 B), golden `0x3F7BC` (4 B), result `0x3FBBC` | |
 | DLM CRC bank | DES `0x3FB84`, LEN `0x3FB88` (3 B), golden `0x3FB8C` (4 B), result `0x3FBC0` | |
@@ -47,7 +47,7 @@ lapis probe can skip the reset and the zero write and only read.
    length (3 bytes), golden CRC (4 bytes) from the image header.
 3. Write every non-empty partition (`size + 1` bytes) to its SRAM address in
    ≤ 15 KiB writes (set page, then one write message per chunk).
-4. FW CRC enable: page `0x31400`, `+0x60` ← 0, `+0x50` ← `0xAE`.
+4. FW CRC enable: page `0x2B400`, `+0x60` ← 0, `+0x50` ← `0xAE`.
 5. Boot ready: `0x3F102` ← 1, 5 ms.
 6. Poll the reset state at `EVENT_BUF_ADDR + 0x60` for `0xA0`.
 

@@ -1,0 +1,6 @@
+LAPIS GPU: GPUEB power-on 5 x100us, GPU_ID 0xb8a31030, MMU_FEATURES 0x2830
+LAPIS GPU: reset 0, L2 14 (x10us); firmware 0, 7 sections, pool 0xb9000 used
+LAPIS GPU: MCU boot 2 x10us, status 1, interface 0x2050000, 8 groups
+LAPIS GPU: GLB config 2 ping 1, CSG start 2, CS start 1 (x10us)
+LAPIS GPU: command stream RAN: target 0xc0ffee42 after 3 x10us, AS1 fault 0
+LAPIS GPU: stopped and powered off

@@ -1,0 +1,94 @@
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -43,6 +43,7 @@
+ #include <IOKit/IOUserClient.h>
+ #include <IOKit/IOKitKeys.h>
+ #include <IOKit/IOLib.h>
++#include <libkern/c++/OSCollectionIterator.h>
+ #include <IOKit/IOLocks.h>
+ #include <IOKit/IOWorkLoop.h>
+ #include <IOKit/IOTimerEventSource.h>
+@@ -120,6 +121,7 @@
+ 	uint32_t      fFadeStep;      /* fade-out steps done while off */
+ 
+ 	bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
++	IOReturn setProperties(OSObject *properties) APPLE_KEXT_OVERRIDE;
+ 	void addClient(IOMobileFramebufferUserClient *client);
+ 	void removeClient(IOMobileFramebufferUserClient *client);
+ 	void swap(const uint8_t *rec);
+@@ -153,6 +155,37 @@
+ 
+ OSDefineMetaClassAndStructors(IOMobileFramebufferUserClient, IOUserClient);
+ 
++/*
++ * lapis: OLED iPhones take brightness on the display service itself
++ * (e.g. IOMFBBrightnessLevel) rather than on a backlight; log every property
++ * userland sets here, with numbers, to find the key and its scale.
++ */
++IOReturn
++AppleCLCD::setProperties(OSObject *properties)
++{
++	static unsigned logs;
++	OSDictionary *dict = OSDynamicCast(OSDictionary, properties);
++	if (dict && logs < 200) {
++		char name[32];
++		proc_selfname(name, sizeof(name));
++		OSCollectionIterator *it = OSCollectionIterator::withCollection(dict);
++		if (it) {
++			OSSymbol *key;
++			while ((key = OSDynamicCast(OSSymbol, it->getNextObject())) && logs < 200) {
++				OSObject *o = dict->getObject(key);
++				OSNumber *n = OSDynamicCast(OSNumber, o);
++				logs++;
++				IOLog("LAPIS BR: %s set AppleCLCD %s = %s %#llx\n", name,
++				    key->getCStringNoCopy(),
++				    o ? o->getMetaClass()->getClassName() : "null",
++				    n ? n->unsigned64BitValue() : 0ULL);
++			}
++			it->release();
++		}
++	}
++	return kIOReturnSuccess;
++}
++
+ bool
+ AppleCLCD::start(IOService *provider)
+ {
+@@ -647,6 +680,36 @@
+ 	if (args->structureOutputDescriptor == NULL && args->structureOutput != NULL) {
+ 		bzero(args->structureOutput, args->structureOutputSize);
+ 	}
++	/*
++	 * lapis: brightness hunt. With no backlight service the Settings slider
++	 * still moves; log every call of the selectors that could carry it
++	 * (17 SetGammaTable, 50 SetBrightnessCorrection, 66/67 SPLC brightness,
++	 * 68 SetParameter, 84 SetContrast) with their inputs.
++	 */
++	static unsigned lapis_br_logs;
++	if ((selector == 17 || selector == 50 || selector == 66 || selector == 67 ||
++	    selector == 68 || selector == 84) && lapis_br_logs < 400) {
++		char name[32];
++		uint32_t w[4] = { 0, 0, 0, 0 };
++		lapis_br_logs++;
++		proc_selfname(name, sizeof(name));
++		if (args->structureInputDescriptor == NULL && args->structureInput != NULL) {
++			memcpy(w, args->structureInput,
++			    args->structureInputSize < sizeof(w) ? args->structureInputSize : sizeof(w));
++		}
++		IOLog("LAPIS BR: %s sel %u s0 %#llx s1 %#llx s2 %#llx in %u/%u words %08x %08x %08x %08x\n",
++		    name, selector,
++		    args->scalarInputCount > 0 ? args->scalarInput[0] : 0ULL,
++		    args->scalarInputCount > 1 ? args->scalarInput[1] : 0ULL,
++		    args->scalarInputCount > 2 ? args->scalarInput[2] : 0ULL,
++		    args->scalarInputCount, args->structureInputSize, w[0], w[1], w[2], w[3]);
++		if (selector == 17 && args->structureInputDescriptor == NULL &&
++		    args->structureInput != NULL && args->structureInputSize >= 3084) {
++			const uint32_t *g = (const uint32_t *)args->structureInput;
++			IOLog("LAPIS BR: gamma words 0 %08x 64 %08x 128 %08x 255 %08x 256 %08x 511 %08x 770 %08x\n",
++			    g[0], g[64], g[128], g[255], g[256], g[511], g[770]);
++		}
++	}
+ 	if (selector >= 64 || !(sweet_fb_logged & (1ULL << selector))) {
+ 		if (selector < 64) {
+ 			sweet_fb_logged |= 1ULL << selector;

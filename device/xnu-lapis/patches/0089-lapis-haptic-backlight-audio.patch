@@ -1,0 +1,272 @@
+diff --git a/bsd/conf/files b/bsd/conf/files
+--- a/bsd/conf/files
++++ b/bsd/conf/files
+@@ -112,3 +112,6 @@
+ bsd/dev/sweet_lapis_keys.c		standard
+ bsd/dev/sweet_lapis_battery.c		standard
++bsd/dev/sweet_lapis_haptic.c		standard
++bsd/dev/sweet_lapis_display.c		standard
++bsd/dev/sweet_lapis_audio.c		standard
+ bsd/dev/sweet_sample.c			standard
+diff --git a/bsd/dev/sweet_ufs.c b/bsd/dev/sweet_ufs.c
+--- a/bsd/dev/sweet_ufs.c
++++ b/bsd/dev/sweet_ufs.c
+@@ -705,4 +705,8 @@
+ 	extern void sweet_lapis_keys_init(void);
+ 	sweet_lapis_keys_init();
++	extern void sweet_lapis_haptic_init(void);
++	sweet_lapis_haptic_init();
++	extern void sweet_lapis_audio_init(void);
++	sweet_lapis_audio_init();
+ 	return 0;
+ }
+diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.cpp
+--- a/iokit/Kernel/arm/SweetBattery.cpp
++++ b/iokit/Kernel/arm/SweetBattery.cpp
+@@ -24,8 +24,13 @@
+ extern "C" int lapis_battery_init(void);
+ extern "C" int lapis_battery_read(struct lapis_battery_sample *s);
++/* bsd/dev/sweet_lapis_display.c (lapis patch 0089): DCS 0x51 on DSI0 */
++extern "C" int lapis_brightness_set(unsigned level);
++extern "C" void proc_selfname(char *buf, int size);
+ #define LAPIS_BATTERY_DESIGN_MAH        6580    /* FDT / Android charge_full_design */
+ #define LAPIS_BQ_STATUS_FC              (1u << 5)
+ #define LAPIS_BQ_STATUS_DSG             (1u << 6)
+ 
++static void SweetBacklightCreate(IOService *provider);
++
+ class SweetBattery : public IOPMPowerSource {
+ 	OSDeclareDefaultStructors(SweetBattery);
+@@ -384,4 +389,5 @@
+ 	}
+ 	registerService();
++	SweetBacklightCreate(provider);
+ 	return true;
+ }
+@@ -419,3 +425,226 @@
+ 	IOPMPowerSource::free();
+ }
++
++/*
++ * lapis: the display backlight service backboardd looks for (sweetlog showed
++ * it matching IOPropertyMatch backlight-control = true and finding none).
++ * Brightness is 0..1024 in IODisplayParameters; a set maps it onto the OLED
++ * DCS 0x51 level 16..0xfff (LK boots at 0x639 ~ 400). Every setProperties is
++ * logged so the exact keys backboardd sends can be read from the sweetlog.
++ */
++#define LAPIS_BL_MAX            1024u
++#define LAPIS_BL_DEFAULT        400u
++#define LAPIS_BL_LEVEL_MIN      16u
++#define LAPIS_BL_LEVEL_MAX      0xfffu
++
++class SweetBacklight : public IOService {
++	OSDeclareDefaultStructors(SweetBacklight);
++public:
++	bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
++	IOReturn setProperties(OSObject *properties) APPLE_KEXT_OVERRIDE;
++	/* v2: who reads what from this service (backboardd matched it in
++	 * dual_v19 but never set a property) */
++	using IOService::copyProperty;
++	using IOService::newUserClient;
++	OSObject *copyProperty(const char *aKey) const APPLE_KEXT_OVERRIDE;
++	OSObject *copyProperty(const OSSymbol *aKey) const APPLE_KEXT_OVERRIDE;
++	OSObject *copyProperty(const OSString *aKey) const APPLE_KEXT_OVERRIDE;
++	bool serializeProperties(OSSerialize *s) const APPLE_KEXT_OVERRIDE;
++	IOReturn newUserClient(task_t owningTask, void *securityID, UInt32 type,
++	    OSDictionary *properties, IOUserClient **handler) APPLE_KEXT_OVERRIDE;
++private:
++	unsigned fValue, fLogs;
++	mutable unsigned fReadLogs, fReads;
++	void logRead(const char *what, const char *key) const;
++	void publishValue(void);
++	bool findValue(OSObject *obj, unsigned depth, unsigned *out);
++	void apply(unsigned value);
++};
++OSDefineMetaClassAndStructors(SweetBacklight, IOService);
++
++void
++SweetBacklight::publishValue(void)
++{
++	OSDictionary *params = OSDictionary::withCapacity(1);
++	OSDictionary *bright = OSDictionary::withCapacity(3);
++	OSNumber *mn = OSNumber::withNumber(0ULL, 32);
++	OSNumber *mx = OSNumber::withNumber((unsigned long long)LAPIS_BL_MAX, 32);
++	OSNumber *val = OSNumber::withNumber((unsigned long long)fValue, 32);
++	if (params && bright && mn && mx && val) {
++		bright->setObject("min", mn);
++		bright->setObject("max", mx);
++		bright->setObject("value", val);
++		params->setObject("brightness", bright);
++		setProperty("IODisplayParameters", params);
++	}
++	OSSafeReleaseNULL(mn);
++	OSSafeReleaseNULL(mx);
++	OSSafeReleaseNULL(val);
++	OSSafeReleaseNULL(bright);
++	OSSafeReleaseNULL(params);
++}
++
++bool
++SweetBacklight::start(IOService *provider)
++{
++	if (!IOService::start(provider)) {
++		return false;
++	}
++	fValue = LAPIS_BL_DEFAULT;
++	setProperty("backlight-control", true);
++	setProperty("AAPL,backlight-control", true);
++	publishValue();
++	registerService();
++	IOLog("LAPIS BACKLIGHT: service up, brightness %u/%u\n", fValue, LAPIS_BL_MAX);
++	return true;
++}
++
++/* First number under a "brightness" / "value" / "rawBrightness" key. */
++bool
++SweetBacklight::findValue(OSObject *obj, unsigned depth, unsigned *out)
++{
++	OSDictionary *dict = OSDynamicCast(OSDictionary, obj);
++	if (!dict || depth > 3) {
++		return false;
++	}
++	static const char *const keys[] = { "value", "brightness", "rawBrightness", "BrightnessValue" };
++	for (unsigned i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
++		OSObject *o = dict->getObject(keys[i]);
++		OSNumber *n = OSDynamicCast(OSNumber, o);
++		if (n) {
++			*out = n->unsigned32BitValue();
++			return true;
++		}
++		if (o && findValue(o, depth + 1, out)) {
++			return true;
++		}
++	}
++	OSCollectionIterator *it = OSCollectionIterator::withCollection(dict);
++	bool found = false;
++	if (it) {
++		OSSymbol *key;
++		while (!found && (key = OSDynamicCast(OSSymbol, it->getNextObject()))) {
++			found = findValue(dict->getObject(key), depth + 1, out);
++		}
++		it->release();
++	}
++	return found;
++}
++
++void
++SweetBacklight::apply(unsigned value)
++{
++	if (value > LAPIS_BL_MAX) {
++		value = LAPIS_BL_MAX;
++	}
++	fValue = value;
++	unsigned level = LAPIS_BL_LEVEL_MIN +
++	    (unsigned)((unsigned long long)value * (LAPIS_BL_LEVEL_MAX - LAPIS_BL_LEVEL_MIN) / LAPIS_BL_MAX);
++	(void)lapis_brightness_set(level);
++	publishValue();
++}
++
++IOReturn
++SweetBacklight::setProperties(OSObject *properties)
++{
++	OSDictionary *dict = OSDynamicCast(OSDictionary, properties);
++	if (fLogs < 40 && dict) {
++		fLogs++;
++		OSCollectionIterator *it = OSCollectionIterator::withCollection(dict);
++		if (it) {
++			OSSymbol *key;
++			while ((key = OSDynamicCast(OSSymbol, it->getNextObject()))) {
++				OSObject *o = dict->getObject(key);
++				OSNumber *n = OSDynamicCast(OSNumber, o);
++				IOLog("LAPIS BACKLIGHT: set %s = %s %llu\n", key->getCStringNoCopy(),
++				    o ? o->getMetaClass()->getClassName() : "null",
++				    n ? n->unsigned64BitValue() : 0ULL);
++			}
++			it->release();
++		}
++	}
++	unsigned value;
++	if (dict && findValue(dict, 0, &value)) {
++		apply(value);
++		return kIOReturnSuccess;
++	}
++	return kIOReturnUnsupported;
++}
++
++void
++SweetBacklight::logRead(const char *what, const char *key) const
++{
++	fReads++;
++	if (fReads % 500 == 0) {
++		char name[32];
++		proc_selfname(name, (int)sizeof(name));
++		IOLog("LAPIS BACKLIGHT: %u property reads so far (last %s by %s)\n", fReads,
++		    key ? key : "(all)", name);
++	}
++	if (fReadLogs < 60) {
++		char name[32];
++		fReadLogs++;
++		proc_selfname(name, (int)sizeof(name));
++		IOLog("LAPIS BACKLIGHT: %s %s by %s\n", what, key ? key : "(all)", name);
++	}
++}
++
++OSObject *
++SweetBacklight::copyProperty(const char *aKey) const
++{
++	logRead("read", aKey);
++	return IOService::copyProperty(aKey);
++}
++
++OSObject *
++SweetBacklight::copyProperty(const OSSymbol *aKey) const
++{
++	logRead("read", aKey ? aKey->getCStringNoCopy() : NULL);
++	return IOService::copyProperty(aKey);
++}
++
++OSObject *
++SweetBacklight::copyProperty(const OSString *aKey) const
++{
++	logRead("read", aKey ? aKey->getCStringNoCopy() : NULL);
++	return IOService::copyProperty(aKey);
++}
++
++bool
++SweetBacklight::serializeProperties(OSSerialize *s) const
++{
++	logRead("serialize", NULL);
++	return IOService::serializeProperties(s);
++}
++
++IOReturn
++SweetBacklight::newUserClient(task_t owningTask, void *securityID, UInt32 type,
++    OSDictionary *properties, IOUserClient **handler)
++{
++	char name[32];
++	proc_selfname(name, (int)sizeof(name));
++	IOLog("LAPIS BACKLIGHT: newUserClient type %u by %s\n", (unsigned)type, name);
++	return IOService::newUserClient(owningTask, securityID, type, properties, handler);
++}
++
++static void
++SweetBacklightCreate(IOService *provider)
++{
++	int enabled = 1;
++	(void)PE_parse_boot_argn("lapisbacklight", &enabled, sizeof(enabled));
++	if (!enabled) {
++		IOLog("LAPIS BACKLIGHT: service off (lapisbacklight=0)\n");
++		return;
++	}
++	SweetBacklight *bl = OSTypeAlloc(SweetBacklight);
++	if (!bl || !bl->init()) {
++		OSSafeReleaseNULL(bl);
++		return;
++	}
++	if (!bl->attach(provider) || !bl->start(provider)) {
++		bl->detach(provider);
++		IOLog("LAPIS BACKLIGHT: start failed\n");
++	}
++	bl->release();
++}
+ #endif /* ARM64_BOARD_CONFIG_SWEET */

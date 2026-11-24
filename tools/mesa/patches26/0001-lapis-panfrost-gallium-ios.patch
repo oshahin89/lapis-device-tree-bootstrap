@@ -1,0 +1,507 @@
+lapis: Mesa 26.3.1's gallium panfrost (panthor backend; G615 / v11 is in
+26.x, not in 25.0) on iOS over the kernel's LapisGPU, without a GL frontend
+(OSMesa left Mesa in 25.1): tools/mesa/lapis-drm as libdrm, a new gallium
+target "lapis" (liblapis_gallium: the panfrost screen + a self-test).
+- src/util/u_endian.h: no <endian.h> on Darwin (as hakios's darwin-sdk.patch,
+  MIT, Copyright (c) 2025-2026 the HakiOS authors).
+- meson.build: on Darwin with panfrost, dep_libdrm is the lapis-drm stand-in.
+- panthor_kmod.c, pan_bo.c: mmap()/munmap() on the device go to
+  lapis_drm_mmap()/lapis_drm_munmap() (LapisGPU client memory).
+- src/gallium/targets/lapis: the library and its test.
+
+diff -ruN a/meson.build b/meson.build
+--- a/meson.build
++++ b/meson.build
+@@ -816,7 +816,19 @@
+   # dependencies (such as vk-runtime) linking to it
+   dep_libdrm = null_dep
+ endif
+-if dep_libdrm.found()
++with_lapis_drm = host_machine.system() == 'darwin' and with_gallium_panfrost
++if with_lapis_drm
++  # lapis: no DRM on iOS; panthor's requests go to the kernel's LapisGPU
++  # service through a stand-in for libdrm (src/lapis-drm, put there by
++  # tools/mesa/build-mesa-ios.sh of the lapis tree); its library is declared
++  # after the project arguments, just before subdir('src')
++  dep_libdrm = declare_dependency(
++    include_directories : include_directories('src/lapis-drm'),
++  )
++  # what libdrm users test for (util/u_sync_provider.h and friends): the
++  # stand-in has the syncobj API they call
++  pre_args += '-DHAVE_LIBDRM'
++elif dep_libdrm.found()
+   pre_args += '-DHAVE_LIBDRM'
+   if with_dri_platform == 'drm' and with_dri
+     with_gallium_drisw_kms = true
+@@ -1063,6 +1075,9 @@
+   with_any_opengl,
+   with_any_vk,
+   with_clc,
++  # lapis: gallium panfrost used directly (src/gallium/targets/lapis), no
++  # GL or Vulkan frontend: it still needs NIR and gallium's cso cache
++  host_machine.system() == 'darwin' and with_gallium_panfrost,
+   with_gallium_va and with_video_encode,
+   with_gallium_mediafoundation and with_video_encode,
+ ].contains(true)
+@@ -2556,6 +2571,19 @@
+   vulkan_manifest_suffix = 'json'
+ endif
+ 
++if with_lapis_drm
++  _liblapis_drm = static_library(
++    'lapis_drm', 'src/lapis-drm/lapis_drm.c',
++    include_directories : include_directories('include', 'src/lapis-drm'),
++    gnu_symbol_visibility : 'default',
++  )
++  dep_libdrm = declare_dependency(
++    include_directories : include_directories('src/lapis-drm'),
++    link_with : _liblapis_drm,
++    link_args : ['-framework', 'IOKit', '-framework', 'CoreFoundation'],
++  )
++endif
++
+ subdir('include')
+ subdir('bin')
+ subdir('src')
+diff -ruN a/src/gallium/drivers/panfrost/pan_bo.c b/src/gallium/drivers/panfrost/pan_bo.c
+--- a/src/gallium/drivers/panfrost/pan_bo.c
++++ b/src/gallium/drivers/panfrost/pan_bo.c
+@@ -330,7 +330,11 @@
+    if (!bo->ptr.cpu)
+       return;
+ 
++#ifdef __APPLE__
++   if (lapis_drm_munmap((void *)(uintptr_t)bo->ptr.cpu, panfrost_bo_size(bo))) {
++#else
+    if (os_munmap((void *)(uintptr_t)bo->ptr.cpu, panfrost_bo_size(bo))) {
++#endif
+       mesa_loge("munmap failed: %s", strerror(errno));
+       abort();
+    }
+diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
+--- a/src/gallium/meson.build
++++ b/src/gallium/meson.build
+@@ -247,6 +247,10 @@
+   subdir('targets/lavapipe')
+ endif
+ 
++if with_lapis_drm
++  subdir('targets/lapis')
++endif
++
+ if with_teflon
+   subdir('frontends/teflon')
+   subdir('targets/teflon')
+diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
+--- a/src/gallium/targets/lapis/lapis_target.c
++++ b/src/gallium/targets/lapis/lapis_target.c
+@@ -0,0 +1,297 @@
++/*
++ * Copyright 2026 the lapis port authors
++ * SPDX-License-Identifier: MIT
++ *
++ * lapis: gallium panfrost on the lapis phone's Mali-G615 over LapisGPU, for
++ * programs (no GL/EGL/Vulkan frontend). lapis_gallium_screen() makes the
++ * screen; lapis_gallium_test(): a context, a linear 256x256 RGBA render
++ * target cleared on the GPU, fenced, read back, 100 clears for a rate; then
++ * a triangle: gallium's passthrough shaders (TGSI -> NIR -> Valhall by
++ * panfrost's compiler), a red triangle over a blue clear, read back, and 100
++ * frames of it. Everything it finds is said through log() (the
++ * program's line into the kernel's log).
++ */
++#include <stdarg.h>
++#include <stdio.h>
++#include <string.h>
++#include <time.h>
++#include <xf86drm.h>
++
++#include "cso_cache/cso_context.h"
++#include "compiler/shader_enums.h"
++#include "pipe/p_context.h"
++#include "pipe/p_shader_tokens.h"
++#include "pipe/p_defines.h"
++#include "pipe/p_screen.h"
++#include "pipe/p_state.h"
++#include "panfrost/pan_public.h"
++#include "util/driconf.h"
++#include "util/os_time.h"
++#include "util/u_draw_quad.h"
++#include "util/u_inlines.h"
++#include "util/u_simple_shaders.h"
++#include "util/xmlconfig.h"
++
++static const driOptionDescription panfrost_options[] = {
++#include "panfrost/driinfo_panfrost.h"
++};
++
++typedef void (*lapis_log_fn)(const char *line);
++
++PUBLIC struct pipe_screen *lapis_gallium_screen(void);
++PUBLIC int lapis_gallium_test(lapis_log_fn log);
++
++static void
++say(lapis_log_fn log, const char *fmt, ...)
++{
++   char line[200];
++   va_list ap;
++   va_start(ap, fmt);
++   vsnprintf(line, sizeof(line), fmt, ap);
++   va_end(ap);
++   log(line);
++}
++
++PUBLIC struct pipe_screen *
++lapis_gallium_screen(void)
++{
++   static driOptionCache info, cache;
++   static struct pipe_screen_config config;
++   int fd = lapis_drm_open();
++
++   if (fd < 0)
++      return NULL;
++   driParseOptionInfo(&info, panfrost_options, ARRAY_SIZE(panfrost_options));
++   driConfigFileParseParams params = { .driverName = "panfrost", .kernelDriverName = "panthor" };
++   driParseConfigFiles(&cache, &info, &params);
++   config.options = &cache;
++   config.options_info = &info;
++   return panfrost_create_screen(fd, &config, NULL);
++}
++
++static bool
++clear_and_read(struct pipe_screen *screen, struct pipe_context *ctx, struct pipe_resource *rt,
++               float r, float g, float b, uint32_t *pixel, int64_t *ns)
++{
++   union pipe_color_union color = { .f = { r, g, b, 1.0f } };
++   struct pipe_fence_handle *fence = NULL;
++   int64_t t0 = os_time_get_nano();
++
++   ctx->clear(ctx, PIPE_CLEAR_COLOR0, 0xf, 0, NULL, &color, 0.0, 0);
++   ctx->flush(ctx, &fence, 0);
++   bool done = fence && screen->fence_finish(screen, NULL, fence, OS_TIMEOUT_INFINITE);
++   screen->fence_reference(screen, &fence, NULL);
++   *ns = os_time_get_nano() - t0;
++   if (pixel) {
++      struct pipe_transfer *xfer = NULL;
++      const uint8_t *map = pipe_texture_map(ctx, rt, 0, 0, PIPE_MAP_READ, 0, 0, 256, 256, &xfer);
++      if (!map)
++         return false;
++      memcpy(&pixel[0], map, 4);                                         /* (0, 0) */
++      memcpy(&pixel[1], map + 128 * xfer->stride + 128 * 4, 4);          /* (128, 128) */
++      memcpy(&pixel[2], map + 255 * xfer->stride + 255 * 4, 4);          /* (255, 255) */
++      pipe_texture_unmap(ctx, xfer);
++   }
++   return done;
++}
++
++/* the pixels at (128,128), (4,4) and (128,250) after the work so far */
++static bool
++finish_and_read(struct pipe_screen *screen, struct pipe_context *ctx, struct pipe_resource *rt,
++                uint32_t *px)
++{
++   struct pipe_fence_handle *fence = NULL;
++   ctx->flush(ctx, &fence, 0);
++   bool done = fence && screen->fence_finish(screen, NULL, fence, OS_TIMEOUT_INFINITE);
++   screen->fence_reference(screen, &fence, NULL);
++   if (px) {
++      struct pipe_transfer *xfer = NULL;
++      const uint8_t *map = pipe_texture_map(ctx, rt, 0, 0, PIPE_MAP_READ, 0, 0, 256, 256, &xfer);
++      if (!map)
++         return false;
++      memcpy(&px[0], map + 128 * xfer->stride + 128 * 4, 4);
++      memcpy(&px[1], map + 4 * xfer->stride + 4 * 4, 4);
++      memcpy(&px[2], map + 250 * xfer->stride + 128 * 4, 4);
++      pipe_texture_unmap(ctx, xfer);
++   }
++   return done;
++}
++
++static void
++triangle_test(lapis_log_fn log, struct pipe_screen *screen, struct pipe_context *ctx,
++              struct pipe_resource *rt, const struct pipe_framebuffer_state *fb)
++{
++   static const enum tgsi_semantic names[] = { TGSI_SEMANTIC_POSITION, TGSI_SEMANTIC_GENERIC };
++   static const unsigned indexes[] = { 0, 0 };
++   /* x, y, z, w; r, g, b, a */
++   static const float red[3][2][4] = {
++      { { -0.8f, -0.8f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
++      { {  0.8f, -0.8f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
++      { {  0.0f,  0.8f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
++   };
++   static const float rgb[3][2][4] = {
++      { { -0.8f, -0.8f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
++      { {  0.8f, -0.8f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
++      { {  0.0f,  0.8f, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
++   };
++   union pipe_color_union blue = { .f = { 0.0f, 0.5f, 1.0f, 1.0f } };
++
++   struct cso_context *cso = cso_create_context(ctx, 0);
++   int64_t t0 = os_time_get_nano();
++   void *vs = util_make_vertex_passthrough_shader(ctx, 2, names, indexes, false);
++   void *fs = util_make_fragment_passthrough_shader(ctx, TGSI_SEMANTIC_GENERIC,
++                                                    TGSI_INTERPOLATE_PERSPECTIVE, true);
++   int64_t compile = os_time_get_nano() - t0;
++   struct pipe_resource *vb_red = pipe_buffer_create_with_data(ctx, PIPE_BIND_VERTEX_BUFFER,
++                                                              PIPE_USAGE_DEFAULT, sizeof(red), red);
++   struct pipe_resource *vb_rgb = pipe_buffer_create_with_data(ctx, PIPE_BIND_VERTEX_BUFFER,
++                                                              PIPE_USAGE_DEFAULT, sizeof(rgb), rgb);
++   if (!cso || !vs || !fs || !vb_red || !vb_rgb) {
++      say(log, "triangle: setup failed (cso %p vs %p fs %p vb %p/%p)", (void *)cso, vs, fs,
++          (void *)vb_red, (void *)vb_rgb);
++      goto out;
++   }
++   say(log, "triangle: passthrough shaders made in %lld us", (long long)(compile / 1000));
++
++   struct pipe_blend_state blend;
++   memset(&blend, 0, sizeof(blend));
++   blend.rt[0].colormask = PIPE_MASK_RGBA;
++   struct pipe_rasterizer_state rast;
++   memset(&rast, 0, sizeof(rast));
++   rast.cull_face = PIPE_FACE_NONE;
++   rast.half_pixel_center = 1;
++   rast.bottom_edge_rule = 1;
++   rast.depth_clip_near = 1;
++   rast.depth_clip_far = 1;
++   struct pipe_depth_stencil_alpha_state dsa;
++   memset(&dsa, 0, sizeof(dsa));
++
++   cso_set_framebuffer(cso, fb);
++   cso_set_blend(cso, &blend);
++   cso_set_rasterizer(cso, &rast);
++   cso_set_depth_stencil_alpha(cso, &dsa);
++   cso_set_viewport_dims(cso, 256, 256, false);
++   cso_set_vertex_shader_handle(cso, vs);
++   cso_set_fragment_shader_handle(cso, fs);
++
++   /* the vertex layout: position then color, float4 each, 32 bytes a vertex
++    * (v49j crashed in u_vbuf_draw_vbo without it: util_draw_vertex_buffer
++    * expects the caller to have set it) */
++   struct cso_velems_state velems;
++   memset(&velems, 0, sizeof(velems));
++   velems.count = 2;
++   for (unsigned i = 0; i < 2; i++) {
++      velems.velems[i].src_offset = i * 16;
++      velems.velems[i].vertex_buffer_index = 0;
++      velems.velems[i].src_format = PIPE_FORMAT_R32G32B32A32_FLOAT;
++      velems.velems[i].src_stride = 32;
++   }
++   cso_set_vertex_elements(cso, &velems);
++
++   uint32_t px[3] = { 0, 0, 0 };
++   t0 = os_time_get_nano();
++   ctx->clear(ctx, PIPE_CLEAR_COLOR0, 0xf, 0, NULL, &blue, 0.0, 0);
++   util_draw_vertex_buffer(ctx, cso, vb_red, 0, MESA_PRIM_TRIANGLES, 3, 2);
++   bool done = finish_and_read(screen, ctx, rt, px);
++   say(log, "triangle: first draw %s in %lld us; center %08x (want ff0000ff) corner %08x (want ffff8000) %08x",
++       done ? "fenced" : "NOT fenced", (long long)((os_time_get_nano() - t0) / 1000), px[0], px[1], px[2]);
++
++   t0 = os_time_get_nano();
++   unsigned fenced = 0;
++   for (unsigned i = 0; i < 100; i++) {
++      ctx->clear(ctx, PIPE_CLEAR_COLOR0, 0xf, 0, NULL, &blue, 0.0, 0);
++      util_draw_vertex_buffer(ctx, cso, vb_rgb, 0, MESA_PRIM_TRIANGLES, 3, 2);
++      fenced += finish_and_read(screen, ctx, rt, NULL);
++   }
++   int64_t frames = os_time_get_nano() - t0;
++   finish_and_read(screen, ctx, rt, px);
++   say(log, "triangle: 100 frames (clear + colored triangle): %u fenced, %lld us each; center %08x corner %08x",
++       fenced, (long long)(frames / 100000), px[0], px[1]);
++
++out:
++   if (cso)
++      cso_destroy_context(cso);
++   if (vs)
++      ctx->delete_vs_state(ctx, vs);
++   if (fs)
++      ctx->delete_fs_state(ctx, fs);
++   pipe_resource_reference(&vb_red, NULL);
++   pipe_resource_reference(&vb_rgb, NULL);
++}
++
++PUBLIC int
++lapis_gallium_test(lapis_log_fn log)
++{
++   int64_t t0 = os_time_get_nano();
++   struct pipe_screen *screen = lapis_gallium_screen();
++   if (!screen) {
++      say(log, "gallium: no panfrost screen");
++      return 1;
++   }
++   say(log, "gallium: screen in %lld ms: %s / %s / %s", (long long)((os_time_get_nano() - t0) / 1000000),
++       screen->get_name(screen), screen->get_vendor(screen),
++       screen->get_device_vendor ? screen->get_device_vendor(screen) : "-");
++
++   struct pipe_context *ctx = screen->context_create(screen, NULL, 0);
++   if (!ctx) {
++      say(log, "gallium: no context");
++      screen->destroy(screen);
++      return 1;
++   }
++   struct pipe_resource templ = {
++      .target = PIPE_TEXTURE_2D,
++      .format = PIPE_FORMAT_R8G8B8A8_UNORM,
++      .width0 = 256,
++      .height0 = 256,
++      .depth0 = 1,
++      .array_size = 1,
++      .bind = PIPE_BIND_RENDER_TARGET | PIPE_BIND_LINEAR,
++      .usage = PIPE_USAGE_DEFAULT,
++   };
++   struct pipe_resource *rt = screen->resource_create(screen, &templ);
++   if (!rt) {
++      say(log, "gallium: no render target");
++      ctx->destroy(ctx);
++      screen->destroy(screen);
++      return 1;
++   }
++   struct pipe_framebuffer_state fb = {
++      .width = 256,
++      .height = 256,
++      .layers = 1,
++      .nr_cbufs = 1,
++   };
++   fb.cbufs[0].format = templ.format;
++   fb.cbufs[0].texture = rt;
++   ctx->set_framebuffer_state(ctx, &fb);
++
++   uint32_t px[3] = { 0, 0, 0 };
++   int64_t ns = 0;
++   bool ok = clear_and_read(screen, ctx, rt, 0.0f, 0.5f, 1.0f, px, &ns);
++   say(log, "gallium: clear on the GPU: fence %s in %lld us; pixels %08x %08x %08x (want ffff8000)",
++       ok ? "done" : "NOT done", (long long)(ns / 1000), px[0], px[1], px[2]);
++
++   ok = clear_and_read(screen, ctx, rt, 1.0f, 0.0f, 0.0f, px, &ns);
++   say(log, "gallium: second clear: fence %s in %lld us; pixels %08x %08x %08x (want ff0000ff)",
++       ok ? "done" : "NOT done", (long long)(ns / 1000), px[0], px[1], px[2]);
++
++   int64_t total = 0;
++   unsigned done = 0;
++   for (unsigned i = 0; i < 100; i++) {
++      done += clear_and_read(screen, ctx, rt, (i & 1) ? 1.0f : 0.0f, 0.25f, 0.75f, NULL, &ns);
++      total += ns;
++   }
++   clear_and_read(screen, ctx, rt, 0.0f, 1.0f, 0.0f, px, &ns);
++   say(log, "gallium: 100 clears: %u fenced, %lld us each; then green: %08x (want ff00ff00)",
++       done, (long long)(total / 100000), px[1]);
++
++   triangle_test(log, screen, ctx, rt, &fb);
++
++   memset(&fb, 0, sizeof(fb));
++   ctx->set_framebuffer_state(ctx, &fb);
++   pipe_resource_reference(&rt, NULL);
++   ctx->destroy(ctx);
++   screen->destroy(screen);
++   say(log, "gallium: done");
++   return 0;
++}
+diff -ruN a/src/gallium/targets/lapis/meson.build b/src/gallium/targets/lapis/meson.build
+--- a/src/gallium/targets/lapis/meson.build
++++ b/src/gallium/targets/lapis/meson.build
+@@ -0,0 +1,20 @@
++# Copyright 2026 the lapis port authors
++# SPDX-License-Identifier: MIT
++#
++# lapis: Mesa's gallium panfrost for programs on iOS, without a GL or Vulkan
++# frontend: one library over the kernel's LapisGPU (src/lapis-drm), with a
++# self-test (lapis_gallium_test) that clears a render target on the GPU and
++# reads it back. tools/lapis_galliumtest calls it on the phone.
++
++liblapis_gallium = shared_library(
++  'lapis_gallium',
++  'lapis_target.c',
++  include_directories : [
++    inc_include, inc_src, inc_util, inc_gallium, inc_gallium_aux,
++    inc_gallium_drivers,
++  ],
++  link_with : [libgallium],
++  dependencies : [driver_panfrost, idep_nir, idep_mesautil, idep_xmlconfig, dep_libdrm],
++  gnu_symbol_visibility : 'hidden',
++  install : true,
++)
+diff -ruN a/src/panfrost/lib/kmod/meson.build b/src/panfrost/lib/kmod/meson.build
+--- a/src/panfrost/lib/kmod/meson.build
++++ b/src/panfrost/lib/kmod/meson.build
+@@ -6,9 +6,12 @@
+ libpankmod_lib_inc = []
+ libpankmod_lib_code = [
+   'pan_kmod.c',
+-  'panfrost_kmod.c',
+   'panthor_kmod.c',
+ ]
++if host_machine.system() != 'darwin'
++  # lapis: Linux's eventfd/timerfd; Darwin gets panthor only
++  libpankmod_lib_code += 'panfrost_kmod.c'
++endif
+ 
+ if with_panfrost_vdrm
+   libpankmod_lib_inc += [inc_virtio_gpu, inc_virtio_vdrm, include_directories('virtio')]
+diff -ruN a/src/panfrost/lib/kmod/pan_kmod.c b/src/panfrost/lib/kmod/pan_kmod.c
+--- a/src/panfrost/lib/kmod/pan_kmod.c
++++ b/src/panfrost/lib/kmod/pan_kmod.c
+@@ -12,7 +12,22 @@
+ #include "pan_kmod.h"
+ #include "pan_kmod_backend.h"
+ 
++#ifndef __APPLE__
+ extern const struct pan_kmod_ops panfrost_kmod_ops;
++#else
++#include <errno.h>
++#include "panfrost_kmod.h"
++
++/* lapis: panfrost_kmod.c is not built on Darwin; the job-manager gallium
++ * path (pan_jm.c, arch <= 9) still links to this, and never runs here */
++int
++panfrost_kmod_submit(struct pan_kmod_dev *pan_kdev, struct drm_panfrost_submit *submit)
++{
++   (void)pan_kdev;
++   (void)submit;
++   return -ENOSYS;
++}
++#endif
+ extern const struct pan_kmod_ops panthor_kmod_ops;
+ #ifdef HAVE_PANFROST_VDRM
+ extern const struct pan_kmod_ops panfrost_virtio_gpu_ops;
+@@ -23,10 +38,14 @@
+    const char *name;
+    const struct pan_kmod_ops *ops;
+ } backends[] = {
++#ifndef __APPLE__
++   /* (lapis: the job-manager backend needs Linux's eventfd/timerfd; the
++    * lapis GPU is CSF, panthor only) */
+    {
+       "panfrost",
+       &panfrost_kmod_ops,
+    },
++#endif
+    {
+       "panthor",
+       &panthor_kmod_ops,
+diff -ruN a/src/panfrost/lib/kmod/panthor_kmod.c b/src/panfrost/lib/kmod/panthor_kmod.c
+--- a/src/panfrost/lib/kmod/panthor_kmod.c
++++ b/src/panfrost/lib/kmod/panthor_kmod.c
+@@ -25,6 +25,14 @@
+ #include "drm-uapi/panthor_drm.h"
+ 
+ #include "pan_kmod_backend.h"
++
++#ifdef __APPLE__
++/* lapis: no mmap() on the device; LapisGPU's client memory (src/lapis-drm) */
++#undef os_mmap
++#undef os_munmap
++#define os_mmap lapis_drm_mmap
++#define os_munmap lapis_drm_munmap
++#endif
+ #include "pan_props.h"
+ 
+ /* Maximum kmod BO label length, including NUL-terminator */
+diff -ruN a/src/util/u_endian.h b/src/util/u_endian.h
+--- a/src/util/u_endian.h
++++ b/src/util/u_endian.h
+@@ -27,7 +27,7 @@
+ #ifndef U_ENDIAN_H
+ #define U_ENDIAN_H
+ 
+-#ifdef HAVE_ENDIAN_H
++#if defined(HAVE_ENDIAN_H) && !defined(__APPLE__)
+ #include <endian.h>
+ 
+ /* glibc */

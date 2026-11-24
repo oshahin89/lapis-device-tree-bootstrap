@@ -27,10 +27,13 @@ lapis_nvt_parse_report(const uint8_t *frame, size_t frame_len,
 		const uint8_t state_id = frame[offset];
 		const uint8_t state = state_id & 0x07U;
 		const uint8_t id = state_id >> 3;
-		const uint16_t x = (uint16_t)frame[offset + 1] |
-			((uint16_t)frame[offset + 2] << 8);
-		const uint16_t y = (uint16_t)frame[offset + 3] |
-			((uint16_t)frame[offset + 4] << 8);
+		/* Big-endian: Android's own frames (kprobe after CTP_SPI_READ,
+		 * device/captures/nt38771_android_touch_frames_2026-11-22.txt)
+		 * only fit 0..20479 x 0..44351 read this way. */
+		const uint16_t x = (uint16_t)(((uint16_t)frame[offset + 1] << 8) |
+			frame[offset + 2]);
+		const uint16_t y = (uint16_t)(((uint16_t)frame[offset + 3] << 8) |
+			frame[offset + 4]);
 		uint8_t touch_major;
 		uint8_t slot;
 		struct lapis_nvt_contact *contact;

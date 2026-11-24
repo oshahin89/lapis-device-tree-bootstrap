@@ -1,0 +1,21 @@
+diff --git a/bsd/conf/files b/bsd/conf/files
+--- a/bsd/conf/files
++++ b/bsd/conf/files
+@@ -107,2 +107,6 @@
+ bsd/dev/sweet_ufs.c			standard
++bsd/dev/sweet_nt38771.c		standard
++bsd/dev/nt38771_report_parser.c		standard
++bsd/dev/nt38771_touch_state.c		standard
++bsd/dev/nt38771_pipeline.c		standard
+ bsd/dev/sweet_sample.c			standard
+diff --git a/bsd/dev/sweet_ufs.c b/bsd/dev/sweet_ufs.c
+--- a/bsd/dev/sweet_ufs.c
++++ b/bsd/dev/sweet_ufs.c
+@@ -700,5 +700,7 @@
+ 	} else {
+ 		printf("SWEET UFS: keys/touch/USB skipped (ruby, sweethw=0)\n");
+ 	}
++	extern void sweet_nt38771_init(void);
++	sweet_nt38771_init();
+ 	return 0;
+ }

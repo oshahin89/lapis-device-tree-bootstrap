@@ -1,0 +1,190 @@
+lapis: Mesa 25.0.7's gallium panfrost (panthor backend) and OSMesa on iOS,
+over the kernel's LapisGPU service (tools/mesa/lapis-drm as libdrm).
+- src/util/u_endian.h: no <endian.h> on Darwin (as hakios's darwin-sdk.patch,
+  MIT, Copyright (c) 2025-2026 the HakiOS authors).
+- meson.build: on Darwin with panfrost, dep_libdrm is the lapis-drm stand-in.
+- pan_kmod.h, panthor_kmod.c, pan_bo.c: mmap()/munmap() on the device go to
+  lapis_drm_mmap()/lapis_drm_munmap() (LapisGPU client memory).
+- OSMesa: the panfrost screen when LapisGPU is there (after hakios's
+  freedreno-darwin.patch), softpipe otherwise or with OSMESA_SOFTWARE=1.
+
+diff -ruN a/meson.build b/meson.build
+--- a/meson.build
++++ b/meson.build
+@@ -1716,7 +1716,16 @@
+   # dependencies (such as vk-runtime) linking to it
+   dep_libdrm = null_dep
+ endif
+-if dep_libdrm.found()
++with_lapis_drm = host_machine.system() == 'darwin' and with_gallium_panfrost
++if with_lapis_drm
++  # lapis: no DRM on iOS; panthor's requests go to the kernel's LapisGPU
++  # service through a stand-in for libdrm (src/lapis-drm, put there by
++  # tools/mesa/build-mesa-ios.sh of the lapis tree); its library is declared
++  # after the project arguments, just before subdir('src')
++  dep_libdrm = declare_dependency(
++    include_directories : include_directories('src/lapis-drm'),
++  )
++elif dep_libdrm.found()
+   pre_args += '-DHAVE_LIBDRM'
+   if with_dri_platform == 'drm' and with_dri
+     with_gallium_drisw_kms = true
+@@ -2313,6 +2322,19 @@
+ dir_source_root = meson.project_source_root()
+ 
+ 
++if with_lapis_drm
++  _liblapis_drm = static_library(
++    'lapis_drm', 'src/lapis-drm/lapis_drm.c',
++    include_directories : include_directories('include', 'src/lapis-drm'),
++    gnu_symbol_visibility : 'default',
++  )
++  dep_libdrm = declare_dependency(
++    include_directories : include_directories('src/lapis-drm'),
++    link_with : _liblapis_drm,
++    link_args : ['-framework', 'IOKit', '-framework', 'CoreFoundation'],
++  )
++endif
++
+ subdir('include')
+ subdir('bin')
+ subdir('src')
+diff -ruN a/src/gallium/drivers/panfrost/pan_bo.c b/src/gallium/drivers/panfrost/pan_bo.c
+--- a/src/gallium/drivers/panfrost/pan_bo.c
++++ b/src/gallium/drivers/panfrost/pan_bo.c
+@@ -355,7 +355,11 @@
+    if (!bo->ptr.cpu)
+       return;
+ 
++#ifdef __APPLE__
++   if (lapis_drm_munmap((void *)(uintptr_t)bo->ptr.cpu, panfrost_bo_size(bo))) {
++#else
+    if (os_munmap((void *)(uintptr_t)bo->ptr.cpu, panfrost_bo_size(bo))) {
++#endif
+       mesa_loge("munmap failed: %s", strerror(errno));
+       abort();
+    }
+diff -ruN a/src/gallium/targets/osmesa/meson.build b/src/gallium/targets/osmesa/meson.build
+--- a/src/gallium/targets/osmesa/meson.build
++++ b/src/gallium/targets/osmesa/meson.build
+@@ -39,6 +39,7 @@
+   ],
+   dependencies : [
+     dep_ws2_32, dep_thread, dep_clock, dep_unwind, driver_swrast, idep_mesautil,
++    driver_panfrost, idep_xmlconfig, dep_libdrm,
+   ],
+   name_prefix : host_machine.system() == 'windows' ? '' : [],  # otherwise mingw will create libosmesa.dll
+   soversion : host_machine.system() == 'windows' ? '' : '8',
+diff -ruN a/src/gallium/targets/osmesa/osmesa_target.c b/src/gallium/targets/osmesa/osmesa_target.c
+--- a/src/gallium/targets/osmesa/osmesa_target.c
++++ b/src/gallium/targets/osmesa/osmesa_target.c
+@@ -27,6 +27,42 @@
+ #include "sw/null/null_sw_winsys.h"
+ 
+ 
++#ifdef GALLIUM_PANFROST
++#include "panfrost/pan_public.h"
++#include "util/driconf.h"
++#include "util/xmlconfig.h"
++#include <xf86drm.h>
++
++static const driOptionDescription panfrost_options[] = {
++#include "panfrost/driinfo_panfrost.h"
++};
++
++/*
++ * lapis: the GPU, where the kernel has one to drive (LapisGPU, through the
++ * libdrm stand-in src/lapis-drm); NULL: none, or OSMESA_SOFTWARE=1.
++ */
++static struct pipe_screen *
++osmesa_create_gpu_screen(void)
++{
++   static driOptionCache info, cache;
++   static struct pipe_screen_config config;
++   struct pipe_screen *screen;
++   int fd;
++
++   if (debug_get_bool_option("OSMESA_SOFTWARE", false))
++      return NULL;
++   fd = lapis_drm_open();
++   if (fd < 0)
++      return NULL;
++   driParseOptionInfo(&info, panfrost_options, ARRAY_SIZE(panfrost_options));
++   driParseConfigFiles(&cache, &info, 0, "panthor", NULL, NULL, NULL, 0, NULL, 0);
++   config.options = &cache;
++   config.options_info = &info;
++   screen = panfrost_create_screen(fd, &config, NULL);
++   return screen ? debug_screen_wrap(screen) : NULL;
++}
++#endif
++
+ struct pipe_screen *
+ osmesa_create_screen(void);
+ 
+@@ -37,6 +73,12 @@
+    struct sw_winsys *winsys;
+    struct pipe_screen *screen;
+ 
++#ifdef GALLIUM_PANFROST
++   screen = osmesa_create_gpu_screen();
++   if (screen)
++      return screen;
++#endif
++
+    /* We use a null software winsys since we always just render to ordinary
+     * driver resources.
+     */
+diff -ruN a/src/panfrost/lib/kmod/pan_kmod.h b/src/panfrost/lib/kmod/pan_kmod.h
+--- a/src/panfrost/lib/kmod/pan_kmod.h
++++ b/src/panfrost/lib/kmod/pan_kmod.h
+@@ -27,6 +27,9 @@
+ #include "util/macros.h"
+ #include "util/os_file.h"
+ #include "util/os_mman.h"
++#ifdef __APPLE__
++#include <xf86drm.h>
++#endif
+ #include "util/ralloc.h"
+ #include "util/simple_mtx.h"
+ #include "util/sparse_array.h"
+@@ -615,8 +618,14 @@
+    if (mmap_offset < 0)
+       return MAP_FAILED;
+ 
++#ifdef __APPLE__
++   /* lapis: no mmap() on the device; LapisGPU's client memory (src/lapis-drm) */
++   host_addr = lapis_drm_mmap(host_addr, size, prot, flags, bo->dev->fd,
++                              mmap_offset + bo_offset);
++#else
+    host_addr = os_mmap(host_addr, size, prot, flags, bo->dev->fd,
+                        mmap_offset + bo_offset);
++#endif
+    if (host_addr == MAP_FAILED) {
+       mesa_loge("mmap(..., size=%zu, prot=%d, flags=0x%x) failed: %s",
+                 size, prot, flags, strerror(errno));
+diff -ruN a/src/panfrost/lib/kmod/panthor_kmod.c b/src/panfrost/lib/kmod/panthor_kmod.c
+--- a/src/panfrost/lib/kmod/panthor_kmod.c
++++ b/src/panfrost/lib/kmod/panthor_kmod.c
+@@ -150,6 +150,10 @@
+    }
+ 
+    /* Map the LATEST_FLUSH_ID register at device creation time. */
++#ifdef __APPLE__
++#define os_mmap lapis_drm_mmap
++#define os_munmap lapis_drm_munmap
++#endif
+    panthor_dev->flush_id = os_mmap(0, getpagesize(), PROT_READ, MAP_SHARED, fd,
+                                    DRM_PANTHOR_USER_FLUSH_ID_MMIO_OFFSET);
+    if (panthor_dev->flush_id == MAP_FAILED) {
+diff -ruN a/src/util/u_endian.h b/src/util/u_endian.h
+--- a/src/util/u_endian.h
++++ b/src/util/u_endian.h
+@@ -27,7 +27,7 @@
+ #ifndef U_ENDIAN_H
+ #define U_ENDIAN_H
+ 
+-#ifdef HAVE_ENDIAN_H
++#if defined(HAVE_ENDIAN_H) && !defined(__APPLE__)
+ #include <endian.h>
+ 
+ /* glibc */

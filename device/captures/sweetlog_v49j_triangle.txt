@@ -1,0 +1,37 @@
+LapisGPU client: galliumtest: waiting 60 s for iOS to settle
+CRASH driverkitd[66] sig 9 code 0x0 sub 0x0 slide 0x2ef18000 mh 0x104ef8000
+CRASH driverkitd pc 0x1f1529d98 lr 0x1b00bc3a4 sp 0x16af051f0 fp 0x16af05260 far 0x105124000
+CRASH driverkitd bt 0x1b00b112c 0x1b00a2514 0x104f966b4 0x104fe137c 0x104fe281c 0x104f2031c 0x104f7100c 0x104f8897c 0x104f9ecf8 0x104f9a4a8
+CRASH driverkitd reason ns 1 code 0x7: (none)
+LapisGPU client: galliumtest: start
+LapisGPU client: gallium: screen in 56 ms: Mali-G615 MC2 (Panfrost) / Mesa / Arm
+LapisGPU client: lapis-drm: cache sync #1: 9 maps, 144 KiB, avg 45 us
+LapisGPU client: lapis-drm: cache sync #2: 9 maps, 144 KiB, avg 34 us
+LapisGPU client: lapis-drm: cache sync #3: 13 maps, 336 KiB, avg 47 us
+LapisGPU client: lapis-drm: cache sync #4: 13 maps, 336 KiB, avg 43 us
+LapisGPU client: gallium: clear on the GPU: fence done in 2312 us; pixels ffff8000 ffff8000 ffff8000 (want ffff8000)
+LapisGPU client: gallium: second clear: fence done in 383 us; pixels ff0000ff ff0000ff ff0000ff (want ff0000ff)
+LapisGPU client: lapis-drm: cache sync #50: 14 maps, 608 KiB, avg 42 us
+LapisGPU client: lapis-drm: cache sync #100: 14 maps, 608 KiB, avg 41 us
+LapisGPU client: lapis-drm: cache sync #150: 14 maps, 608 KiB, avg 41 us
+LapisGPU client: lapis-drm: cache sync #200: 14 maps, 608 KiB, avg 41 us
+LapisGPU client: lapis-drm: cache sync #250: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #300: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #350: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #400: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #450: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #500: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #550: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #600: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #650: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: lapis-drm: cache sync #700: 14 maps, 608 KiB, avg 40 us
+LapisGPU client: gallium: 100 clears: 100 fenced, 455 us each; then green: ff00ff00 (want ff00ff00)
+LapisGPU client: triangle: passthrough shaders made in 21659 us
+CRASH IOMFB_FDR_Loader[88] sig 11 code 0x100000001 sub 0x404 slide 0x2ef18000 mh 0x100b1c000
+CRASH IOMFB_FDR_Loader pc 0x101eeeeec lr 0x1022d88fc sp 0x16f2e3270 fp 0x16f2e35f0 far 0x404
+CRASH IOMFB_FDR_Loader bt 0x1022d88fc 0x101ef5224 0x101ed4864 0x101eac7a0 0x100b20110 0x1d353c344 0x0
+CRASH IOMFB_FDR_Loader reason ns 2 code 0xb: (none)
+CRASH assetsd[313] sig 6 code 0x0 sub 0x0 slide 0x2ef18000 mh 0x1004bc000
+CRASH assetsd pc 0x1f152f198 lr 0x200abe5f8 sp 0x16fae2cd0 fp 0x16fae2cf0 far 0x20dd8ae28
+CRASH assetsd bt 0x1bcb744b8 0x2009f6f54 0x2009e7a4c 0x1aefeaafc 0x2009f6424 0x2009f63d4 0x1bcab0794 0x1bca87d48 0x1bca87480 0x1bca94c68
+CRASH assetsd reason ns 2 code 0x6: (none)

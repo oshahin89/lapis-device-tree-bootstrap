@@ -1,0 +1,231 @@
+diff --git a/bsd/conf/files b/bsd/conf/files
+--- a/bsd/conf/files
++++ b/bsd/conf/files
+@@ -112,2 +112,3 @@
+ bsd/dev/sweet_lapis_keys.c		standard
++bsd/dev/sweet_lapis_battery.c		standard
+ bsd/dev/sweet_sample.c			standard
+diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.cpp
+--- a/iokit/Kernel/arm/SweetBattery.cpp
++++ b/iokit/Kernel/arm/SweetBattery.cpp
+@@ -15,6 +15,17 @@
+ /* bsd/dev/sweet_spmi.c */
+ extern "C" int sweet_spmi_init(void);
+ extern "C" int sweet_spmi_read(unsigned sid, unsigned addr, uint8_t *out);
++/* bsd/dev/sweet_lapis_battery.c (lapis patch 0088): bq28z610 on I2C0 */
++struct lapis_battery_sample {
++	unsigned percent, mv, remaining_mah, full_mah, cycles, status;
++	int ma, temp_c100;
++	int vbus;       /* MT6375 power-good: 1 / 0, -1 unknown */
++};
++extern "C" int lapis_battery_init(void);
++extern "C" int lapis_battery_read(struct lapis_battery_sample *s);
++#define LAPIS_BATTERY_DESIGN_MAH        6580    /* FDT / Android charge_full_design */
++#define LAPIS_BQ_STATUS_FC              (1u << 5)
++#define LAPIS_BQ_STATUS_DSG             (1u << 6)
+ 
+ class SweetBattery : public IOPMPowerSource {
+ 	OSDeclareDefaultStructors(SweetBattery);
+@@ -27,7 +38,13 @@
+ 	IOWorkLoop *fLoop;
+ 	IOTimerEventSource *fTimer;
+ 	bool fTimerAdded, fRunning, fReal;
++	bool fLapis, fLapisValid;       /* lapis: bq28z610 gauge */
++	unsigned fMaxMah, fDesignMah, fCycles;
++	int fTempC100;
++	int fLapisLastExt, fLapisLastChg, fLapisLastMa;
++	unsigned fLapisLogs;
+ 	int fLastMode;
++	void lapisPoll(void);
+ 	void putNumber(const char *key, UInt32 value);
+ 	void putBool(const char *key, bool value);
+ 	void publish(unsigned percent, unsigned mv, int ma, bool external,
+@@ -52,6 +69,13 @@
+ 	fLoop = NULL;
+ 	fTimer = NULL;
+ 	fTimerAdded = fRunning = fReal = false;
++	fLapis = fLapisValid = false;
++	fMaxMah = fDesignMah = 5020;
++	fCycles = 0;
++	fTempC100 = 2500;
++	fLapisLastExt = fLapisLastChg = -1;
++	fLapisLastMa = 0;
++	fLapisLogs = 0;
+ 	if (dictionary) {
+ 		OSCollectionIterator *it = OSCollectionIterator::withCollection(dictionary);
+ 		if (!it) {
+@@ -102,10 +126,10 @@
+     bool capable, bool charging, bool full, bool measured, bool currentValid)
+ {
+ 	/* Use consistent mAh units (DT nominal=5020). powerd computes C*100/M. */
+-	const unsigned capacity = (5020u * percent + 50u) / 100u;
++	const unsigned capacity = (fMaxMah * percent + 50u) / 100u;
+ 	setBatteryInstalled(true);
+ 	setCurrentCapacity(capacity);
+-	setMaxCapacity(5020);
++	setMaxCapacity(fMaxMah);
+ 	setExternalConnected(external);
+ 	setExternalChargeCapable(capable);
+ 	setIsCharging(charging);
+@@ -115,21 +139,56 @@
+ 	setVoltage(mv);
+ 	setAmperage(ma);
+ 	setTimeRemaining(-1); /* Unknown; never publish zero minutes on error. */
+-	setCycleCount(0);     /* Placeholder: cycle learning is not implemented. */
++	setCycleCount(fCycles); /* lapis: from the gauge; otherwise 0 */
+ 	putBool("FullyCharged", full);
+ 	putBool("AppleRawExternalConnected", external);
+ 	putNumber("AppleRawCurrentCapacity", capacity);
+-	putNumber("AppleRawMaxCapacity", 5020);
+-	putNumber("DesignCapacity", 5020);
++	putNumber("AppleRawMaxCapacity", fMaxMah);
++	putNumber("DesignCapacity", fDesignMah);
+ 	putNumber("InstantAmperage", (UInt32)ma);
+ 	/* iOS battery convention: centidegrees C; fixed 25 C, NOT measured. */
+-	putNumber("Temperature", 2500);
++	putNumber("Temperature", (UInt32)fTempC100);
+ 	putBool("SweetBatteryHardwareSampleValid", measured);
+ 	putBool("SweetBatteryCurrentValid", currentValid);
+ 	putBool("SweetBatterySOCEstimated", measured);
+ 	putBool("SweetBatteryTemperatureEstimated", true);
+ 	putBool("SweetBatteryFallback", !measured);
+ 	putNumber("SweetBatteryPercent", percent);
++	/* lapis: describe the adapter (powerd/BatteryCenter key off it). */
++	if (fLapis) {
++		const OSSymbol *key = OSSymbol::withCString("AdapterDetails");
++		OSDictionary *ad = external ? OSDictionary::withCapacity(6) : NULL;
++		if (key && ad) {
++			const char *names[] = {"Watts", "Voltage", "Current", "FamilyCode", "AdapterID"};
++			UInt32 values[] = {18, 9000, 2000, 0xe0004004u /* USB charging port, dedicated */, 0};
++			for (unsigned i = 0; i < 5; ++i) {
++				OSNumber *n = OSNumber::withNumber(values[i], 32);
++				if (n) {
++					ad->setObject(names[i], n);
++					n->release();
++				}
++			}
++			OSString *desc = OSString::withCString("pd charger");
++			if (desc) {
++				ad->setObject("Description", desc);
++				desc->release();
++			}
++			setPSProperty(key, ad);
++		} else if (key) {
++			OSDictionary *empty = OSDictionary::withCapacity(1);
++			if (empty) {
++				OSNumber *n = OSNumber::withNumber(0ULL, 32);
++				if (n) {
++					empty->setObject("FamilyCode", n);
++					n->release();
++				}
++				setPSProperty(key, empty);
++				empty->release();
++			}
++		}
++		OSSafeReleaseNULL(ad);
++		OSSafeReleaseNULL(key);
++	}
+ 
+ 	/* IOPMCopyBatteryInfo's per-source compatibility dictionary. */
+ 	OSDictionary *legacy = OSDictionary::withCapacity(7);
+@@ -137,7 +196,7 @@
+ 		const char *keys[] = {kIOBatteryCurrentChargeKey, kIOBatteryCapacityKey,
+ 		    kIOBatteryVoltageKey, kIOBatteryAmperageKey, kIOBatteryCycleCountKey,
+ 		    kIOBatteryFlagsKey};
+-		UInt32 values[] = {capacity, 5020, mv, (UInt32)ma, 0,
++		UInt32 values[] = {capacity, fMaxMah, mv, (UInt32)ma, fCycles,
+ 		    (UInt32)(kIOBatteryInstalled | (external ? kIOBatteryChargerConnect : 0) |
+ 		    (charging ? kIOBatteryCharge : 0))};
+ 		for (unsigned i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
+@@ -154,7 +213,8 @@
+ 	int mode = measured ? 1 : 0;
+ 	if (mode != fLastMode) {
+ 		IOLog("SWEET BATTERY: %s, %u%% %umV external=%d charging=%d\n",
+-		    measured ? "PM6150 / estimated SOC" : "static fallback",
++		    !measured ? "static fallback" :
++		    fLapis ? "lapis bq28z610 gauge" : "PM6150 / estimated SOC",
+ 		    percent, mv, external, charging);
+ 		fLastMode = mode;
+ 	}
+@@ -203,9 +263,48 @@
+ 	return 100;
+ }
+ 
++/* lapis: the fuel gauge's own SOC, current and status. A failed read keeps
++ * the last published reading (or the static fallback before the first). */
++void
++SweetBattery::lapisPoll(void)
++{
++	struct lapis_battery_sample s;
++	if (lapis_battery_read(&s) != 0) {
++		if (!fLapisValid) {
++			publish(100, 4200, 0, true, true, false, true, false, false);
++		}
++		return;
++	}
++	fLapisValid = true;
++	fDesignMah = LAPIS_BATTERY_DESIGN_MAH;
++	fMaxMah = (s.full_mah >= 1000 && s.full_mah <= 20000) ? s.full_mah : LAPIS_BATTERY_DESIGN_MAH;
++	fCycles = s.cycles;
++	fTempC100 = s.temp_c100;
++	/* external: the charger's own power-good when known, else the gauge */
++	bool external = s.vbus >= 0 ? s.vbus == 1 : (s.ma > 10 || !(s.status & LAPIS_BQ_STATUS_DSG));
++	bool charging = s.vbus >= 0 ? external : s.ma > 10;
++	bool full = external && ((s.status & LAPIS_BQ_STATUS_FC) || s.percent >= 100);
++	publish(s.percent, s.mv, s.ma, external, external, charging && !full, full, true, true);
++	int ma = s.ma, dm = ma - fLapisLastMa;
++	if (fLapisLogs < 60 && ((int)external != fLapisLastExt || (int)(charging && !full) != fLapisLastChg ||
++	    dm > 200 || dm < -200)) {
++		fLapisLogs++;
++		IOLog("SWEET BATTERY: lapis %u%% %umV %dmA %d.%02dC status=%#x external=%d charging=%d full=%d\n",
++		    s.percent, s.mv, ma, s.temp_c100 / 100, (s.temp_c100 < 0 ? -s.temp_c100 : s.temp_c100) % 100,
++		    s.status, external, charging && !full, full);
++		fLapisLastExt = external;
++		fLapisLastChg = charging && !full;
++		fLapisLastMa = ma;
++	}
++}
++
+ void
+ SweetBattery::poll(void)
+ {
++	if (fLapis) {
++		lapisPoll();
++		return;
++	}
+ 	uint8_t type, present, usb, path, charger, error, temperature;
+ 	uint16_t rawVoltage;
+ 	bool valid = fReal &&
+@@ -252,7 +351,7 @@
+ 	SweetBattery *self = OSDynamicCast(SweetBattery, owner);
+ 	if (self && self->fRunning) {
+ 		self->poll();
+-		sender->setTimeoutMS(30000);
++		sender->setTimeoutMS(self->fLapis ? 10000 : 30000);
+ 	}
+ }
+ 
+@@ -265,17 +364,20 @@
+ 	int real = 0;
+ 	(void)PE_parse_boot_argn("sweetbattery", &real, sizeof(real));
+ 	fReal = real == 1 && sweet_spmi_init() == 0;
++	int lapis = 1;
++	(void)PE_parse_boot_argn("lapisbattery", &lapis, sizeof(lapis));
++	fLapis = !fReal && lapis != 0 && lapis_battery_init() == 0;
+ 	/* Publish a complete source BEFORE registerService wakes powerd. */
+ 	poll();
+-	if (fReal) {
++	if (fReal || fLapis) {
+ 		fLoop = IOWorkLoop::workLoop();
+ 		fTimer = IOTimerEventSource::timerEventSource(this, &SweetBattery::timerFired);
+ 		if (fLoop && fTimer && fLoop->addEventSource(fTimer) == kIOReturnSuccess) {
+ 			fTimerAdded = true;
+ 			fRunning = true;
+-			fTimer->setTimeoutMS(30000);
++			fTimer->setTimeoutMS(fLapis ? 10000 : 30000);
+ 		} else {
+-			fReal = false;
++			fReal = fLapis = false;
+ 			poll();
+ 			IOLog("SWEET BATTERY: timer unavailable; static fallback\n");
+ 		}

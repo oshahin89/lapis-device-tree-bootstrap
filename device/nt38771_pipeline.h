@@ -7,7 +7,7 @@
 #include "nt38771_touch_state.h"
 
 /*
- * frame points to the 384-byte payload at CTP_SPI_READ buffer offset 1.
+ * frame points to the 108-byte register payload returned by the SPI helper.
  * emit is supplied by the caller so the parser/state layer has no dependency
  * on a particular XNU HID implementation.
  */

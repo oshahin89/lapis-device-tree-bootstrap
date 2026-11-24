@@ -1,0 +1,511 @@
+cat: /sys/kernel/debug/mtksocaudio: No such file or directory
+== 0034
+000000 f2 58 00 84 0c 28 98 66 03 40 00 00 05 07 00 00
+*
+000200
+== 0037
+000000 f2 58 00 84 0c 28 98 66 03 40 00 00 05 07 00 00
+*
+000200
+== /proc/asound/card0/pcm*p/sub0/hw_params
+cat: /proc/asound/card0/pcm*p/sub0/hw_params: No such file or directory
+Mixer name: 'mt6878-mt6369'
+Number of controls: 733
+ctl	type	num	name                                     value
+
+0	INT	1	Audio IRQ1 CNT                           0
+1	INT	1	Audio IRQ2 CNT                           0
+2	INT	1	deep_buffer_irq_cnt                      0
+3	INT	1	voip_rx_irq_cnt                          0
+4	BOOL	1	deep_buffer_scenario                     Off
+5	BOOL	1	record_xrun_assert                       Off
+6	BOOL	1	echo_ref_xrun_assert                     Off
+7	BOOL	1	fast_play_scenario                       Off
+8	BOOL	1	primary_play_scenario                    Off
+9	BOOL	1	voip_rx_scenario                         Off
+10	INT	1	sram_size                                49152
+11	INT	1	vow_barge_in_irq_id                      26
+12	BOOL	1	adsp_primary_sharemem_scenario           Off
+13	BOOL	1	adsp_deepbuffer_sharemem_scenario        Off
+14	BOOL	1	adsp_voip_sharemem_scenario              Off
+15	BOOL	1	adsp_playback_sharemem_scenario          On
+16	BOOL	1	adsp_call_final_sharemem_scenario        On
+17	BOOL	1	adsp_ktv_sharemem_scenario               Off
+18	BOOL	1	adsp_fm_sharemem_scenario                Off
+19	BOOL	1	adsp_offload_sharemem_scenario           Off
+20	BOOL	1	adsp_capture_sharemem_scenario           Off
+21	BOOL	1	adsp_ref_sharemem_scenario               Off
+22	BOOL	1	adsp_fast_sharemem_scenario              Off
+23	BOOL	1	adsp_spatializer_sharemem_scenario       Off
+24	BOOL	1	adsp_btdl_sharemem_scenario              Off
+25	BOOL	1	adsp_btul_sharemem_scenario              Off
+26	BOOL	1	adsp_echoref_sharemem_scenario           Off
+27	BOOL	1	adsp_echodl_sharemem_scenario            Off
+28	BOOL	1	adsp_usbdl_sharemem_scenario             Off
+29	BOOL	1	adsp_usbul_sharemem_scenario             Off
+30	BOOL	1	adsp_mddl_sharemem_scenario              Off
+31	BOOL	1	adsp_mdul_sharemem_scenario              Off
+32	BOOL	1	mmap_play_scenario                       Off
+33	BOOL	1	mmap_record_scenario                     Off
+34	INT	1	aaudio_ion                               0
+35	INT	1	aaudio_dl_mmap_fd                        0
+36	INT	1	aaudio_ul_mmap_fd                        0
+37	INT	1	HW Gain 1                                0
+38	INT	1	HW Gain 2                                0
+39	INT	1	HW Gain 0 L                              0
+40	INT	1	HW Gain 0 R                              0
+41	INT	1	HW Gain 1 L                              0
+42	INT	1	HW Gain 1 R                              0
+43	INT	1	HW Gain 2 L                              0
+44	INT	1	HW Gain 2 R                              0
+45	INT	1	HW Gain 3 L                              0
+46	INT	1	HW Gain 3 R                              0
+47	ENUM	1	I2SIN1_HD_Mux                            Normal
+48	ENUM	1	I2SIN2_HD_Mux                            Normal
+49	ENUM	1	I2SIN4_HD_Mux                            Low_Jitter
+50	ENUM	1	I2SOUT1_HD_Mux                           Normal
+51	ENUM	1	I2SOUT2_HD_Mux                           Normal
+52	ENUM	1	I2SOUT4_HD_Mux                           Low_Jitter
+53	INT	1	i2s_low_power_mask                       0
+54	ENUM	1	I2SIN1_LPBK                              Off
+55	ENUM	1	I2SIN2_LPBK                              Off
+56	ENUM	1	I2SIN4_LPBK                              Off
+57	ENUM	1	I2SIN4_IP_MODE                           Off
+58	ENUM	1	I2SIN4_CH_NUM                            2CH
+59	ENUM	1	I2SOUT4_CH_NUM                           2CH
+60	INT	1	Sidetone_Gain                            0
+61	INT	1	Sidetone_Positive_Gain_dB                0
+62	INT	1	ADDA_DL_GAIN                             0
+63	ENUM	1	MTKAIF_DMIC                              Off
+64	ENUM	1	MTKAIF_ADDA6_ONLY                        Off
+65	BOOL	1	ADDA_DL_MAX_VOL                          Off
+66	BOOL	1	VOW_ENABLE                               Off
+67	ENUM	1	AP DMIC Used                             Off
+68	BOOL	1	UL0_CH1 ADDA_UL_CH1                      Off
+69	BOOL	1	UL0_CH1 ADDA_UL_CH2                      Off
+70	BOOL	1	UL0_CH1 CONNSYS_I2S_CH1                  Off
+71	BOOL	1	UL0_CH1 PCM_0_CAP_CH1                    Off
+72	BOOL	1	UL0_CH1 PCM_1_CAP_CH1                    Off
+73	BOOL	1	UL0_CH1 I2SIN1_CH1                       Off
+74	BOOL	1	UL0_CH1 HW_SRC_0_OUT_CH1                 Off
+75	BOOL	1	UL0_CH1 HW_SRC_2_OUT_CH1                 Off
+76	BOOL	1	UL0_CH2 ADDA_UL_CH1                      Off
+77	BOOL	1	UL0_CH2 ADDA_UL_CH2                      Off
+78	BOOL	1	UL0_CH2 CONNSYS_I2S_CH2                  Off
+79	BOOL	1	UL0_CH2 PCM_0_CAP_CH1                    Off
+80	BOOL	1	UL0_CH2 PCM_1_CAP_CH1                    Off
+81	BOOL	1	UL0_CH2 I2SIN1_CH2                       Off
+82	BOOL	1	UL0_CH2 HW_SRC_0_OUT_CH2                 Off
+83	BOOL	1	UL0_CH2 HW_SRC_2_OUT_CH2                 Off
+84	BOOL	1	UL1_CH1 ADDA_UL_CH1                      Off
+85	BOOL	1	UL1_CH1 CONNSYS_I2S_CH1                  Off
+86	BOOL	1	UL1_CH1 DL0_CH1                          Off
+87	BOOL	1	UL1_CH1 DL1_CH1                          Off
+88	BOOL	1	UL1_CH1 DL2_CH1                          Off
+89	BOOL	1	UL1_CH1 DL3_CH1                          Off
+90	BOOL	1	UL1_CH1 DL4_CH1                          Off
+91	BOOL	1	UL1_CH1 DL6_CH1                          Off
+92	BOOL	1	UL1_CH1 DL7_CH1                          Off
+93	BOOL	1	UL1_CH1 DL23_CH1                         Off
+94	BOOL	1	UL1_CH1 DL_24CH_CH1                      Off
+95	BOOL	1	UL1_CH1 PCM_0_CAP_CH1                    Off
+96	BOOL	1	UL1_CH1 PCM_1_CAP_CH1                    Off
+97	BOOL	1	UL1_CH1 I2SIN1_CH1                       Off
+98	BOOL	1	UL1_CH1 I2SIN4_CH1                       Off
+99	BOOL	1	UL1_CH1 HW_SRC_0_OUT_CH1                 Off
+100	BOOL	1	UL1_CH1 HW_SRC_2_OUT_CH1                 Off
+101	BOOL	1	UL1_CH2 ADDA_UL_CH2                      Off
+102	BOOL	1	UL1_CH2 CONNSYS_I2S_CH2                  Off
+103	BOOL	1	UL1_CH2 DL0_CH2                          Off
+104	BOOL	1	UL1_CH2 DL1_CH2                          Off
+105	BOOL	1	UL1_CH2 DL2_CH2                          Off
+106	BOOL	1	UL1_CH2 DL3_CH2                          Off
+107	BOOL	1	UL1_CH2 DL4_CH2                          Off
+108	BOOL	1	UL1_CH2 DL6_CH2                          Off
+109	BOOL	1	UL1_CH2 DL7_CH2                          Off
+110	BOOL	1	UL1_CH2 DL23_CH2                         Off
+111	BOOL	1	UL1_CH2 DL_24CH_CH2                      Off
+112	BOOL	1	UL1_CH2 PCM_0_CAP_CH1                    Off
+113	BOOL	1	UL1_CH2 PCM_1_CAP_CH1                    Off
+114	BOOL	1	UL1_CH2 I2SIN1_CH2                       Off
+115	BOOL	1	UL1_CH2 I2SIN4_CH2                       Off
+116	BOOL	1	UL1_CH2 HW_SRC_0_OUT_CH2                 Off
+117	BOOL	1	UL1_CH2 HW_SRC_2_OUT_CH2                 Off
+118	BOOL	1	UL2_CH1 ADDA_UL_CH1                      Off
+119	BOOL	1	UL2_CH1 HW_GAIN1_OUT_CH1                 Off
+120	BOOL	1	UL2_CH1 HW_SRC_1_OUT_CH1                 Off
+121	BOOL	1	UL2_CH2 ADDA_UL_CH1                      Off
+122	BOOL	1	UL2_CH2 ADDA_UL_CH2                      Off
+123	BOOL	1	UL2_CH2 HW_GAIN1_OUT_CH2                 Off
+124	BOOL	1	UL2_CH2 HW_SRC_1_OUT_CH2                 Off
+125	BOOL	1	UL3_CH1 ADDA_UL_CH1                      Off
+126	BOOL	1	UL3_CH1 I2SIN1_CH1                       Off
+127	BOOL	1	UL3_CH1 I2SIN4_CH1                       On
+128	BOOL	1	UL3_CH2 ADDA_UL_CH2                      Off
+129	BOOL	1	UL3_CH2 I2SIN1_CH2                       Off
+130	BOOL	1	UL3_CH2 I2SIN4_CH2                       On
+131	BOOL	1	UL4_CH1 ADDA_UL_CH1                      Off
+132	BOOL	1	UL4_CH1 DL0_CH1                          Off
+133	BOOL	1	UL4_CH1 DL1_CH1                          Off
+134	BOOL	1	UL4_CH1 DL6_CH1                          Off
+135	BOOL	1	UL4_CH1 DL2_CH1                          Off
+136	BOOL	1	UL4_CH1 DL3_CH1                          Off
+137	BOOL	1	UL4_CH1 DL_24CH_CH1                      Off
+138	BOOL	1	UL4_CH1 PCM_0_CAP_CH1                    Off
+139	BOOL	1	UL4_CH1 PCM_1_CAP_CH1                    Off
+140	BOOL	1	UL4_CH1 HW_GAIN0_OUT_CH1                 Off
+141	BOOL	1	UL4_CH2 ADDA_UL_CH2                      Off
+142	BOOL	1	UL4_CH2 DL0_CH2                          Off
+143	BOOL	1	UL4_CH2 DL1_CH2                          Off
+144	BOOL	1	UL4_CH2 DL6_CH2                          Off
+145	BOOL	1	UL4_CH2 DL2_CH2                          Off
+146	BOOL	1	UL4_CH2 DL3_CH2                          Off
+147	BOOL	1	UL4_CH2 DL_24CH_CH2                      Off
+148	BOOL	1	UL4_CH2 PCM_0_CAP_CH1                    Off
+149	BOOL	1	UL4_CH2 PCM_1_CAP_CH1                    Off
+150	BOOL	1	UL4_CH2 HW_GAIN0_OUT_CH2                 Off
+151	BOOL	1	UL5_CH1 ADDA_UL_CH1                      Off
+152	BOOL	1	UL5_CH1 PCM_0_CAP_CH1                    Off
+153	BOOL	1	UL5_CH1 PCM_1_CAP_CH1                    Off
+154	BOOL	1	UL5_CH1 GAIN0_OUT_CH1                    Off
+155	BOOL	1	UL5_CH2 ADDA_UL_CH2                      Off
+156	BOOL	1	UL5_CH2 PCM_0_CAP_CH1                    Off
+157	BOOL	1	UL5_CH2 PCM_1_CAP_CH1                    Off
+158	BOOL	1	UL5_CH2 GAIN0_OUT_CH2                    Off
+159	BOOL	1	UL6_CH1 ADDA_UL_CH1                      Off
+160	BOOL	1	UL6_CH1 CONNSYS_I2S_CH1                  Off
+161	BOOL	1	UL6_CH2 ADDA_UL_CH2                      Off
+162	BOOL	1	UL6_CH2 CONNSYS_I2S_CH2                  Off
+163	BOOL	1	UL7_CH1 ADDA_UL_CH1                      Off
+164	BOOL	1	UL7_CH1 ADDA_UL_CH2                      Off
+165	BOOL	1	UL7_CH1 CONNSYS_I2S_CH1                  Off
+166	BOOL	1	UL7_CH2 ADDA_UL_CH1                      Off
+167	BOOL	1	UL7_CH2 ADDA_UL_CH2                      Off
+168	BOOL	1	UL7_CH2 CONNSYS_I2S_CH2                  Off
+169	BOOL	1	UL8_CH1 PCM_0_CAP_CH1                    Off
+170	BOOL	1	UL8_CH1 PCM_1_CAP_CH1                    Off
+171	BOOL	1	UL8_CH2 PCM_0_CAP_CH2                    Off
+172	BOOL	1	UL8_CH2 PCM_1_CAP_CH2                    Off
+173	BOOL	1	UL9_CH1 ADDA_UL_CH1                      Off
+174	BOOL	1	UL9_CH1 ADDA_UL_CH2                      Off
+175	BOOL	1	UL9_CH1 ADDA_UL_CH3                      Off
+176	BOOL	1	UL9_CH2 ADDA_UL_CH1                      Off
+177	BOOL	1	UL9_CH2 ADDA_UL_CH2                      Off
+178	BOOL	1	UL9_CH2 ADDA_UL_CH3                      Off
+179	BOOL	1	UL9_CH2 ADDA_UL_CH4                      Off
+180	BOOL	1	UL24_CH1 ADDA_UL_CH1                     Off
+181	BOOL	1	DSP_DL DSP_DL0                           Off
+182	BOOL	1	DSP_DL DSP_DL2                           Off
+183	BOOL	1	DSP_DL DSP_DL1                           Off
+184	BOOL	1	DSP_DL DSP_DL6                           Off
+185	BOOL	1	DSP_DL DSP_DL3                           Off
+186	BOOL	1	DSP_DL DSP_DL_24CH                       Off
+187	BOOL	1	UL_CM0_CH1 ADDA_UL_CH1                   Off
+188	BOOL	1	UL_CM0_CH1 ADDA_UL_CH2                   Off
+189	BOOL	1	UL_CM0_CH1 HW_GAIN1_OUT_CH1              Off
+190	BOOL	1	UL_CM0_CH1 HW_SRC_0_OUT_CH1              On
+191	BOOL	1	UL_CM0_CH1 HW_SRC_1_OUT_CH1              Off
+192	BOOL	1	UL_CM0_CH2 ADDA_UL_CH1                   Off
+193	BOOL	1	UL_CM0_CH2 ADDA_UL_CH2                   Off
+194	BOOL	1	UL_CM0_CH2 HW_GAIN1_OUT_CH2              Off
+195	BOOL	1	UL_CM0_CH2 HW_SRC_0_OUT_CH2              On
+196	BOOL	1	UL_CM0_CH2 HW_SRC_1_OUT_CH2              Off
+197	BOOL	1	UL_CM0_CH3 ADDA_UL_CH1                   Off
+198	BOOL	1	UL_CM0_CH3 ADDA_UL_CH2                   Off
+199	BOOL	1	UL_CM0_CH4 ADDA_UL_CH1                   Off
+200	BOOL	1	UL_CM0_CH4 ADDA_UL_CH2                   Off
+201	ENUM	1	CM0_UL_MUX                               CM0_8CH_PATH
+202	BOOL	1	UL_CM1_CH1 ADDA_UL_CH1                   Off
+203	BOOL	1	UL_CM1_CH1 ADDA_UL_CH2                   Off
+204	BOOL	1	UL_CM1_CH1 ADDA_UL_CH3                   Off
+205	BOOL	1	UL_CM1_CH1 ADDA_UL_CH4                   Off
+206	BOOL	1	UL_CM1_CH1 HW_SRC_0_OUT_CH1              Off
+207	BOOL	1	UL_CM1_CH2 ADDA_UL_CH1                   Off
+208	BOOL	1	UL_CM1_CH2 ADDA_UL_CH2                   Off
+209	BOOL	1	UL_CM1_CH2 ADDA_UL_CH3                   Off
+210	BOOL	1	UL_CM1_CH2 ADDA_UL_CH4                   Off
+211	BOOL	1	UL_CM1_CH2 HW_SRC_0_OUT_CH2              Off
+212	BOOL	1	UL_CM1_CH3 ADDA_UL_CH1                   Off
+213	BOOL	1	UL_CM1_CH3 ADDA_UL_CH2                   Off
+214	BOOL	1	UL_CM1_CH4 ADDA_UL_CH1                   Off
+215	BOOL	1	UL_CM1_CH4 ADDA_UL_CH2                   Off
+216	BOOL	1	UL_CM1_CH5 ADDA_UL_CH1                   Off
+217	BOOL	1	UL_CM1_CH5 ADDA_UL_CH2                   Off
+218	BOOL	1	UL_CM1_CH6 ADDA_UL_CH1                   Off
+219	BOOL	1	UL_CM1_CH6 ADDA_UL_CH2                   Off
+220	ENUM	1	CM1_UL_MUX                               CM1_2CH_PATH
+221	BOOL	1	PCM_0_PB_CH1 ADDA_UL_CH1                 Off
+222	BOOL	1	PCM_0_PB_CH1 DL2_CH1                     Off
+223	BOOL	1	PCM_0_PB_CH1 DL_24CH_CH1                 Off
+224	BOOL	1	PCM_0_PB_CH2 ADDA_UL_CH2                 Off
+225	BOOL	1	PCM_0_PB_CH2 DL2_CH2                     Off
+226	BOOL	1	PCM_0_PB_CH2 DL_24CH_CH2                 Off
+227	BOOL	1	PCM_0_PB_CH4 I2SIN1_CH1                  Off
+228	BOOL	1	PCM_0_PB_CH4 I2SIN1_CH2                  Off
+229	BOOL	1	PCM_0_PB_CH4 DL0_CH1                     Off
+230	BOOL	1	PCM_0_PB_CH4 I2SIN4_CH1                  Off
+231	BOOL	1	PCM_0_PB_CH4 I2SIN4_CH2                  Off
+232	BOOL	1	PCM_0_PB_CH4 DL_24CH_CH1                 Off
+233	BOOL	1	PCM_1_PB_CH1 ADDA_UL_CH1                 Off
+234	BOOL	1	PCM_1_PB_CH1 ADDA_UL_CH2                 Off
+235	BOOL	1	PCM_1_PB_CH1 DL2_CH1                     Off
+236	BOOL	1	PCM_1_PB_CH1 DL_24CH_CH1                 Off
+237	BOOL	1	PCM_1_PB_CH1 HW_SRC_0_OUT_CH1            Off
+238	BOOL	1	PCM_1_PB_CH1 I2SIN4_CH1                  Off
+239	BOOL	1	PCM_1_PB_CH2 ADDA_UL_CH1                 Off
+240	BOOL	1	PCM_1_PB_CH2 ADDA_UL_CH2                 Off
+241	BOOL	1	PCM_1_PB_CH2 DL2_CH2                     Off
+242	BOOL	1	PCM_1_PB_CH2 DL_24CH_CH2                 Off
+243	BOOL	1	PCM_1_PB_CH2 HW_SRC_0_OUT_CH2            Off
+244	BOOL	1	PCM_1_PB_CH2 I2SIN4_CH2                  Off
+245	BOOL	1	PCM_1_PB_CH4 I2SIN1_CH1                  Off
+246	BOOL	1	PCM_1_PB_CH4 I2SIN1_CH2                  Off
+247	BOOL	1	PCM_1_PB_CH4 DL0_CH1                     Off
+248	BOOL	1	PCM_1_PB_CH4 I2SIN4_CH1                  Off
+249	BOOL	1	PCM_1_PB_CH4 I2SIN4_CH2                  Off
+250	BOOL	1	PCM_1_PB_CH4 DL_24CH_CH1                 Off
+251	BOOL	1	PCM_1_PB_CH4 DL24_CH1                    Off
+252	BOOL	1	PCM_1_PB_CH4 HW_SRC_2_OUT_CH1            Off
+253	BOOL	1	PCM_1_PB_CH4 HW_SRC_1_OUT_CH1            Off
+254	BOOL	1	PCM_1_PB_CH5 I2SIN1_CH2                  Off
+255	BOOL	1	PCM_1_PB_CH5 DL0_CH2                     Off
+256	BOOL	1	PCM_1_PB_CH5 I2SIN4_CH2                  Off
+257	BOOL	1	PCM_1_PB_CH5 DL_24CH_CH2                 Off
+258	BOOL	1	PCM_1_PB_CH5 DL24_CH2                    Off
+259	BOOL	1	PCM_1_PB_CH5 HW_SRC_2_OUT_CH2            Off
+260	BOOL	1	PCM_1_PB_CH5 HW_SRC_1_OUT_CH2            Off
+261	BOOL	1	HW_SRC_0_IN_CH1 DL0_CH1                  Off
+262	BOOL	1	HW_SRC_0_IN_CH1 DL1_CH1                  Off
+263	BOOL	1	HW_SRC_0_IN_CH1 DL2_CH1                  Off
+264	BOOL	1	HW_SRC_0_IN_CH1 DL3_CH1                  Off
+265	BOOL	1	HW_SRC_0_IN_CH1 DL4_CH1                  On
+266	BOOL	1	HW_SRC_0_IN_CH1 DL5_CH1                  Off
+267	BOOL	1	HW_SRC_0_IN_CH1 DL6_CH1                  Off
+268	BOOL	1	HW_SRC_0_IN_CH1 DL_24CH_CH1              On
+269	BOOL	1	HW_SRC_0_IN_CH1 DL24_CH1                 Off
+270	BOOL	1	HW_SRC_0_IN_CH1 ADDA_UL_CH1              Off
+271	BOOL	1	HW_SRC_0_IN_CH1 I2SIN4_CH1               Off
+272	BOOL	1	HW_SRC_0_IN_CH2 DL0_CH2                  Off
+273	BOOL	1	HW_SRC_0_IN_CH2 DL1_CH2                  Off
+274	BOOL	1	HW_SRC_0_IN_CH2 DL2_CH2                  Off
+275	BOOL	1	HW_SRC_0_IN_CH2 DL3_CH2                  Off
+276	BOOL	1	HW_SRC_0_IN_CH2 DL4_CH2                  On
+277	BOOL	1	HW_SRC_0_IN_CH2 DL5_CH2                  Off
+278	BOOL	1	HW_SRC_0_IN_CH2 DL6_CH2                  Off
+279	BOOL	1	HW_SRC_0_IN_CH2 DL_24CH_CH2              On
+280	BOOL	1	HW_SRC_0_IN_CH2 DL24_CH2                 Off
+281	BOOL	1	HW_SRC_0_IN_CH2 ADDA_UL_CH2              Off
+282	BOOL	1	HW_SRC_0_IN_CH2 I2SIN4_CH2               Off
+283	BOOL	1	HW_SRC_1_IN_CH1 DL0_CH1                  Off
+284	BOOL	1	HW_SRC_1_IN_CH1 DL1_CH1                  Off
+285	BOOL	1	HW_SRC_1_IN_CH1 DL2_CH1                  Off
+286	BOOL	1	HW_SRC_1_IN_CH1 DL3_CH1                  Off
+287	BOOL	1	HW_SRC_1_IN_CH1 DL4_CH1                  Off
+288	BOOL	1	HW_SRC_1_IN_CH1 DL5_CH1                  Off
+289	BOOL	1	HW_SRC_1_IN_CH1 DL6_CH1                  Off
+290	BOOL	1	HW_SRC_1_IN_CH1 DL_24CH_CH1              Off
+291	BOOL	1	HW_SRC_1_IN_CH1 DL24_CH1                 Off
+292	BOOL	1	HW_SRC_1_IN_CH1 HW_GAIN1_OUT_CH1         Off
+293	BOOL	1	HW_SRC_1_IN_CH1 I2SIN4_CH1               Off
+294	BOOL	1	HW_SRC_1_IN_CH2 DL0_CH2                  Off
+295	BOOL	1	HW_SRC_1_IN_CH2 DL1_CH2                  Off
+296	BOOL	1	HW_SRC_1_IN_CH2 DL2_CH2                  Off
+297	BOOL	1	HW_SRC_1_IN_CH2 DL3_CH2                  Off
+298	BOOL	1	HW_SRC_1_IN_CH2 DL4_CH2                  Off
+299	BOOL	1	HW_SRC_1_IN_CH2 DL5_CH2                  Off
+300	BOOL	1	HW_SRC_1_IN_CH2 DL6_CH2                  Off
+301	BOOL	1	HW_SRC_1_IN_CH2 DL_24CH_CH2              Off
+302	BOOL	1	HW_SRC_1_IN_CH2 DL24_CH2                 Off
+303	BOOL	1	HW_SRC_1_IN_CH2 HW_GAIN1_OUT_CH2         Off
+304	BOOL	1	HW_SRC_1_IN_CH2 I2SIN4_CH2               Off
+305	BOOL	1	HW_SRC_2_IN_CH1 DL0_CH1                  Off
+306	BOOL	1	HW_SRC_2_IN_CH1 DL1_CH1                  Off
+307	BOOL	1	HW_SRC_2_IN_CH1 DL2_CH1                  Off
+308	BOOL	1	HW_SRC_2_IN_CH1 DL3_CH1                  Off
+309	BOOL	1	HW_SRC_2_IN_CH1 DL4_CH1                  Off
+310	BOOL	1	HW_SRC_2_IN_CH1 DL5_CH1                  Off
+311	BOOL	1	HW_SRC_2_IN_CH1 DL6_CH1                  Off
+312	BOOL	1	HW_SRC_2_IN_CH1 DL_24CH_CH1              Off
+313	BOOL	1	HW_SRC_2_IN_CH1 DL24_CH1                 Off
+314	BOOL	1	HW_SRC_2_IN_CH1 PCM_1_CAP_CH1            Off
+315	BOOL	1	HW_SRC_2_IN_CH2 DL0_CH2                  Off
+316	BOOL	1	HW_SRC_2_IN_CH2 DL1_CH2                  Off
+317	BOOL	1	HW_SRC_2_IN_CH2 DL2_CH2                  Off
+318	BOOL	1	HW_SRC_2_IN_CH2 DL3_CH2                  Off
+319	BOOL	1	HW_SRC_2_IN_CH2 DL4_CH2                  Off
+320	BOOL	1	HW_SRC_2_IN_CH2 DL5_CH2                  Off
+321	BOOL	1	HW_SRC_2_IN_CH2 DL6_CH2                  Off
+322	BOOL	1	HW_SRC_2_IN_CH2 DL_24CH_CH2              Off
+323	BOOL	1	HW_SRC_2_IN_CH2 DL24_CH2                 Off
+324	BOOL	1	HW_SRC_2_IN_CH2 PCM_1_CAP_CH1            Off
+325	BOOL	1	HW_GAIN0_IN_CH1 CONNSYS_I2S_CH1          Off
+326	BOOL	1	HW_GAIN0_IN_CH2 CONNSYS_I2S_CH2          Off
+327	BOOL	1	HW_GAIN1_IN_CH1 ADDA_UL_CH1              Off
+328	BOOL	1	HW_GAIN1_IN_CH2 ADDA_UL_CH2              Off
+329	BOOL	1	I2SOUT1_CH1 DL0_CH1                      Off
+330	BOOL	1	I2SOUT1_CH1 DL1_CH1                      Off
+331	BOOL	1	I2SOUT1_CH1 DL2_CH1                      Off
+332	BOOL	1	I2SOUT1_CH1 DL3_CH1                      Off
+333	BOOL	1	I2SOUT1_CH1 DL4_CH1                      Off
+334	BOOL	1	I2SOUT1_CH1 DL5_CH1                      Off
+335	BOOL	1	I2SOUT1_CH1 DL6_CH1                      Off
+336	BOOL	1	I2SOUT1_CH1 DL7_CH1                      Off
+337	BOOL	1	I2SOUT1_CH1 DL8_CH1                      Off
+338	BOOL	1	I2SOUT1_CH1 DL_24CH_CH1                  Off
+339	BOOL	1	I2SOUT1_CH1 HW_GAIN0_OUT_CH1             Off
+340	BOOL	1	I2SOUT1_CH1 ADDA_UL_CH1                  Off
+341	BOOL	1	I2SOUT1_CH1 PCM_0_CAP_CH1                Off
+342	BOOL	1	I2SOUT1_CH1 PCM_1_CAP_CH1                Off
+343	BOOL	1	I2SOUT1_CH2 DL0_CH2                      Off
+344	BOOL	1	I2SOUT1_CH2 DL1_CH2                      Off
+345	BOOL	1	I2SOUT1_CH2 DL2_CH2                      Off
+346	BOOL	1	I2SOUT1_CH2 DL3_CH2                      Off
+347	BOOL	1	I2SOUT1_CH2 DL4_CH2                      Off
+348	BOOL	1	I2SOUT1_CH2 DL5_CH2                      Off
+349	BOOL	1	I2SOUT1_CH2 DL6_CH2                      Off
+350	BOOL	1	I2SOUT1_CH2 DL7_CH2                      Off
+351	BOOL	1	I2SOUT1_CH2 DL8_CH2                      Off
+352	BOOL	1	I2SOUT1_CH2 DL_24CH_CH2                  Off
+353	BOOL	1	I2SOUT1_CH2 HW_GAIN0_OUT_CH2             Off
+354	BOOL	1	I2SOUT1_CH2 ADDA_UL_CH2                  Off
+355	BOOL	1	I2SOUT1_CH2 PCM_0_CAP_CH1                Off
+356	BOOL	1	I2SOUT1_CH2 PCM_0_CAP_CH2                Off
+357	BOOL	1	I2SOUT1_CH2 PCM_1_CAP_CH1                Off
+358	BOOL	1	I2SOUT1_CH2 PCM_1_CAP_CH2                Off
+359	BOOL	1	I2SOUT2_CH1 DL0_CH1                      Off
+360	BOOL	1	I2SOUT2_CH1 DL1_CH1                      Off
+361	BOOL	1	I2SOUT2_CH1 DL2_CH1                      Off
+362	BOOL	1	I2SOUT2_CH1 DL3_CH1                      Off
+363	BOOL	1	I2SOUT2_CH1 DL4_CH1                      Off
+364	BOOL	1	I2SOUT2_CH1 DL5_CH1                      Off
+365	BOOL	1	I2SOUT2_CH1 DL6_CH1                      Off
+366	BOOL	1	I2SOUT2_CH1 DL7_CH1                      Off
+367	BOOL	1	I2SOUT2_CH1 DL8_CH1                      Off
+368	BOOL	1	I2SOUT2_CH1 DL_24CH_CH1                  Off
+369	BOOL	1	I2SOUT2_CH1 HW_GAIN0_OUT_CH1             Off
+370	BOOL	1	I2SOUT2_CH1 ADDA_UL_CH1                  Off
+371	BOOL	1	I2SOUT2_CH1 PCM_0_CAP_CH1                Off
+372	BOOL	1	I2SOUT2_CH1 PCM_1_CAP_CH1                Off
+373	BOOL	1	I2SOUT2_CH2 DL0_CH2                      Off
+374	BOOL	1	I2SOUT2_CH2 DL1_CH2                      Off
+375	BOOL	1	I2SOUT2_CH2 DL2_CH2                      Off
+376	BOOL	1	I2SOUT2_CH2 DL3_CH2                      Off
+377	BOOL	1	I2SOUT2_CH2 DL4_CH2                      Off
+378	BOOL	1	I2SOUT2_CH2 DL5_CH2                      Off
+379	BOOL	1	I2SOUT2_CH2 DL6_CH2                      Off
+380	BOOL	1	I2SOUT2_CH2 DL7_CH2                      Off
+381	BOOL	1	I2SOUT2_CH2 DL8_CH2                      Off
+382	BOOL	1	I2SOUT2_CH2 DL_24CH_CH2                  Off
+383	BOOL	1	I2SOUT2_CH2 HW_GAIN0_OUT_CH2             Off
+384	BOOL	1	I2SOUT2_CH2 ADDA_UL_CH2                  Off
+385	BOOL	1	I2SOUT2_CH2 PCM_0_CAP_CH1                Off
+386	BOOL	1	I2SOUT2_CH2 PCM_0_CAP_CH2                Off
+387	BOOL	1	I2SOUT2_CH2 PCM_1_CAP_CH1                Off
+388	BOOL	1	I2SOUT2_CH2 PCM_1_CAP_CH2                Off
+389	BOOL	1	I2SOUT4_CH1 DL0_CH1                      Off
+390	BOOL	1	I2SOUT4_CH1 DL1_CH1                      Off
+391	BOOL	1	I2SOUT4_CH1 DL2_CH1                      Off
+392	BOOL	1	I2SOUT4_CH1 DL3_CH1                      Off
+393	BOOL	1	I2SOUT4_CH1 DL4_CH1                      Off
+394	BOOL	1	I2SOUT4_CH1 DL5_CH1                      Off
+395	BOOL	1	I2SOUT4_CH1 DL6_CH1                      Off
+396	BOOL	1	I2SOUT4_CH1 DL7_CH1                      Off
+397	BOOL	1	I2SOUT4_CH1 DL8_CH1                      Off
+398	BOOL	1	I2SOUT4_CH1 DL_24CH_CH1                  On
+399	BOOL	1	I2SOUT4_CH1 DL24_CH1                     Off
+400	BOOL	1	I2SOUT4_CH1 HW_GAIN0_OUT_CH1             Off
+401	BOOL	1	I2SOUT4_CH1 ADDA_UL_CH1                  Off
+402	BOOL	1	I2SOUT4_CH1 ADDA_UL_CH2                  Off
+403	BOOL	1	I2SOUT4_CH1 PCM_1_CAP_CH1                Off
+404	BOOL	1	I2SOUT4_CH1 HW_SRC_2_OUT_CH1             Off
+405	BOOL	1	I2SOUT4_CH2 DL0_CH2                      Off
+406	BOOL	1	I2SOUT4_CH2 DL1_CH2                      Off
+407	BOOL	1	I2SOUT4_CH2 DL2_CH2                      Off
+408	BOOL	1	I2SOUT4_CH2 DL3_CH2                      Off
+409	BOOL	1	I2SOUT4_CH2 DL4_CH2                      Off
+410	BOOL	1	I2SOUT4_CH2 DL5_CH2                      Off
+411	BOOL	1	I2SOUT4_CH2 DL6_CH2                      Off
+412	BOOL	1	I2SOUT4_CH2 DL7_CH2                      Off
+413	BOOL	1	I2SOUT4_CH2 DL8_CH2                      Off
+414	BOOL	1	I2SOUT4_CH2 DL_24CH_CH2                  On
+415	BOOL	1	I2SOUT4_CH2 DL24_CH2                     Off
+416	BOOL	1	I2SOUT4_CH2 HW_GAIN0_OUT_CH2             Off
+417	BOOL	1	I2SOUT4_CH2 ADDA_UL_CH1                  Off
+418	BOOL	1	I2SOUT4_CH2 ADDA_UL_CH2                  Off
+419	BOOL	1	I2SOUT4_CH2 PCM_1_CAP_CH1                Off
+420	BOOL	1	I2SOUT4_CH2 HW_SRC_2_OUT_CH2             Off
+421	BOOL	1	I2SOUT4_CH3 DL_24CH_CH3                  Off
+422	BOOL	1	I2SOUT4_CH3 PCM_1_CAP_CH1                Off
+423	BOOL	1	I2SOUT4_CH4 DL_24CH_CH4                  Off
+424	BOOL	1	I2SOUT4_CH4 PCM_1_CAP_CH1                Off
+425	BOOL	1	I2SOUT4_CH5 DL_24CH_CH5                  Off
+426	BOOL	1	I2SOUT4_CH6 DL_24CH_CH6                  Off
+427	BOOL	1	I2SOUT4_CH7 DL_24CH_CH7                  Off
+428	BOOL	1	I2SOUT4_CH8 DL_24CH_CH8                  Off
+429	ENUM	1	I2S_OUT1_Mux                             Normal
+430	ENUM	1	I2S_OUT2_Mux                             Normal
+431	ENUM	1	I2S_OUT4_Mux                             Normal
+432	ENUM	1	I2S_IN1_Mux                              Normal
+433	ENUM	1	I2S_IN2_Mux                              Normal
+434	ENUM	1	I2S_IN4_Mux                              Normal
+435	BOOL	1	ADDA_DL_CH1 DL0_CH1                      Off
+436	BOOL	1	ADDA_DL_CH1 DL1_CH1                      Off
+437	BOOL	1	ADDA_DL_CH1 DL2_CH1                      Off
+438	BOOL	1	ADDA_DL_CH1 DL3_CH1                      Off
+439	BOOL	1	ADDA_DL_CH1 DL4_CH1                      Off
+440	BOOL	1	ADDA_DL_CH1 DL5_CH1                      Off
+441	BOOL	1	ADDA_DL_CH1 DL6_CH1                      Off
+442	BOOL	1	ADDA_DL_CH1 DL7_CH1                      Off
+443	BOOL	1	ADDA_DL_CH1 DL8_CH1                      Off
+444	BOOL	1	ADDA_DL_CH1 DL_24CH_CH1                  Off
+445	BOOL	1	ADDA_DL_CH1 DL24_CH1                     Off
+446	BOOL	1	ADDA_DL_CH1 ADDA_UL_CH2                  Off
+447	BOOL	1	ADDA_DL_CH1 ADDA_UL_CH1                  Off
+448	BOOL	1	ADDA_DL_CH1 HW_GAIN0_OUT_CH1             Off
+449	BOOL	1	ADDA_DL_CH1 PCM_0_CAP_CH1                Off
+450	BOOL	1	ADDA_DL_CH1 PCM_1_CAP_CH1                Off
+451	BOOL	1	ADDA_DL_CH1 HW_SRC_0_OUT_CH1             Off
+452	BOOL	1	ADDA_DL_CH1 HW_SRC_2_OUT_CH1             Off
+453	BOOL	1	ADDA_DL_CH2 DL0_CH2                      Off
+454	BOOL	1	ADDA_DL_CH2 DL0_CH1                      Off
+455	BOOL	1	ADDA_DL_CH2 DL1_CH2                      Off
+456	BOOL	1	ADDA_DL_CH2 DL2_CH2                      Off
+457	BOOL	1	ADDA_DL_CH2 DL3_CH2                      Off
+458	BOOL	1	ADDA_DL_CH2 DL4_CH2                      Off
+459	BOOL	1	ADDA_DL_CH2 DL5_CH2                      Off
+460	BOOL	1	ADDA_DL_CH2 DL6_CH2                      Off
+461	BOOL	1	ADDA_DL_CH2 DL7_CH2                      Off
+462	BOOL	1	ADDA_DL_CH2 DL8_CH2                      Off
+463	BOOL	1	ADDA_DL_CH2 DL_24CH_CH2                  Off
+464	BOOL	1	ADDA_DL_CH2 DL24_CH2                     Off
+465	BOOL	1	ADDA_DL_CH2 ADDA_UL_CH2                  Off
+466	BOOL	1	ADDA_DL_CH2 ADDA_UL_CH1                  Off
+467	BOOL	1	ADDA_DL_CH2 HW_GAIN0_OUT_CH2             Off
+468	BOOL	1	ADDA_DL_CH2 PCM_0_CAP_CH1                Off
+469	BOOL	1	ADDA_DL_CH2 PCM_1_CAP_CH1                Off
+470	BOOL	1	ADDA_DL_CH2 PCM_0_CAP_CH2                Off
+471	BOOL	1	ADDA_DL_CH2 PCM_1_CAP_CH2                Off
+472	BOOL	1	ADDA_DL_CH2 HW_SRC_0_OUT_CH2             Off
+473	BOOL	1	ADDA_DL_CH2 HW_SRC_2_OUT_CH2             Off
+474	BOOL	1	ADDA_DL_CH3 DL0_CH1                      Off
+475	BOOL	1	ADDA_DL_CH3 DL1_CH1                      Off
+476	BOOL	1	ADDA_DL_CH3 DL2_CH1                      Off
+477	BOOL	1	ADDA_DL_CH3 DL3_CH1                      Off
+478	BOOL	1	ADDA_DL_CH3 DL4_CH1                      Off
+479	BOOL	1	ADDA_DL_CH3 DL5_CH1                      Off
+480	BOOL	1	ADDA_DL_CH3 DL6_CH1                      Off
+481	BOOL	1	ADDA_DL_CH3 DL7_CH1                      Off
+482	BOOL	1	ADDA_DL_CH3 DL8_CH1                      Off
+483	BOOL	1	ADDA_DL_CH3 DL_24CH_CH1                  Off
+484	BOOL	1	ADDA_DL_CH3 DL_24CH_CH3                  Off
+485	BOOL	1	ADDA_DL_CH3 DL24_CH1                     Off
+486	BOOL	1	ADDA_DL_CH3 ADDA_UL_CH2                  Off
+487	BOOL	1	ADDA_DL_CH3 ADDA_UL_CH1                  Off
+488	BOOL	1	ADDA_DL_CH3 HW_GAIN0_OUT_CH1             Off
+489	BOOL	1	ADDA_DL_CH3 HW_SRC_2_OUT_CH1             Off
+490	BOOL	1	ADDA_DL_CH4 DL0_CH2                      Off
+491	BOOL	1	ADDA_DL_CH4 DL1_CH2                      Off
+492	BOOL	1	ADDA_DL_CH4 DL2_CH2                      Off
+493	BOOL	1	ADDA_DL_CH4 DL3_CH2                      Off
+494	BOOL	1	ADDA_DL_CH4 DL4_CH2                      Off
+495	BOOL	1	ADDA_DL_CH4 DL5_CH2                      Off

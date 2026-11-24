@@ -1,0 +1,8 @@
+LapisGPU client: galliumtest: start
+LapisGPU client: gallium: screen in 432 ms: Mali-G615 MC2 (Panfrost) / Mesa / Arm
+LapisGPU: tiler heap 0 on VM 1: 5 x 0x200000, context 0xff0040000000, first chunk 0xff0041800000
+LapisGPU client: gallium: clear on the GPU: fence NOT done in 2273 us; pixels ffff8000 ffff8000 ffff8000 (want ffff8000)
+LapisGPU client: gallium: second clear: fence NOT done in 797 us; pixels ff0000ff ff0000ff ff0000ff (want ff0000ff)
+LapisGPU client: gallium: 100 clears: 0 fenced, 52558 us each; then green: ff00ff00 (want ff00ff00)
+LapisGPU client: gallium: done
+LapisGPU client: galliumtest: finished

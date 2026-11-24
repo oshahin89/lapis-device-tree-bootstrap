@@ -1,0 +1,41 @@
+name: lapis-metal
+
+# The LapisMetal plug-in (tools/lapis_metal/LapisMetal.m: Metal's device on
+# the lapis phone, over Apple's AGXMetalA11.bundle) and its test program
+# (lapis_metaltest.m), for the phone's iOS: arm64, ad-hoc signed.
+# device/lapis_metal_plan.md, milestone 2.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/lapis_metal/**
+      - .github/workflows/lapis-metal.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build for iOS arm64
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          FLAGS="-arch arm64 -miphoneos-version-min=16.0 -O2 -fobjc-arc -Wall"
+          xcrun --sdk iphoneos clang $FLAGS -dynamiclib -install_name /System/Library/Extensions/AGXMetalA11.bundle/ds.g10p \
+            -o out/LapisMetal.dylib tools/lapis_metal/LapisMetal.m \
+            -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
+          xcrun --sdk iphoneos clang $FLAGS -o out/lapis_metaltest tools/lapis_metal/lapis_metaltest.m \
+            -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
+          for f in out/*; do codesign -s - -f "$f"; done
+          ls -la out
+          otool -L out/LapisMetal.dylib out/lapis_metaltest
+          shasum -a 256 out/* | tee out/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapis-metal
+          path: out/

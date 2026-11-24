@@ -1,0 +1,38 @@
+name: lapis-metalprobe
+
+# Builds tools/lapis_metalprobe (what iOS 16.7's Metal looks like on the
+# lapis phone: device discovery, accelerator services, private classes; said
+# into the kernel log through LapisGPU) for the phone's iOS: arm64, ad-hoc
+# signed. device/lapis_metal_plan.md, milestone 1.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/lapis_metalprobe/**
+      - .github/workflows/lapis-metalprobe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build for iOS arm64
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.0 -O2 -fobjc-arc -Wall \
+            -o out/lapis_metalprobe tools/lapis_metalprobe/lapis_metalprobe.m \
+            -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
+          codesign -s - -f out/lapis_metalprobe
+          ls -la out
+          otool -L out/lapis_metalprobe
+          shasum -a 256 out/lapis_metalprobe | tee out/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapis-metalprobe
+          path: out/

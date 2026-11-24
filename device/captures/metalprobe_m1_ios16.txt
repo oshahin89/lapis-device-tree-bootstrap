@@ -1,0 +1,1620 @@
+start (pid 88)
+MTLCreateSystemDefaultDevice: nil
+registry IOAcceleratorES: 0
+registry IOAccelerator: 0
+registry IOGraphicsAccelerator2: 0
+registry IOMobileFramebuffer #0: AppleCLCD (AppleCLCD) MetalPluginName=(null) MetalPluginClassName=(null) IOGLBundl
+registry IOMobileFramebuffer: 1
+AGXMetalA11.bundle: present executable /System/Library/Extensions/AGXMetalA11.bundle/AGXMetalA11 principal AGXPrinc
+AGXMetalA11 executable size (null)
+/System/Library/Extensions: AGXGPURawCounterBundle.bundle AGXMetalA11.bundle ASIOKit.kext AppleBiometricSensor.kext
+Metal image /System/Library/Frameworks/Metal.framework/Metal: 313 classes
+classes: _PipelineLibrarySerializer MTLMeshRenderPipelineDescriptor MTLCaptureScope _MTLIOAccelMTLEvent
+classes: MTLIOAccelIndirectComputeCommand _MTLIOCommandBuffer MTLTileRenderPipelineColorAttachmentDescriptor
+classes: MTLTileRenderPipelineColorAttachmentDescriptorInternal MTLTileRenderPipelineColorAttachmentDescriptorArray
+classes: MTLTileRenderPipelineColorAttachmentDescriptorArrayInternal MTLTileRenderPipelineDescriptor
+classes: MTLTileRenderPipelineDescriptorInternal MTLIOAccelIndirectCommandBuffer MTLIOAccelBlitCommandEncoder
+classes: MTLIOAccelComputeCommandEncoder _MTLFunctionLogDebugLocation MTLBufferLayoutDescriptor MTLBufferLayoutDesc
+classes: MTLBufferLayoutDescriptorArray MTLBufferLayoutDescriptorArrayInternal MTLAttributeDescriptor
+classes: MTLAttributeDescriptorInternal MTLAttributeDescriptorArray MTLAttributeDescriptorArrayInternal
+classes: MTLStageInputOutputDescriptor MTLStageInputOutputDescriptorInternal MTLIOAccelVisibleFunctionTable
+classes: MTLIOAccelDeviceShmem MTLIOAccelAccelerationStructure MTLBVHGeometryDescriptor MTLBVHPolygonGeometryDescri
+classes: MTLBVHBoundingBoxGeometryDescriptor MTLBVHDescriptor MTLBVHBuilder MTLGPUBVHBuilder MTLIOAccelCommandBuffe
+classes: _MTLIndirectArgumentBufferLayout _MTLIndirectArgumentEncoder MTLEmulationIndirectArgumentBufferLayout
+classes: MTLBinaryArchiveDescriptor MTLBinaryKey MTLBinaryEntry _MTLBinaryArchive MTLIOAccelPooledResource
+classes: MTLRasterizationRateSampleArray MTLRasterizationRateSampleArrayInternal MTLRasterizationRateLayerDescripto
+classes: MTLRasterizationRateLayerDescriptorInternal MTLRasterizationRateLayerArray MTLRasterizationRateLayerArrayI
+classes: MTLRasterizationRateMapDescriptorInternal MTLRasterizationRateMapDescriptor _MTLRasterizationRateMap
+classes: _MTLIndirectDrawArguments _MTLIndirectDrawIndexedArguments _MTLIndirectDrawPatchesArguments
+classes: _MTLIndirectDrawIndexedPatchesArguments _MTLIndirectTessellationFactorArguments _MTLIndirectDispatchThread
+classes: _MTLImageBlockArguments _MTLIndirectDispatchThreadsArguments _MTLFunctionHandle MTLAccelerationStructureDe
+classes: MTLAccelerationStructureAllocationDescriptor MTLPrimitiveAccelerationStructureDescriptor MTLAccelerationSt
+classes: MTLAccelerationStructureTriangleGeometryDescriptor MTLMotionKeyframeData MTLAccelerationStructureMotionTri
+classes: MTLAccelerationStructureBoundingBoxGeometryDescriptor MTLAccelerationStructureMotionBoundingBoxGeometryDes
+classes: MTLInstanceAccelerationStructureDescriptor MTLNamedConstantValue MTLIndexedConstantValue MTLFunctionConsta
+classes: MTLFunctionConstantValuesInternal MTLDynamicLibraryContainer MTLDynamicLibraryDescriptorSPI
+classes: _MTLDynamicLibrary MTLIOAccelResourcePool MTLBufferBindingInternal MTLThreadgroupMemoryBindingInternal
+classes: MTLTextureBindingInternal MTLBuiltInArgument MTLBuiltInMeshArgument MTLImageBlockDataArgument
+classes: MTLImageBlockArgument MTLObjectPayloadBindingInternal _MTLObjectWithLabel MTLPipelineBufferDescriptor
+classes: MTLPipelineBufferDescriptorInternal MTLPipelineBufferDescriptorArray MTLPipelineBufferDescriptorArrayInter
+classes: MTLDebugLocation MTLDebugSubProgram MTLDebugInstrumentationData _MTLPipelineStateBinary _MTLProgramAddress
+classes: _MTLProgramAddressTable MTLProfileControl MTLIndirectArgumentDescriptorInternal MTLArchitecture
+classes: MTLIndirectArgumentDescriptor MTLArgumentDescriptorInternal MTLArgumentDescriptor _MTLDevice
+classes: MTLIntersectionFunctionTableDescriptor MTLIntersectionFunctionTableDescriptorInternal MTLComputePassSample
+classes: MTLComputePassSampleBufferAttachmentDescriptorInternal MTLComputePassSampleBufferAttachmentDescriptorArray
+classes: MTLComputePassSampleBufferAttachmentDescriptorArrayInternal MTLComputePassDescriptor MTLComputePassDescrip
+classes: MTLIOAccelFence MTLCounterInternal MTLCounterSetInternal MTLCounterSampleBufferDescriptor MTLCounterSample
+classes: MTLSharedTextureHandle MTLTextureDescriptor MTLTextureDescriptorInternal MTLIndirectCommandBufferDescripto
+classes: MTLIndirectCommandBufferDescriptorInternal MTLIOAccelIndirectRenderCommand MTLIOCompressor
+classes: MTLIOAccelIndirectArgumentEncoder MTLIOAccelTexture MTLIOAccelTextureLayout MTLIOAccelBuffer
+classes: _MTLPipelineCache _MTLPipelineLibrary MTLIOAccelDevice _MTLParallelRenderCommandEncoder MTLCaptureDescript
+classes: MTLCaptureManager MTLIOAccelResource MTLIOMemoryInfo MTLResourceListPool MTLIOAccelRenderCommandEncoder
+classes: MTLAccelerationStructurePassSampleBufferAttachmentDescriptor MTLAccelerationStructurePassSampleBufferAttac
+classes: MTLAccelerationStructurePassDescriptor MTLAccelerationStructurePassDescriptorInternal MTLGenericBVHBufferS
+classes: MTLGenericBVHBuffersSPI _MTLAccelerationStructureCommandEncoder _MTLSWRaytracingAccelerationStructureComma
+classes: MTLIOAccelParallelRenderCommandEncoder _MTLFence MTLIOAccelCommandQueue MTLSamplerDescriptor
+classes: MTLSamplerDescriptorInternal _MTLSamplerState MTLLoadedFile MTLLoader MTLTargetDeviceArchitecture
+classes: MTLHeapDescriptor MTLHeapDescriptorInternal _MTLHeap MTLIOCommandQueueDescriptor _MTLIOScratchBuffer
+classes: _MTLIOScratchBufferAllocator _MTLIOHandleRaw _MTLIOHandleCompressed _MTLIOCommandQueue MTLVisibleFunctionT
+classes: MTLVisibleFunctionTableDescriptorInternal MTLCompileOptions MTLCompileOptionsInternal MTLCompileFunctionRe
+classes: MTLVertexAttribute MTLVertexAttributeInternal MTLAttribute MTLAttributeInternal MTLTag MTLFunctionConstant
+classes: MTLFunctionConstantInternal MTLFunctionReflection MTLFunctionReflectionInternal MTLBufferRelocation
+classes: MTLConstantRelocation _MTLLibrary _MTLFunction _MTLFunctionInternal MTLFunctionVariant MTLCompiler
+classes: _MTLIndirectRenderCommand MTLRenderPassAttachmentDescriptor MTLRenderPassColorAttachmentDescriptor
+classes: MTLRenderPassDepthAttachmentDescriptor MTLRenderPassStencilAttachmentDescriptor MTLRenderPassColorAttachme
+classes: MTLRenderPassDepthAttachmentDescriptorInternal MTLRenderPassStencilAttachmentDescriptorInternal
+classes: MTLRenderPassColorAttachmentDescriptorArray MTLRenderPassColorAttachmentDescriptorArrayInternal
+classes: MTLRenderPassSampleBufferAttachmentDescriptor MTLRenderPassSampleBufferAttachmentDescriptorInternal
+classes: MTLRenderPassSampleBufferAttachmentDescriptorArray MTLRenderPassSampleBufferAttachmentDescriptorArrayInter
+classes: MTLRenderPassDescriptor MTLRenderPassDescriptorInternal MTLIOAccelResourceStateCommandEncoder
+classes: _MTLCommandEncoder MTLComputePipelineReflection MTLComputePipelineReflectionInternal MTLComputePipelineDes
+classes: MTLComputePipelineDescriptorInternal _MTLComputePipelineState _MTLIndirectComputeCommand _MTLDebugCommandE
+classes: MTLResourceStatePassSampleBufferAttachmentDescriptor MTLResourceStatePassSampleBufferAttachmentDescriptorI
+classes: MTLResourceStatePassSampleBufferAttachmentDescriptorArray MTLResourceStatePassSampleBufferAttachmentDescri
+classes: MTLResourceStatePassDescriptor MTLResourceStatePassDescriptorInternal MTLStructType MTLStructTypeInternal
+classes: MTLType MTLTypeInternal MTLPointerType MTLPointerTypeInternal MTLTextureReferenceType MTLTextureReferenceT
+classes: MTLStructMember MTLStructMemberInternal MTLArrayType MTLArrayTypeInternal MTLArgument MTLArgumentInternal
+classes: MTLBindingInternal MTLPostVertexDumpOutput MTLInferredInput MTLIndirectConstantArgument MTLMessageFilter
+classes: MTLMessage _MTLMessageNotifier MTLRenderPipelineColorAttachmentDescriptor MTLRenderPipelineColorAttachment
+classes: MTLRenderPipelineReflection MTLRenderPipelineReflectionInternal MTLRenderPipelineColorAttachmentDescriptor
+classes: MTLRenderPipelineColorAttachmentDescriptorArrayInternal MTLRenderPipelineDescriptor MTLRenderPipelineDescr
+classes: _MTLRenderPipelineState MTLRenderPipelineFunctionsDescriptor MTLIOAccelDebugCommandEncoder
+classes: MTLLinkedFunctions MTLLinkedFunctionsInternal MTLIOAccelHeap MTLIOAccelDeviceShmemPool MTLResourceList
+classes: MTLResourceAllocationInfo _MTLResource MTLBlitPassSampleBufferAttachmentDescriptor MTLBlitPassSampleBuffer
+classes: MTLBlitPassSampleBufferAttachmentDescriptorArray MTLBlitPassSampleBufferAttachmentDescriptorArrayInternal
+classes: MTLBlitPassDescriptor MTLBlitPassDescriptorInternal _MTLSharedEvent MTLSharedEventHandle MTLSharedEventLis
+classes: MTLSharedEventListenerInternal MTLIOAccelCommandEncoder MTLFunctionDescriptor MTLIntersectionFunctionDescr
+classes: MTLStencilDescriptor MTLStencilDescriptorInternal MTLDepthStencilDescriptor MTLDepthStencilDescriptorInter
+classes: _MTLDepthStencilState MTLBufferDescriptor MTLFunctionStitchingAttributeAlwaysInline MTLFunctionStitchingIn
+classes: MTLFunctionStitchingFunctionNode MTLFunctionStitchingGraph MTLStitchedLibraryDescriptor MTLFunctionStitchi
+classes: MTLFunctionStitchingInputBufferAddress MTLFunctionStitchingInputTexture MTLFunctionStitchingInputSampler
+classes: MTLFunctionStitchingInputThreadgroup MTLFunctionStitchingInputImageblock MTLFunctionStitchingBuiltinThread
+classes: MTLFunctionStitchingBuiltinThreadPositionInThreadgroup MTLFunctionStitchingFunctionNodeSPI
+classes: MTLFunctionStitchingGraphSPI MTLStitchedLibraryDescriptorSPI _MTLCommandBufferEncoderInfo MTLCommandBuffer
+classes: _MTLCommandBufferDescriptor _MTLCommandBuffer MTLVertexBufferLayoutDescriptor MTLVertexBufferLayoutDescrip
+classes: MTLVertexBufferLayoutDescriptorArray MTLVertexBufferLayoutDescriptorArrayInternal MTLVertexAttributeDescri
+classes: MTLVertexAttributeDescriptorInternal MTLVertexAttributeDescriptorArray MTLVertexAttributeDescriptorArrayIn
+classes: MTLVertexDescriptor MTLVertexDescriptorInternal _MTLCommandQueue MTLCommandQueueDescriptor
+classes: MTLCommandQueueDescriptorInternal MTLCommandQueueSPIStats MTLIOAccelIntersectionFunctionTable
+classes: _MTLDeviceFeatureQueries MTLDeviceFeatureQueries
+class _MTLDevice < NSObject (instance size 528)
+  _MTLDevice ivar _limits @8 {?="maxFramebufferStorageBits"I"linearTextureArrayAlignmentBytes"I"linearTextureArrayA
+  _MTLDevice ivar _supportedGPUFamilies @272 ^v
+  _MTLDevice ivar _serialQueue @280 @"NSObject<OS_dispatch_queue>"
+  _MTLDevice ivar _pipelineSerializationQueue @288 @"NSObject<OS_dispatch_queue>"
+  _MTLDevice ivar _concurrentQueue @296 @"NSObject<OS_dispatch_queue>"
+  _MTLDevice ivar _hasInitSerializationPaths @304 B
+  _MTLDevice ivar _shaderDebugInfoCaching @305 B
+  _MTLDevice ivar _compilerConnectionManager @312 ^{MTLCompilerConnectionManager=^^?Bi}
+  _MTLDevice ivar _progressTrackBufferStack @320 @"NSMutableArray"
+  _MTLDevice ivar _needsEncoderTypeMatchingProgressBlits @328 B
+  _MTLDevice ivar _progressTrackRenderPipeline @336 @"<MTLRenderPipelineState>"
+  _MTLDevice ivar _progressTrackComputePipeline @344 @"<MTLComputePipelineState>"
+  _MTLDevice ivar _featureQueries @352 @"MTLDeviceFeatureQueries"
+  _MTLDevice ivar _globalTraceObjectID @360 Q
+  _MTLDevice ivar _commandQueueCount @368 Ai
+  _MTLDevice ivar _libraryBuilder @376 ^v
+  _MTLDevice ivar _pipelineLibraryBuilder @384 ^{MTLPipelineLibraryBuilder=@@}
+  _MTLDevice ivar _pipelineCollection @392 ^v
+  _MTLDevice ivar _pipelineDescriptorsOutputFile @400 @"NSString"
+  _MTLDevice ivar _librariesOutputDirectory @408 @"NSString"
+  _MTLDevice ivar _collectAllLibraries @416 B
+  _MTLDevice ivar _gpuAssertionsEnabled @417 B
+  _MTLDevice ivar _dynamicLoader @424 @"MTLLoader"
+  _MTLDevice ivar _GPUBVHBuilderLock @432 {os_unfair_lock_s="_os_unfair_lock_opaque"I}
+  _MTLDevice ivar _GPUBVHBuilder @440 @"MTLGPUBVHBuilder"
+  _MTLDevice ivar _akIOResourceListPool @448 @"MTLResourceListPool"
+  _MTLDevice ivar _initProgressTrackingOnceToken @456 {once_flag="__state_"Q}
+  _MTLDevice ivar _pluginData @464 @"NSDictionary"
+  _MTLDevice ivar _serializedPluginData @472 @"NSObject<OS_dispatch_data>"
+  _MTLDevice ivar _recompiledBinaryArchiveMap @480 ^{MTLArchiveMapDB=^{MDB_env}IBB}
+  _MTLDevice ivar _binaryArchiveUsage @488 ^{MTLArchiveUsageDB=^{MDB_env}IBB}
+  _MTLDevice ivar _isFirstParty @496 B
+  _MTLDevice ivar _enableAssetUpgraderDaemon @497 B
+  _MTLDevice ivar _architecture @504 @"MTLArchitecture"
+  _MTLDevice ivar _initConnectionOnceToken @512 {once_flag="__state_"Q}
+  _MTLDevice ivar _commandBufferErrorOptions @520 Q
+  _MTLDevice +featureProfile:supportsFeatureSet: B32@0:8Q16Q24
+  _MTLDevice +useNewPrimitiveRestartBehavior B16@0:8
+  _MTLDevice -pipelinePerformanceStatisticsWithComputeVariant: @24@0:8@16
+  _MTLDevice -newCommandQueue @16@0:8
+  _MTLDevice -architecture @16@0:8
+  _MTLDevice -maxIndirectSamplers Q16@0:8
+  _MTLDevice -familyName @16@0:8
+  _MTLDevice -supportsIndirectTessellation B16@0:8
+  _MTLDevice -productName @16@0:8
+  _MTLDevice -convertSparsePixelRegions:toTileRegions:withTileSize:alignmentMode:numRegions: v72@0:8r^{?={?=QQQ}{?=
+  _MTLDevice -newSharedEventWithMachPort: @20@0:8I16
+  _MTLDevice -newComputePipelineStateWithDescriptor:completionHandler: v32@0:8@16@?24
+  _MTLDevice -getBVHBuilderLock ^{os_unfair_lock_s=I}16@0:8
+  _MTLDevice -supportsImageBlocks B16@0:8
+  _MTLDevice -newRenderPipelineStateWithMeshDescriptor:options:completionHandler: v40@0:8@16Q24@?32
+  _MTLDevice -setPluginData: v24@0:8@16
+  _MTLDevice -maxComputeAttributes Q16@0:8
+  _MTLDevice -isCollectingLibraries B16@0:8
+  _MTLDevice -maxIOCommandsInFlight Q16@0:8
+  _MTLDevice -isAnisoSampleFixSupported B16@0:8
+  _MTLDevice -newComputePipelineStateWithFunction:completionHandler: v32@0:8@16@?24
+  _MTLDevice -supportsPipelineLibraries B16@0:8
+  _MTLDevice -supportsSeparateDepthStencil B16@0:8
+  _MTLDevice -newAccelerationStructureWithBuffer:offset:resourceIndex: @40@0:8@16Q24Q32
+  _MTLDevice -initLimits v16@0:8
+  _MTLDevice -supportsQuadGroup B16@0:8
+  _MTLDevice -newLibraryWithStitchedDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -_setDeviceWrapper: v24@0:8@16
+  _MTLDevice -maxTextureWidth3D Q16@0:8
+  _MTLDevice -supportsReadWriteTextureArgumentsTier2 B16@0:8
+  _MTLDevice -maxViewportCount Q16@0:8
+  _MTLDevice -resolveCounters:withRange: @40@0:8@16{_NSRange=QQ}24
+  _MTLDevice -sparseTexturesSupport Q16@0:8
+  _MTLDevice -newComputePipelineStateWithFunction:options:completionHandler: v40@0:8@16Q24@?32
+  _MTLDevice -pipelinePerformanceStatisticsWithObjectVariant:meshVariant:fragmentVariant:objectCompileTimeOutput:me
+  _MTLDevice -supportsTextureCubeArray B16@0:8
+  _MTLDevice -newDynamicLibrary:computeDescriptor:error: @40@0:8@16@24^@32
+  _MTLDevice -newArgumentEncoderWithArguments: @24@0:8@16
+  _MTLDevice -newFunctionWithGLCoreIR:functionType: @32@0:8^v16Q24
+  _MTLDevice -newLibraryWithData:error: @32@0:8@16^@24
+  _MTLDevice -supportsPostDepthCoverage B16@0:8
+  _MTLDevice -supportsCMPIndirectCommandBuffers B16@0:8
+  _MTLDevice -maximumComputeSubstreams I16@0:8
+  _MTLDevice -newLibraryWithURL:error: @32@0:8@16^@24
+  _MTLDevice -newLibraryWithImageFilterFunctionsSPI:imageFilterFunctionInfo:error: @40@0:8@16r^{?=BQ^{?}}24^@32
+  _MTLDevice -supportsASTCTextureCompression B16@0:8
+  _MTLDevice -supportsRaytracingFromRender B16@0:8
+  _MTLDevice -sampleTimestamps:gpuTimestamp: v32@0:8^Q16^Q24
+  _MTLDevice -supportsMSAAStencilResolveFilter B16@0:8
+  _MTLDevice -supportsASTCHDRTextureCompression B16@0:8
+  _MTLDevice -newCommandQueueWithMaxCommandBufferCount: @24@0:8Q16
+  _MTLDevice -newRenderPipelineStateWithTileDescriptor:options:reflection:error: @48@0:8@16Q24^@32^@40
+  _MTLDevice -supports32BitMSAA B16@0:8
+  _MTLDevice -supportsTextureSampleCount: B24@0:8Q16
+  _MTLDevice -getVertexFunctionId:compilerOptions:compilerOptionsSize:compiledFragmentVariant: *48@0:8r^v16^*24Q32@
+  _MTLDevice -supportsYCBCRPackedFormatsPQ B16@0:8
+  _MTLDevice -supportsDeadlineProfile B16@0:8
+  _MTLDevice -newDefaultLibrary @16@0:8
+  _MTLDevice -newComputePipelineWithDescriptor:variant:errorMessage: @40@0:8@16@24^@32
+  _MTLDevice -supportsComputeMemoryBarrier B16@0:8
+  _MTLDevice -registerComputePipelineDescriptor: v24@0:8@16
+  _MTLDevice -supportsLimitedYUVFormats B16@0:8
+  _MTLDevice -supportsSIMDShufflesAndBroadcast B16@0:8
+  _MTLDevice -akIOResourceListPool @16@0:8
+  _MTLDevice -supportsGFXIndirectCommandBuffers B16@0:8
+  _MTLDevice -newCommandQueueWithDescriptor: @24@0:8@16
+  _MTLDevice -newFunctionWithGLCoreIR:inputsDescription:functionType: @40@0:8^v16@24Q32
+  _MTLDevice -supportsRenderToLinearTextures B16@0:8
+  _MTLDevice -supportsLinearTexture2DArray B16@0:8
+  _MTLDevice -isLargeMRTSupported B16@0:8
+  _MTLDevice -freeTranslatedDriverCompilerOptions:compilerOptionsSize: v32@0:8^*16Q24
+  _MTLDevice -serializeStructType: @24@0:8@16
+  _MTLDevice -newComputeVariantWithCompilerOutput:pipelineStatisticsOutput: @32@0:8@16@24
+  _MTLDevice -maxFragmentSamplers Q16@0:8
+  _MTLDevice -deserializeInstanceAccelerationStructureFromBytes:primitiveAccelerationStructures:withDescriptor: @40
+  _MTLDevice -validateDynamicLibrary:state:error: B36@0:8@16B24^@28
+  _MTLDevice -newRenderPipelineWithDescriptor:vertexVariant:fragmentVariant:errorMessage: @48@0:8@16@24@32^@40
+  _MTLDevice -supportsRenderDynamicLibraries B16@0:8
+  _MTLDevice -newRenderPipelineStateWithDescriptor:completionHandler: v32@0:8@16@?24
+  _MTLDevice -initGPUFamilySupport v16@0:8
+  _MTLDevice -maxTextureDepth3D Q16@0:8
+  _MTLDevice -convertSparseTileRegions:toPixelRegions:withTileSize:numRegions: v64@0:8r^{?={?=QQQ}{?=QQQ}}16^{?={?=
+  _MTLDevice -pipelineFlagsWithComputeVariant: {?=b1b1b1b1b60}24@0:8@16
+  _MTLDevice -loadDynamicLibrariesForFunction:insertLibraries:options:error: @48@0:8@16@24Q32^@40
+  _MTLDevice -libraryKeyWithComputePipelineDescriptor:options:keySize: ^v40@0:8@16Q24^Q32
+  _MTLDevice -supportsReadWriteTextureCubeArguments B16@0:8
+  _MTLDevice -_purgeDevice v16@0:8
+  _MTLDevice -newIOHandleWithURL:compressionMethod:error: @40@0:8@16q24^@32
+  _MTLDevice -getCompilerConnectionManager: ^{MTLCompilerConnectionManager=^^?Bi}20@0:8i16
+  _MTLDevice -getMeshFunctionId:compilerOptions:compilerOptionsSize: *40@0:8r^v16^*24Q32
+  _MTLDevice -registerTileRenderPipelineDescriptor: v24@0:8@16
+  _MTLDevice -supportsArgumentBuffersTier2 B16@0:8
+  _MTLDevice -areProgrammableSamplePositionsSupported B16@0:8
+  _MTLDevice -supportsRenderMemoryBarrier B16@0:8
+  _MTLDevice -newIOHandleWithURL:compressionType:error: @40@0:8@16q24^@32
+  _MTLDevice -freeComputeFunctionKey:keySize: v32@0:8^v16Q24
+  _MTLDevice -sparseTileSizeInBytes Q16@0:8
+  _MTLDevice -supportsMSAADepthResolve B16@0:8
+  _MTLDevice -supportsQueryTextureLOD B16@0:8
+  _MTLDevice -supportsFunctionPointersFromMesh B16@0:8
+  _MTLDevice -supportsForceSeamsOnCubemaps B16@0:8
+  _MTLDevice -newDynamicLibraryWithURL:error: @32@0:8@16^@24
+  _MTLDevice -heapAccelerationStructureSizeAndAlignWithDescriptor: {?=QQ}24@0:8@16
+  _MTLDevice -minConstantBufferAlignmentBytes Q16@0:8
+  _MTLDevice -newRenderPipelineStateWithMeshDescriptor:completionHandler: v32@0:8@16@?24
+  _MTLDevice -minLinearTextureAlignmentForPixelFormat: Q24@0:8Q16
+  _MTLDevice -supportsTextureWriteFPRoundingMode: B24@0:8q16
+  _MTLDevice -supportsWritableArrayOfTextures B16@0:8
+  _MTLDevice -targetDeviceArchitecture @16@0:8
+  _MTLDevice -supportsSeparateVisibilityAndShadingRate B16@0:8
+  _MTLDevice -supportsShaderLODAverage B16@0:8
+  _MTLDevice -newLibraryWithDescriptor:completionHandler: v32@0:8@16@?24
+  _MTLDevice -newAccelerationStructureWithBuffer:offset: @32@0:8@16Q24
+  _MTLDevice -supportsQuadShufflesAndBroadcast B16@0:8
+  _MTLDevice -supportsCommandBufferJump B16@0:8
+  _MTLDevice -newSharedTextureWithHandle: @24@0:8@16
+  _MTLDevice -linearTextureArrayAlignmentSlice Q16@0:8
+  _MTLDevice -newLibraryWithFile:error: @32@0:8@16^@24
+  _MTLDevice -deviceSupportsFeatureSet: B24@0:8Q16
+  _MTLDevice -iosurfaceReadOnlyTextureAlignmentBytes Q16@0:8
+  _MTLDevice -newEvent @16@0:8
+  _MTLDevice -maxFenceInstances Q16@0:8
+  _MTLDevice -newBinaryArchiveWithDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -loadDynamicLibrariesForComputeDescriptor:options:error: @40@0:8@16Q24^@32
+  _MTLDevice -supportsDepthClipMode B16@0:8
+  _MTLDevice -supportsMemoryOrderAtomics B16@0:8
+  _MTLDevice -isMagicMipmapSupported B16@0:8
+  _MTLDevice -supportsStackOverflowErrorCode B16@0:8
+  _MTLDevice -maxComputeLocalMemorySizes Q16@0:8
+  _MTLDevice -newRenderPipelineStateWithMeshDescriptor:options:reflection:error: @48@0:8@16Q24^@32^@40
+  _MTLDevice -supportsArrayOfTextures B16@0:8
+  _MTLDevice -pipelinePerformanceStatisticsWithVertexVariant:fragmentVariant:vertexCompileTimeOutput:fragmentCompil
+  _MTLDevice -newDynamicLibraryFromURL:error: @32@0:8@16^@24
+  _MTLDevice -supportsNativeHardwareFP16 B16@0:8
+  _MTLDevice -maxVisibilityQueryOffset Q16@0:8
+  _MTLDevice -supportsExtendedXR10Formats B16@0:8
+  _MTLDevice -maxComputeTextures Q16@0:8
+  _MTLDevice -copyShaderCacheToPath: B24@0:8@16
+  _MTLDevice -setCompilerProcessesCount: B20@0:8i16
+  _MTLDevice -startCollectingPipelineDescriptorsFromLibrary:filePath: v32@0:8@16@24
+  _MTLDevice -newDynamicLibrary:error: @32@0:8@16^@24
+  _MTLDevice -supportsPrimitiveType: B24@0:8Q16
+  _MTLDevice -supportsYCBCRPackedFormatsXR B16@0:8
+  _MTLDevice -initSerializationPaths v16@0:8
+  _MTLDevice -isClampToHalfBorderSupported B16@0:8
+  _MTLDevice -supportsMeshShaders B16@0:8
+  _MTLDevice -supportsFragmentBufferWrites B16@0:8
+  _MTLDevice -supports2DLinearTexArraySPI B16@0:8
+  _MTLDevice -newComputePipelineStateWithFunction:error: @32@0:8@16^@24
+  _MTLDevice -supportsStreamingCodecSignaling B16@0:8
+  _MTLDevice -getObjectFunctionId:compilerOptions:compilerOptionsSize: *40@0:8r^v16^*24Q32
+  _MTLDevice -limits r^{?=IIIIIIIIIIIIIIIIIIIIIIIIIIffIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIQ}16@0:8
+  _MTLDevice -newRenderPipelineStateWithDescriptor:options:completionHandler: v40@0:8@16Q24@?32
+  _MTLDevice -newMeshVariantWithCompilerOutput:pipelineStatisticsOutput: @32@0:8@16@24
+  _MTLDevice -areRasterOrderGroupsSupported B16@0:8
+  _MTLDevice -supportsSIMDShuffleAndFill B16@0:8
+  _MTLDevice -supportsQuadReduction B16@0:8
+  _MTLDevice -supportsArrayOfSamplers B16@0:8
+  _MTLDevice -areBarycentricCoordsSupported B16@0:8
+  _MTLDevice -supportsNonPrivateDepthStencilTextures B16@0:8
+  _MTLDevice -newProfileWithExecutionSize: @24@0:8Q16
+  _MTLDevice -supportsComputeCompressedTextureWrite B16@0:8
+  _MTLDevice -getRawBVHBuilderPtr @16@0:8
+  _MTLDevice -supportsBGR10A2 B16@0:8
+  _MTLDevice -supportsExtendedVertexFormats B16@0:8
+  _MTLDevice -_decrementCommandQueueCount v16@0:8
+  _MTLDevice -newLibraryWithStitchedDescriptor:destinationBinaryArchive:error: @40@0:8@16@24^@32
+  _MTLDevice -isRTZRoundingSupported B16@0:8
+  _MTLDevice -serializeTileRenderPipelineDescriptor: @24@0:8@16
+  _MTLDevice -endCollectingPipelineDescriptors @16@0:8
+  _MTLDevice -supportsIABHashForTools B16@0:8
+  _MTLDevice -supportsSharedFunctionTables B16@0:8
+  _MTLDevice -supportsVariableRateRasterization B16@0:8
+  _MTLDevice -newComputePipelineStateWithImageFilterFunctionsSPI:imageFilterFunctionInfo:error: @40@0:8@16r^{?=BQ^{
+  _MTLDevice -newComputePipelineStateWithDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -supportsBinaryArchives B16@0:8
+  _MTLDevice -newFunctionWithGLIR:inputsDescription:functionType: @40@0:8^v16@24Q32
+  _MTLDevice -supportsCompressedTextureViewSPI B16@0:8
+  _MTLDevice -getComputeFunctionId:compilerOptions:compilerOptionsSize: *40@0:8r^v16^*24Q32
+  _MTLDevice -supportsTileShaders B16@0:8
+  _MTLDevice -supportsSparseTextures B16@0:8
+  _MTLDevice -setRawBVHBuilderPtr: v24@0:8@16
+  _MTLDevice -defaultTextureWriteRoundingMode q16@0:8
+  _MTLDevice -supportsTextureWriteRoundingMode: B24@0:8q16
+  _MTLDevice -newDynamicLibraryWithDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -supportsIndirectStageInRegion B16@0:8
+  _MTLDevice -newFragmentVariantWithCompilerOutput:pipelineStatisticsOutput: @32@0:8@16@24
+  _MTLDevice -supportsDepthClipModeClampExtended B16@0:8
+  _MTLDevice -supportsYCBCRFormatsPQ B16@0:8
+  _MTLDevice -accelerationStructureSizesWithDescriptor: {?=QQQ}24@0:8@16
+  _MTLDevice -setShaderDebugInfoCaching: v20@0:8B16
+  _MTLDevice -lookupRecompiledBinaryArchive: @24@0:8@16
+  _MTLDevice -newDagStringWithGraphs: @24@0:8@16
+  _MTLDevice -supportsFastMathInfNaNPropagation B16@0:8
+  _MTLDevice -supportsForkJoin B16@0:8
+  _MTLDevice -supportsBufferPrefetchStatistics B16@0:8
+  _MTLDevice -supportsMSAAStencilResolve B16@0:8
+  _MTLDevice -supportsCombinedMSAAStoreAndResolveAction B16@0:8
+  _MTLDevice -supportsInterchangeTiled B16@0:8
+  _MTLDevice -newComputePipelineStateWithDescriptor:options:completionHandler: v40@0:8@16Q24@?32
+  _MTLDevice -supportsRayTracingExtendedVertexFormats B16@0:8
+  _MTLDevice -supportsOpenCLTextureWriteSwizzles B16@0:8
+  _MTLDevice -deviceOrFeatureProfileSupportsFeatureSet: B24@0:8Q16
+  _MTLDevice -deserializePrimitiveAccelerationStructure:fromBytes:withDescriptor: v40@0:8@16r^v24@32
+  _MTLDevice -commandBufferErrorOptions Q16@0:8
+  _MTLDevice -getComputeFunctionId:function:compilerOptions:compilerOptionsSize: *48@0:8r^v16@24^*32Q40
+  _MTLDevice -isCollectingPipelines B16@0:8
+  _MTLDevice -deserializeInstanceAccelerationStructure:fromBytes:primitiveAccelerationStructures:withDescriptor: v4
+  _MTLDevice -initWithAcceleratorPort: @20@0:8I16
+  _MTLDevice -_incrementCommandQueueCount v16@0:8
+  _MTLDevice -supportsImageBlockSampleCoverageControl B16@0:8
+  _MTLDevice -newComputePipelineDescriptorWithSerializedData:deserializationContext: @32@0:8@16@24
+  _MTLDevice -targetDeviceInfo r^{MTLTargetDeviceArch=QI*}16@0:8
+  _MTLDevice -supportsYCBCRPackedFormats12 B16@0:8
+  _MTLDevice -getVertexFunctionId:function:compilerOptions:compilerOptionsSize:compiledFragmentVariant: *56@0:8r^v1
+  _MTLDevice -areGPUAssertionsEnabled B16@0:8
+  _MTLDevice -maxTessellationFactor Q16@0:8
+  _MTLDevice -getConstantSamplersBitmasks:uniqueIdentifiers:constantSamplerCount:forVertexVariant:fragmentVariant: 
+  _MTLDevice -supportsBlackOrWhiteSamplerBorderColors B16@0:8
+  _MTLDevice -newLibraryWithSource:options:error: @40@0:8@16@24^@32
+  _MTLDevice -maxTextureLayers Q16@0:8
+  _MTLDevice -supportsIndirectWritableTextures B16@0:8
+  _MTLDevice -registerRenderPipelineDescriptor: v24@0:8@16
+  _MTLDevice -supports3DBCTextures B16@0:8
+  _MTLDevice -pipelineFlagsWithVertexVariant:fragmentVariant: {?=b1b1b1b1b1b1b1b1b1b55}32@0:8@16@24
+  _MTLDevice -newDynamicLibraryWithURL:options:error: @40@0:8@16Q24^@32
+  _MTLDevice -newLibraryWithDescriptorSPI:error: @32@0:8@16^@24
+  _MTLDevice -maxTextureBufferWidth Q16@0:8
+  _MTLDevice -supportsRenderPassWithoutRenderTarget B16@0:8
+  _MTLDevice -newRenderPipelineStateWithDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -newRenderPipelineStateWithDescriptor:options:reflection:error: @48@0:8@16Q24^@32^@40
+  _MTLDevice -freeVisibleFunctionKey:keySize: v32@0:8^v16Q24
+  _MTLDevice -newPipelineLibraryWithFilePath:error: @32@0:8@16^@24
+  _MTLDevice -newSharedEvent @16@0:8
+  _MTLDevice -supports32BitFloatFiltering B16@0:8
+  _MTLDevice -supportsRayTracingICBs B16@0:8
+  _MTLDevice -newComputePipelineStateWithDescriptor:options:reflection:error: @48@0:8@16Q24^@32^@40
+  _MTLDevice -counterSets @16@0:8
+  _MTLDevice -supportsSamplerCompareFunction B16@0:8
+  _MTLDevice -supportsFeatureSet: B24@0:8Q16
+  _MTLDevice -libraryCacheStats {?=II}16@0:8
+  _MTLDevice -supportsPacked32TextureBufferWrites B16@0:8
+  _MTLDevice -supportsFillTexture B16@0:8
+  _MTLDevice -recordBinaryArchiveUsage: v24@0:8@16
+  _MTLDevice -serializeMeshRenderPipelineDescriptor: @24@0:8@16
+  _MTLDevice -sparseTileSizeInBytesForSparsePageSize: Q24@0:8q16
+  _MTLDevice -newArgumentEncoderWithBufferBinding: @24@0:8@16
+  _MTLDevice -serializeRenderPipelineDescriptor: @24@0:8@16
+  _MTLDevice -supportsReadWriteTextureArguments B16@0:8
+  _MTLDevice -maxTextureWidth2D Q16@0:8
+  _MTLDevice -newDynamicLibraryError:message: @32@0:8Q16@24
+  _MTLDevice -supportsTextureOutOfBoundsReads B16@0:8
+  _MTLDevice -startCollectingPipelineDescriptors v16@0:8
+  _MTLDevice -fragmentVariantWithCompilerOutput:pipelineStatisticsOutput: @32@0:8@16@24
+  _MTLDevice -supportsBufferWithIOSurface B16@0:8
+  _MTLDevice -supportsShaderBarycentricCoordinates B16@0:8
+  _MTLDevice -initFeatureQueries v16@0:8
+  _MTLDevice -maxComputeThreadgroupMemoryAlignmentBytes Q16@0:8
+  _MTLDevice -pluginData @16@0:8
+  _MTLDevice -maxTileSamplers Q16@0:8
+  _MTLDevice -supportsExtendedYUVFormats B16@0:8
+  _MTLDevice -freeMeshFunctionKey:meshKeySize: v32@0:8^v16Q24
+  _MTLDevice -newLibraryWithStitchedDescriptor:completionHandler: v32@0:8@16@?24
+  _MTLDevice -newLateEvalEvent @16@0:8
+  _MTLDevice -computeFunctionKeyWithComputePipelineDescriptor:options:keySize: ^v40@0:8@16Q24^Q32
+  _MTLDevice -compiler @16@0:8
+  _MTLDevice -newFunctionWithGLESIR:functionType: @32@0:8^v16Q24
+  _MTLDevice -supportsViewportAndScissorArray B16@0:8
+  _MTLDevice -newRenderPipelineDescriptorWithSerializedData:deserializationContext: @32@0:8@16@24
+  _MTLDevice -getFragmentFunctionId:compilerOptions:compilerOptionsSize: *40@0:8r^v16^*24Q32
+  _MTLDevice -visibleFunctionKey:withFunctionDescriptor:keySize: ^v40@0:8@16@24^Q32
+  _MTLDevice -supportsHeapAccelerationStructureAllocation B16@0:8
+  _MTLDevice -maxRasterizationRateLayerCount Q16@0:8
+  _MTLDevice -getSupportedCommandBufferErrorOptions Q16@0:8
+  _MTLDevice -deviceLinearTextureAlignmentBytes Q16@0:8
+  _MTLDevice -supportsBufferlessClientStorageTexture B16@0:8
+  _MTLDevice -dumpPipelineDescriptorsIfRequested v16@0:8
+  _MTLDevice -supportsRasterizationRateMapWithLayerCount: B24@0:8Q16
+  _MTLDevice -_deviceWrapper @16@0:8
+  _MTLDevice -supportsRenderTargetTextureRotation B16@0:8
+  _MTLDevice -supportsConcurrentComputeDispatch B16@0:8
+  _MTLDevice -newUncachedIOHandleWithURL:error: @32@0:8@16^@24
+  _MTLDevice -supportsBCTextureCompression B16@0:8
+  _MTLDevice -newLibraryWithDAG:functions:error: @40@0:8@16@24^@32
+  _MTLDevice -unloadShaderCaches v16@0:8
+  _MTLDevice -newComputePipelineStateWithFunction:options:reflection:error: @48@0:8@16Q24^@32^@40
+  _MTLDevice -startCollectingPipelineDescriptorsUsingPrefixForNames: v24@0:8@16
+  _MTLDevice -maxFragmentBuffers Q16@0:8
+  _MTLDevice -argumentBuffersSupport Q16@0:8
+  _MTLDevice -supportsMutableTier1ArgumentBuffers B16@0:8
+  _MTLDevice -isFloat32FilteringSupported B16@0:8
+  _MTLDevice -supportsAnisoSampleFix B16@0:8
+  _MTLDevice -deserializePrimitiveAccelerationStructureFromBytes:withDescriptor: @32@0:8^v16@24
+  _MTLDevice -deviceLinearReadOnlyTextureAlignmentBytes Q16@0:8
+  _MTLDevice -newStructTypeWithSerializedData: @24@0:8@16
+  _MTLDevice -newSharedTextureWithDescriptor: @24@0:8@16
+  _MTLDevice -compileVisibleFunction:withDescriptor:destinationBinaryArchive:error: v48@0:8@16@24@32^@40
+  _MTLDevice -newFunctionWithGLIR:functionType: @32@0:8^v16Q24
+  _MTLDevice -supportsGlobalVariableRelocationRender B16@0:8
+  _MTLDevice -initProgressTracking v16@0:8
+  _MTLDevice -maxTotalComputeThreadsPerThreadgroup Q16@0:8
+  _MTLDevice -objectFunctionKeyWithRenderPipelineDescriptor:options:nextStageVariant:objectKeySize: ^v48@0:8@16Q24@
+  _MTLDevice -maxFragmentInlineDataSize Q16@0:8
+  _MTLDevice -releaseCacheEntry: v24@0:8^{MTLLibraryContainer=^{MTLPipelineCollection}Ai{?=[32C]}^{MTLLibraryData}@
+  _MTLDevice -supportsPrimitiveRestartOverride B16@0:8
+  _MTLDevice -maxTileInlineDataSize Q16@0:8
+  _MTLDevice -setGPUAssertionsEnabled: v20@0:8B16
+  _MTLDevice -maxTileTextures Q16@0:8
+  _MTLDevice -maxCustomSamplePositions Q16@0:8
+  _MTLDevice -maxInterpolatedComponents Q16@0:8
+  _MTLDevice -maxTileBuffers Q16@0:8
+  _MTLDevice -supportsMipLevelsSmallerThanBlockSize B16@0:8
+  _MTLDevice -supportsSparseDepthAttachments B16@0:8
+  _MTLDevice -allowLibrariesFromOtherPlatforms v16@0:8
+  _MTLDevice -supportsLateEvalEvent B16@0:8
+  _MTLDevice -linearTextureAlignmentBytes Q16@0:8
+  _MTLDevice -minimumLinearTextureAlignmentForPixelFormat: Q24@0:8Q16
+  _MTLDevice -supportsRayTracingPerPrimitiveData B16@0:8
+  _MTLDevice -loadDynamicLibrariesForFunction:insertLibraries:error: @40@0:8@16@24^@32
+  _MTLDevice -newComputePipelineWithDescriptor:variant: @32@0:8@16@24
+  _MTLDevice -GPUBVHBuilder @16@0:8
+  _MTLDevice -supportsRayTracingAccelerationStructureCPUDeserialization B16@0:8
+  _MTLDevice -concurrentQueue @16@0:8
+  _MTLDevice -computeVariantWithCompilerOutput:pipelineStatisticsOutput: @32@0:8@16@24
+  _MTLDevice -supportsLinearTextureFromSharedBuffer B16@0:8
+  _MTLDevice -maxVertexInlineDataSize Q16@0:8
+  _MTLDevice -supportsDevicePartitioning B16@0:8
+  _MTLDevice -newArgumentEncoderWithLayout: @24@0:8@16
+  _MTLDevice -supportsFragmentOnlyEncoders B16@0:8
+  _MTLDevice -supportsBaseVertexInstanceDrawing B16@0:8
+  _MTLDevice -registerMeshRenderPipelineDescriptor: v24@0:8@16
+  _MTLDevice -supportsStatefulDynamicLibraries B16@0:8
+  _MTLDevice -deserializeInstanceAccelerationStructureFromBytes:toBuffer:primitiveAccelerationStructures:forAcceler
+  _MTLDevice -supportsSetThreadgroupPackingDisabled B16@0:8
+  _MTLDevice -dealloc v16@0:8
+  _MTLDevice -maxComputeSamplers Q16@0:8
+  _MTLDevice -maxFramebufferStorageBits Q16@0:8
+  _MTLDevice -maxIndirectTextures Q16@0:8
+  _MTLDevice -newIOHandleWithURL:error: @32@0:8@16^@24
+  _MTLDevice -supportsRelaxedTextureViewRequirements B16@0:8
+  _MTLDevice -supportsFunctionPointers B16@0:8
+  _MTLDevice -minTilePixels Q16@0:8
+  _MTLDevice -supportsRaytracing B16@0:8
+  _MTLDevice -supportsMSAADepthResolveFilter B16@0:8
+  _MTLDevice -supportsAlphaYUVFormats B16@0:8
+  _MTLDevice -newMeshRenderPipelineDescriptorWithSerializedData:deserializationContext: @32@0:8@16@24
+  _MTLDevice -indirectArgumentBufferCapabilities {IndirectArgumentBufferCapabilities=b1b1b1b29}16@0:8
+  _MTLDevice -maxPointSize f16@0:8
+  _MTLDevice -newDefaultLibraryWithBundle:error: @32@0:8@16^@24
+  _MTLDevice -newObjectVariantWithCompilerOutput:pipelineStatisticsOutput: @32@0:8@16@24
+  _MTLDevice -validateDynamicLibraryDescriptor:error: B32@0:8@16^@24
+  _MTLDevice -supportsSamplerAddressModeClampToHalfBorder B16@0:8
+  _MTLDevice -supportsRGBA10A2Gamma B16@0:8
+  _MTLDevice -maxInterpolants Q16@0:8
+  _MTLDevice -supportsExplicitVisibilityGroups B16@0:8
+  _MTLDevice -maxFunctionConstantIndices Q16@0:8
+  _MTLDevice -supportsNorm16BCubicFiltering B16@0:8
+  _MTLDevice -maxComputeThreadgroupMemory Q16@0:8
+  _MTLDevice -serializeComputePipelineDescriptor: @24@0:8@16
+  _MTLDevice -supportsTLS B16@0:8
+  _MTLDevice -supportsStencilFeedback B16@0:8
+  _MTLDevice -maxComputeInlineDataSize Q16@0:8
+  _MTLDevice -supportsFP32TessFactors B16@0:8
+  _MTLDevice -iosurfaceTextureAlignmentBytes Q16@0:8
+  _MTLDevice -supports32bpcMSAATextures B16@0:8
+  _MTLDevice -isBCTextureCompressionSupported B16@0:8
+  _MTLDevice -supportsFixedLinePointFillDepthGradient B16@0:8
+  _MTLDevice -supportsNonPrivateMSAATextures B16@0:8
+  _MTLDevice -freeVertexFunctionKey:vertexKeySize: v32@0:8^v16Q24
+  _MTLDevice -supportsRTZRounding B16@0:8
+  _MTLDevice -maxPredicatedNestingDepth Q16@0:8
+  _MTLDevice -compileVisibleFunction:withDescriptor:error: v40@0:8@16@24^@32
+  _MTLDevice -newLibraryWithCIFilters:imageFilterFunctionInfo:error: @40@0:8@16r^{?=BQ^{?}}24^@32
+  _MTLDevice -supportsMeshShadersInICB B16@0:8
+  _MTLDevice -linearTextureArrayAlignmentBytes Q16@0:8
+  _MTLDevice -isCustomBorderColorSupported B16@0:8
+  _MTLDevice -supportsLargeFramebufferConfigs B16@0:8
+  _MTLDevice -supportsTexture2DMultisampleArray B16@0:8
+  _MTLDevice -maxTextureHeight2D Q16@0:8
+  _MTLDevice -supportsGlobalVariableRelocation B16@0:8
+  _MTLDevice -isMsaa32bSupported B16@0:8
+  _MTLDevice -supportsRenderTextureWrites B16@0:8
+  _MTLDevice -supportsSIMDReduction B16@0:8
+  _MTLDevice -supportsTessellation B16@0:8
+  _MTLDevice -supportsLossyCompression B16@0:8
+  _MTLDevice -newTileRenderPipelineDescriptorWithSerializedData:deserializationContext: @32@0:8@16@24
+  _MTLDevice -optionsForPipelineLibrarySerialization Q16@0:8
+  _MTLDevice -supportsLayeredRendering B16@0:8
+  _MTLDevice -supports3DASTCTextures B16@0:8
+  _MTLDevice -maxVertexAmplificationCount Q16@0:8
+  _MTLDevice -newLibraryWithDescriptor:destinationBinaryArchive:error: @40@0:8@16@24^@32
+  _MTLDevice -maxColorAttachments Q16@0:8
+  _MTLDevice -supportsPublicXR10Formats B16@0:8
+  _MTLDevice -supportsSRGBwrites B16@0:8
+  _MTLDevice -supportsCountingOcclusionQuery B16@0:8
+  _MTLDevice -fragmentFunctionKeyWithRenderPipelineDescriptor:options:previousStateVariant:fragmentKeySize: ^v48@0:
+  _MTLDevice -maxFragmentTextures Q16@0:8
+  _MTLDevice -supportsNonUniformThreadgroupSize B16@0:8
+  _MTLDevice -maxVertexSamplers Q16@0:8
+  _MTLDevice -pipelineCacheStats {?=II}16@0:8
+  _MTLDevice -isFixedLinePointFillDepthGradientSupported B16@0:8
+  _MTLDevice -pipelinePerformanceStatisticsWithVertexVariant:fragmentVariant: @32@0:8@16@24
+  _MTLDevice -supportsPullModelInterpolation B16@0:8
+  _MTLDevice -supportsShaderMinLODClamp B16@0:8
+  _MTLDevice -_newDynamicLibraryWithDescriptor:computeDescriptor:error: @40@0:8@16@24^@32
+  _MTLDevice -supportsYCBCRFormats B16@0:8
+  _MTLDevice -newRasterizationRateMapWithDescriptor: @24@0:8@16
+  _MTLDevice -maxComputeBuffers Q16@0:8
+  _MTLDevice -deserializePrimitiveAccelerationStructureFromBytes:toBuffer:forAccelerationStructure: v40@0:8r^v16@24
+  _MTLDevice -supportsVertexAmplification B16@0:8
+  _MTLDevice -supportsSIMDGroup B16@0:8
+  _MTLDevice -getConstantSamplersBitmasks:uniqueIdentifiers:constantSamplerCount:forComputeVariant: v48@0:8^^Q16^^Q
+  _MTLDevice -supportsSharedStorageHeapResources B16@0:8
+  _MTLDevice -supportsFloat16BCubicFiltering B16@0:8
+  _MTLDevice -readWriteTextureSupport Q16@0:8
+  _MTLDevice -supportsBufferBoundsChecking B16@0:8
+  _MTLDevice -newRenderPipelineStateWithTileDescriptor:options:completionHandler: v40@0:8@16Q24@?32
+  _MTLDevice -pipelinePerformanceStatisticsWithComputeVariant:compileTimeOutput: @32@0:8@16@24
+  _MTLDevice -supportsIndirectDrawAndDispatch B16@0:8
+  _MTLDevice -supportsYCBCRFormatsXR B16@0:8
+  _MTLDevice -getConstantSamplersBitmasks:uniqueIdentifiers:constantSamplerCount:forObjectVariant:meshVariant:fragm
+  _MTLDevice -setCommandBufferErrorOptions: v24@0:8Q16
+  _MTLDevice -newVertexVariantWithCompilerOutput:pipelineStatisticsOutput: @32@0:8@16@24
+  _MTLDevice -newTranslatedDriverCompilerOptions:compilerOptionsSize: ^*32@0:8@16^Q24
+  _MTLDevice -meshFunctionKeyWithRenderPipelineDescriptor:options:nextStageVariant:meshKeySize: ^v48@0:8@16Q24@32^Q
+  _MTLDevice -heapAccelerationStructureSizeAndAlignWithSize: {?=QQ}24@0:8Q16
+  _MTLDevice -supportsDynamicLibraries B16@0:8
+  _MTLDevice -compilerPropagatesThreadPriority: v20@0:8B16
+  _MTLDevice -supportsBinaryLibraries B16@0:8
+  _MTLDevice -loadDynamicLibrariesForComputeDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -supportsRasterOrderGroupsColorAttachment B16@0:8
+  _MTLDevice -minBufferNoCopyAlignmentBytes Q16@0:8
+  _MTLDevice -deserializeCompileTimeStats:addToDictionary: v32@0:8@16@24
+  _MTLDevice -requiresRaytracingEmulation B16@0:8
+  _MTLDevice -newRenderPipelineWithDescriptor:vertexVariant:fragmentVariant: @40@0:8@16@24@32
+  _MTLDevice -supportsYCBCRFormats12 B16@0:8
+  _MTLDevice -newArgumentEncoderWithArguments:structType: @32@0:8@16^@24
+  _MTLDevice -supportsMirrorClampToEdgeSamplerMode B16@0:8
+  _MTLDevice -deviceCreationFlags Q16@0:8
+  _MTLDevice -supportsSIMDGroupMatrix B16@0:8
+  _MTLDevice -supportsFloat16InfNanFiltering B16@0:8
+  _MTLDevice -isQuadDataSharingSupported B16@0:8
+  _MTLDevice -maxTextureDimensionCube Q16@0:8
+  _MTLDevice -supportsFunctionPointersFromRender B16@0:8
+  _MTLDevice -supportsGPUStatistics B16@0:8
+  _MTLDevice -supportsIndirectTextures B16@0:8
+  _MTLDevice -newRenderPipelineWithDescriptor:objectVariant:meshVariant:fragmentVariant:errorMessage: @56@0:8@16@24
+  _MTLDevice -supportsNonZeroTextureWriteLOD B16@0:8
+  _MTLDevice -newLibraryWithDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -supportsPlacementHeaps B16@0:8
+  _MTLDevice -isCompatibleWithAccelerationStructure: B24@0:8{?=II}16
+  _MTLDevice -newCounterSampleBufferWithDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -freeFragmentFunctionKey:fragmentKeySize: v32@0:8^v16Q24
+  _MTLDevice -maxTextureWidth1D Q16@0:8
+  _MTLDevice -getVertexFunctionId:compilerOptions:compilerOptionsSize: *40@0:8r^v16^*24Q32
+  _MTLDevice -newRenderPipelineStateWithMeshDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -serializeStructType:version: @28@0:8@16I24
+  _MTLDevice -maxVertexTextures Q16@0:8
+  _MTLDevice -validateDynamicLibraryURL:error: B32@0:8@16^@24
+  _MTLDevice -supportsRasterOrderGroups B16@0:8
+  _MTLDevice -supportsMemorylessRenderTargets B16@0:8
+  _MTLDevice -maxLineWidth f16@0:8
+  _MTLDevice -supportsRayTracingBuffersFromTables B16@0:8
+  _MTLDevice -maxVertexAttributes Q16@0:8
+  _MTLDevice -supportsBfloat16Format B16@0:8
+  _MTLDevice -supportsSparseHeaps B16@0:8
+  _MTLDevice -vendorName @16@0:8
+  _MTLDevice -newLibraryWithSource:options:completionHandler: v40@0:8@16@24@?32
+  _MTLDevice -newRasterizationRateMapWithScreenSize:layerCount:layers: @56@0:8{?=QQQ}16Q40r^@48
+  _MTLDevice -newSharedEventWithHandle: @24@0:8@16
+  _MTLDevice -supportsProgrammableSamplePositions B16@0:8
+  _MTLDevice -bufferRobustnessSupport Q16@0:8
+  _MTLDevice -supportsSharedTextureHandles B16@0:8
+  _MTLDevice -supportsAtomicUlongVoidMinMax B16@0:8
+  _MTLDevice -acceleratorPort I16@0:8
+  _MTLDevice -supportsSharedStorageTextures B16@0:8
+  _MTLDevice -freeObjectFunctionKey:objectKeySize: v32@0:8^v16Q24
+  _MTLDevice -supportsGlobalVariableRelocationCompute B16@0:8
+  _MTLDevice -maxVertexBuffers Q16@0:8
+  _MTLDevice -maxIndirectSamplersPerDevice Q16@0:8
+  _MTLDevice -supportsFamily: B24@0:8q16
+  _MTLDevice -newFunctionWithGLESIR:inputsDescription:functionType: @40@0:8^v16@24Q32
+  _MTLDevice -supportsInt64 B16@0:8
+  _MTLDevice -newLibraryWithStitchedDescriptorSPI:error: @32@0:8@16^@24
+  _MTLDevice -supportsPrimitiveMotionBlur B16@0:8
+  _MTLDevice -isPlacementHeapSupported B16@0:8
+  _MTLDevice -newAccelerationStructureWithSize:withDescriptor: @32@0:8Q16@24
+  _MTLDevice -getDefaultSamplePositions:count: v32@0:8^{?=ff}16Q24
+  _MTLDevice -supportsInvariantVertexPosition B16@0:8
+  _MTLDevice -shaderDebugInfoCaching B16@0:8
+  _MTLDevice -updateAccelerationStructureDescriptor:withDescriptor: v32@0:8@16@24
+  _MTLDevice -vertexFunctionKeyWithRenderPipelineDescriptor:options:nextStageVariant:vertexKeySize: ^v48@0:8@16Q24@
+  _MTLDevice -supportsCustomBorderColor B16@0:8
+  _MTLDevice -newIOCommandQueueWithDescriptor:error: @32@0:8@16^@24
+  _MTLDevice -newUncachedIOHandleWithURL:compressionType:error: @40@0:8@16q24^@32
+  _MTLDevice -newAccelerationStructureWithSize: @24@0:8Q16
+  _MTLDevice -supportsTextureSwizzle B16@0:8
+  _MTLDevice -getShaderCacheKeys ^v16@0:8
+  _MTLDevice -globalTraceObjectID Q16@0:8
+  _MTLDevice -freeComputeLibraryKey:libraryKeySize: v32@0:8^v16Q24
+  _MTLDevice -pipelineFlagsWithObjectVariant:meshVariant:fragmentVariant: {?=b1b1b1b1b1b1b1b1b1b55}40@0:8@16@24@32
+  _MTLDevice -vertexVariantWithCompilerOutput:pipelineStatisticsOutput: @32@0:8@16@24
+  _MTLDevice -supportsDynamicControlPointCount B16@0:8
+  _MTLDevice -isRGB10A2GammaSupported B16@0:8
+  _MTLDevice -supportsNonSquareTileShaders B16@0:8
+  _MTLDevice -supportsProgrammableBlending B16@0:8
+  _MTLDevice -maxConstantBufferArguments Q16@0:8
+  _MTLDevice -maxIndirectBuffers Q16@0:8
+  _MTLDevice -maxArgumentBufferSamplerCount Q16@0:8
+  _MTLDevice -supportsReadWriteBufferArguments B16@0:8
+  _MTLDevice -maxTextureHeight3D Q16@0:8
+  _MTLDevice -getMostCompatibleArchitecture: @24@0:8@16
+  _MTLDevice -newBinaryLibraryWithOptions:url:error: @40@0:8Q16@24^@32
+  _MTLDevice -supportsUnalignedVertexFetch B16@0:8
+  _MTLDevice -supportsCounterSampling: B24@0:8Q16
+  _MTLDevice -maxVertexAmplificationFactor Q16@0:8
+  _MTLDevice -compileVisibleFunction:withDescriptor:completionHandler: v40@0:8@16@24@?32
+  _MTLDevice -name @16@0:8
+  _MTLDevice -.cxx_construct @16@0:8
+  _MTLDevice -newAccelerationStructureWithDescriptor: @24@0:8@16
+  _MTLDevice -description @16@0:8
+  _MTLDevice -newAccelerationStructureWithSize:resourceIndex: @32@0:8Q16Q24
+  _MTLDevice -init @16@0:8
+  _MTLDevice -serialQueue @16@0:8
+  _MTLDevice -formattedDescription: @24@0:8Q16
+class _MTLCommandQueue < _MTLObjectWithLabel < NSObject (instance size 352)
+  _MTLCommandQueue ivar _dev @24 @"_MTLDevice"
+  _MTLCommandQueue ivar _pendingQueue @32 @"NSMutableArray"
+  _MTLCommandQueue ivar _submittedQueue @40 @"NSMutableArray"
+  _MTLCommandQueue ivar _pendingQueueLock @48 {_opaque_pthread_mutex_t="__sig"q"__opaque"[56c]}
+  _MTLCommandQueue ivar _submittedQueueLock @112 {_opaque_pthread_mutex_t="__sig"q"__opaque"[56c]}
+  _MTLCommandQueue ivar _submittedGroup @176 @"NSObject<OS_dispatch_group>"
+  _MTLCommandQueue ivar _commandQueueDispatch @184 @"NSObject<OS_dispatch_queue>"
+  _MTLCommandQueue ivar _completionQueueDispatch @192 @"NSObject<OS_dispatch_queue>"
+  _MTLCommandQueue ivar _commandQueueEventSource @200 @"NSObject<OS_dispatch_source>"
+  _MTLCommandQueue ivar _commandBufferSemaphore @208 @"NSObject<OS_dispatch_semaphore>"
+  _MTLCommandQueue ivar _backgroundTrackingPID @216 i
+  _MTLCommandQueue ivar _globalTraceObjectID @224 Q
+  _MTLCommandQueue ivar _labelTraceID @232 Q
+  _MTLCommandQueue ivar _profilingEnabled @240 B
+  _MTLCommandQueue ivar _StatEnabled @241 B
+  _MTLCommandQueue ivar _StatOptions @248 Q
+  _MTLCommandQueue ivar _StatLocations @256 Q
+  _MTLCommandQueue ivar _numCommandBuffers @264 Ai
+  _MTLCommandQueue ivar _perfSampleHandlerBlock @272 @?
+  _MTLCommandQueue ivar _listIndex @280 Q
+  _MTLCommandQueue ivar _maxCommandBufferCount @288 Q
+  _MTLCommandQueue ivar _qosLevel @296 Q
+  _MTLCommandQueue ivar _commitQueue @304 @"NSObject<OS_dispatch_queue>"
+  _MTLCommandQueue ivar _commitSynchronously @312 B
+  _MTLCommandQueue ivar _completionQueue @320 @"NSObject<OS_dispatch_queue>"
+  _MTLCommandQueue ivar _disableCrossQueueHazardTracking @328 B
+  _MTLCommandQueue ivar _executionEnabled @329 B
+  _MTLCommandQueue ivar _skipRender @330 B
+  _MTLCommandQueue ivar _openGLQueue @331 B
+  _MTLCommandQueue ivar _presentScheduledSemaphore @336 @"NSObject<OS_dispatch_semaphore>"
+  _MTLCommandQueue ivar _forceImmediateSubmissionOnCommitThread @344 B
+  _MTLCommandQueue -getStatLocations Q16@0:8
+  _MTLCommandQueue -insertDebugCaptureBoundary v16@0:8
+  _MTLCommandQueue -setListIndex: v24@0:8Q16
+  _MTLCommandQueue -completionQueue @16@0:8
+  _MTLCommandQueue -setStatEnabled: v20@0:8B16
+  _MTLCommandQueue -disableCrossQueueHazardTracking B16@0:8
+  _MTLCommandQueue -isProfilingEnabled B16@0:8
+  _MTLCommandQueue -enqueueCommandBuffer: v24@0:8@16
+  _MTLCommandQueue -_submitAvailableCommandBuffers B16@0:8
+  _MTLCommandQueue -commandBufferWithDescriptor: @24@0:8@16
+  _MTLCommandQueue -isOpenGLQueue B16@0:8
+  _MTLCommandQueue -backgroundTrackingPID i16@0:8
+  _MTLCommandQueue -isStatEnabled B16@0:8
+  _MTLCommandQueue -commandBufferDidComplete:startTime:completionTime:error: v48@0:8@16Q24Q32@40
+  _MTLCommandQueue -addPerfSampleHandler: v24@0:8@?16
+  _MTLCommandQueue -setSkipRender: v20@0:8B16
+  _MTLCommandQueue -setStatOptions: v24@0:8Q16
+  _MTLCommandQueue -availableCounters @16@0:8
+  _MTLCommandQueue -requestCounters: i24@0:8@16
+  _MTLCommandQueue -initWithDevice:maxCommandBufferCount: @32@0:8@16Q24
+  _MTLCommandQueue -dispatchAvailableCompletionNotifications v16@0:8
+  _MTLCommandQueue -getStatOptions Q16@0:8
+  _MTLCommandQueue -commitQueue @16@0:8
+  _MTLCommandQueue -setStatLocations: v24@0:8Q16
+  _MTLCommandQueue -getAndIncrementNumCommandBuffers Q16@0:8
+  _MTLCommandQueue -setProfilingEnabled: v20@0:8B16
+  _MTLCommandQueue -executionEnabled B16@0:8
+  _MTLCommandQueue -setLabel: v24@0:8@16
+  _MTLCommandQueue -qosLevel Q16@0:8
+  _MTLCommandQueue -maxCommandBufferCount Q16@0:8
+  _MTLCommandQueue -completeCommandBuffers:count: v32@0:8^@16Q24
+  _MTLCommandQueue -submitCommandBuffer: B24@0:8@16
+  _MTLCommandQueue -getListIndex Q16@0:8
+  _MTLCommandQueue -initWithDevice: @24@0:8@16
+  _MTLCommandQueue -submitCommandBuffers:count: v32@0:8r^@16Q24
+  _MTLCommandQueue -requestCounters:withIndex: i32@0:8@16Q24
+  _MTLCommandQueue -commitCommandBuffer:wake: v28@0:8@16B24
+  _MTLCommandQueue -setSubmissionQueue: v24@0:8@16
+  _MTLCommandQueue -setExecutionEnabled: v20@0:8B16
+  _MTLCommandQueue -setBackgroundTrackingPID: v20@0:8i16
+  _MTLCommandQueue -commitSynchronously B16@0:8
+  _MTLCommandQueue -skipRender B16@0:8
+  _MTLCommandQueue -numCommandBuffers Q16@0:8
+  _MTLCommandQueue -dealloc v16@0:8
+  _MTLCommandQueue -globalTraceObjectID Q16@0:8
+  _MTLCommandQueue -description @16@0:8
+  _MTLCommandQueue -initWithDevice:descriptor: @32@0:8@16@24
+  _MTLCommandQueue -finish v16@0:8
+  _MTLCommandQueue -formattedDescription: @24@0:8Q16
+class _MTLCommandBuffer < _MTLObjectWithLabel < NSObject (instance size 488)
+  _MTLCommandBuffer ivar _currentCommandEncoder @24 @"<MTLCommandEncoder>"
+  _MTLCommandBuffer ivar _queue @32 @"_MTLCommandQueue<MTLCommandQueue>"
+  _MTLCommandBuffer ivar _scheduledDispatchList @40 ^{MTLDispatch=^{MTLDispatch}@?}
+  _MTLCommandBuffer ivar _scheduledDispatchListTail @48 ^{MTLDispatch=^{MTLDispatch}@?}
+  _MTLCommandBuffer ivar _completedDispatchList @56 ^{MTLDispatch=^{MTLDispatch}@?}
+  _MTLCommandBuffer ivar _completedDispatchListTail @64 ^{MTLDispatch=^{MTLDispatch}@?}
+  _MTLCommandBuffer ivar _syncDispatchList @72 ^{MTLSyncDispatch=^{MTLSyncDispatch}@?}
+  _MTLCommandBuffer ivar _syncDispatchListTail @80 ^{MTLSyncDispatch=^{MTLSyncDispatch}@?}
+  _MTLCommandBuffer ivar _mutex @88 {_opaque_pthread_mutex_t="__sig"q"__opaque"[56c]}
+  _MTLCommandBuffer ivar _cond @152 {_opaque_pthread_cond_t="__sig"q"__opaque"[40c]}
+  _MTLCommandBuffer ivar _creationTime @200 Q
+  _MTLCommandBuffer ivar _enqueueTime @208 Q
+  _MTLCommandBuffer ivar _commitTime @216 Q
+  _MTLCommandBuffer ivar _submitToKernelTime @224 Q
+  _MTLCommandBuffer ivar _submitToHardwareTime @232 Q
+  _MTLCommandBuffer ivar _completionInterruptTime @240 Q
+  _MTLCommandBuffer ivar _completionHandlerEnqueueTime @248 Q
+  _MTLCommandBuffer ivar _completionHandlerExecutionTime @256 Q
+  _MTLCommandBuffer ivar _status @264 Q
+  _MTLCommandBuffer ivar _error @272 @"NSError"
+  _MTLCommandBuffer ivar _skipRender @280 B
+  _MTLCommandBuffer ivar _profilingEnabled @281 B
+  _MTLCommandBuffer ivar _scheduledCallbacksDone @282 B
+  _MTLCommandBuffer ivar _completedCallbacksDone @283 B
+  _MTLCommandBuffer ivar _strongObjectReferences @284 B
+  _MTLCommandBuffer ivar _profilingResults @288 @"NSDictionary"
+  _MTLCommandBuffer ivar _retainedReferences @296 B
+  _MTLCommandBuffer ivar _synchronousDebugMode @297 B
+  _MTLCommandBuffer ivar _userDictionary @304 @"NSMutableDictionary"
+  _MTLCommandBuffer ivar _kernelStartTime @312 Q
+  _MTLCommandBuffer ivar _kernelEndTime @320 Q
+  _MTLCommandBuffer ivar _gpuStartTime @328 Q
+  _MTLCommandBuffer ivar _gpuEndTime @336 Q
+  _MTLCommandBuffer ivar _numEncoders @344 Q
+  _MTLCommandBuffer ivar _numThisCommandBuffer @352 Q
+  _MTLCommandBuffer ivar _listIndex @360 Q
+  _MTLCommandBuffer ivar _ownedByParallelEncoder @368 B
+  _MTLCommandBuffer ivar _wakeOnCommit @369 B
+  _MTLCommandBuffer ivar _retainedObjects @376 @"NSMutableArray"
+  _MTLCommandBuffer ivar _needsCommandBufferSemaphoreSignal @384 B
+  _MTLCommandBuffer ivar _globalTraceObjectID @392 Q
+  _MTLCommandBuffer ivar _labelTraceID @400 Q
+  _MTLCommandBuffer ivar _StatEnabled @408 B
+  _MTLCommandBuffer ivar _perfSampleHandlerBlock @416 @?
+  _MTLCommandBuffer ivar _hasPresent @424 B
+  _MTLCommandBuffer ivar _progressBuffer @432 @"<MTLBuffer>"
+  _MTLCommandBuffer ivar _progressOffset @440 I
+  _MTLCommandBuffer ivar _creatingProgressEncoder @444 B
+  _MTLCommandBuffer ivar _needsFrameworkAssistedErrorTracking @445 B
+  _MTLCommandBuffer ivar _encoderInfos @448 @"NSMutableArray"
+  _MTLCommandBuffer ivar _deadlineProfile @456 @"<MTLDeadlineProfile>"
+  _MTLCommandBuffer ivar _logs @464 @"NSArray"
+  _MTLCommandBuffer ivar _numPresentWaits @472 Q
+  _MTLCommandBuffer ivar _errorOptions @480 Q
+  _MTLCommandBuffer +initialize v16@0:8
+  _MTLCommandBuffer -kernelStartTime d16@0:8
+  _MTLCommandBuffer -ownedByParallelEncoder B16@0:8
+  _MTLCommandBuffer -userDictionary @16@0:8
+  _MTLCommandBuffer -computeCommandEncoderWithDispatchType: @24@0:8Q16
+  _MTLCommandBuffer -setStatEnabled: v20@0:8B16
+  _MTLCommandBuffer -debugBufferContentsWithLength: ^v24@0:8^Q16
+  _MTLCommandBuffer -isProfilingEnabled B16@0:8
+  _MTLCommandBuffer -setCommitted: v20@0:8B16
+  _MTLCommandBuffer -accelerationStructureCommandEncoderWithDescriptor: @24@0:8@16
+  _MTLCommandBuffer -progressTrackingComputeCommandEncoder @16@0:8
+  _MTLCommandBuffer -setLogs: v24@0:8@16
+  _MTLCommandBuffer -commitAndHold v16@0:8
+  _MTLCommandBuffer -commitWithDeadline: v24@0:8Q16
+  _MTLCommandBuffer -deadlineProfile @16@0:8
+  _MTLCommandBuffer -setNumEncoders: v24@0:8Q16
+  _MTLCommandBuffer -didSchedule:error: v32@0:8Q16@24
+  _MTLCommandBuffer -signalCommandBufferAvailable v16@0:8
+  _MTLCommandBuffer -pushDebugGroup: v24@0:8@16
+  _MTLCommandBuffer -encodeDashboardFinalizeForResourceGroup:dashboard:value:forIndex: v48@0:8@16Q24Q32Q40
+  _MTLCommandBuffer -commitAndWaitUntilSubmittedWithDeadline: B24@0:8Q16
+  _MTLCommandBuffer -progressTrackingBlitCommandEncoder @16@0:8
+  _MTLCommandBuffer -commitAndReset v16@0:8
+  _MTLCommandBuffer -isStatEnabled B16@0:8
+  _MTLCommandBuffer -errorOptions Q16@0:8
+  _MTLCommandBuffer -computeCommandEncoderWithDescriptor: @24@0:8@16
+  _MTLCommandBuffer -encodeDashboardFinalizeForResourceGroup:dashboard:values:indices:count: v56@0:8@16Q24r^Q32r^Q4
+  _MTLCommandBuffer -setNumThisCommandBuffer: v24@0:8Q16
+  _MTLCommandBuffer -accelerationStructureCommandEncoder @16@0:8
+  _MTLCommandBuffer -addSynchronizationNotification: v24@0:8@?16
+  _MTLCommandBuffer -didCompleteWithStartTime:endTime:error: v40@0:8Q16Q24@32
+  _MTLCommandBuffer -enqueue v16@0:8
+  _MTLCommandBuffer -progressTrackingRenderCommandEncoder @16@0:8
+  _MTLCommandBuffer -GPUStartTime d16@0:8
+  _MTLCommandBuffer -presentDrawable:atTime: v32@0:8@16d24
+  _MTLCommandBuffer -synchronousDebugMode B16@0:8
+  _MTLCommandBuffer -setCurrentCommandEncoder: v24@0:8@16
+  _MTLCommandBuffer -initWithQueue:retainedReferences: @28@0:8@16B24
+  _MTLCommandBuffer -setOwnedByParallelEncoder: v20@0:8B16
+  _MTLCommandBuffer -resourceStateCommandEncoderWithDescriptor: @24@0:8@16
+  _MTLCommandBuffer -popDebugGroup v16@0:8
+  _MTLCommandBuffer -setProfilingEnabled: v20@0:8B16
+  _MTLCommandBuffer -profilingResults @16@0:8
+  _MTLCommandBuffer -getDriverEncoderInfoData: v24@0:8@16
+  _MTLCommandBuffer -addScheduledHandler: v24@0:8@?16
+  _MTLCommandBuffer -numEncoders Q16@0:8
+  _MTLCommandBuffer -retainedReferences B16@0:8
+  _MTLCommandBuffer -setErrorOptions: v24@0:8Q16
+  _MTLCommandBuffer -logs @16@0:8
+  _MTLCommandBuffer -getListIndex Q16@0:8
+  _MTLCommandBuffer -presentDrawable:options: v32@0:8@16@24
+  _MTLCommandBuffer -didScheduleWithStartTime:endTime:error: v40@0:8Q16Q24@32
+  _MTLCommandBuffer -numThisCommandBuffer Q16@0:8
+  _MTLCommandBuffer -isCommitted B16@0:8
+  _MTLCommandBuffer -encodeDashboardTagForResourceGroup: v24@0:8@16
+  _MTLCommandBuffer -blitCommandEncoderWithDescriptor: @24@0:8@16
+  _MTLCommandBuffer -executeSynchronizationNotifications: v20@0:8i16
+  _MTLCommandBuffer -presentDrawable: v24@0:8@16
+  _MTLCommandBuffer -commitAndWaitUntilSubmitted B16@0:8
+  _MTLCommandBuffer -kernelSubmitTime v16@0:8
+  _MTLCommandBuffer -initWithQueue:retainedReferences:synchronousDebugMode: @32@0:8@16B24B28
+  _MTLCommandBuffer -addCompletedHandler: v24@0:8@?16
+  _MTLCommandBuffer -_addRetainedObject: v24@0:8@16
+  _MTLCommandBuffer -GPUEndTime d16@0:8
+  _MTLCommandBuffer -runPerfCounterCallbackWithBlock: v24@0:8@?16
+  _MTLCommandBuffer -presentDrawable:afterMinimumDuration: v32@0:8@16d24
+  _MTLCommandBuffer -processEncoderInfos v16@0:8
+  _MTLCommandBuffer -kernelEndTime d16@0:8
+  _MTLCommandBuffer -getAndIncrementNumEncoders Q16@0:8
+  _MTLCommandBuffer -executeSynchronizationNotifications:scope:resources:count: v44@0:8i16Q20r^@28Q36
+  _MTLCommandBuffer -skipRender B16@0:8
+  _MTLCommandBuffer -initProgressTracking v16@0:8
+  _MTLCommandBuffer -dealloc v16@0:8
+  _MTLCommandBuffer -commit v16@0:8
+  _MTLCommandBuffer -globalTraceObjectID Q16@0:8
+  _MTLCommandBuffer -waitUntilCompleted v16@0:8
+  _MTLCommandBuffer -status Q16@0:8
+  _MTLCommandBuffer -waitUntilScheduled v16@0:8
+  _MTLCommandBuffer -description @16@0:8
+  _MTLCommandBuffer -error @16@0:8
+  _MTLCommandBuffer -commandQueue @16@0:8
+  _MTLCommandBuffer -formattedDescription: @24@0:8Q16
+class _MTLCommandEncoder < _MTLObjectWithLabel < NSObject (instance size 88)
+  _MTLCommandEncoder ivar _device @24 @"<MTLDevice>"
+  _MTLCommandEncoder ivar _commandBuffer @32 @"_MTLCommandBuffer<MTLCommandBuffer>"
+  _MTLCommandEncoder ivar _numThisEncoder @40 Q
+  _MTLCommandEncoder ivar _globalTraceObjectID @48 Q
+  _MTLCommandEncoder ivar _labelTraceID @56 Q
+  _MTLCommandEncoder ivar _progressFence @64 @"<MTLFence>"
+  _MTLCommandEncoder ivar _needsFrameworkAssistedErrorTracking @72 B
+  _MTLCommandEncoder ivar _isProgressTrackingEncoder @73 B
+  _MTLCommandEncoder ivar _debugSignposts @80 @"NSMutableArray"
+  _MTLCommandEncoder -endEncoding v16@0:8
+  _MTLCommandEncoder -getType Q16@0:8
+  _MTLCommandEncoder -setMeshSamplerState:atIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setVertexAccelerationStructure:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -pushDebugGroup: v24@0:8@16
+  _MTLCommandEncoder -setObjectAccelerationStructure:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setObjectIntersectionFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  _MTLCommandEncoder -popDebugGroup v16@0:8
+  _MTLCommandEncoder -setMeshAccelerationStructure:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setObjectVisibleFunctionTable:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setThreadgroupDistributionMode: v24@0:8q16
+  _MTLCommandEncoder -setTileAccelerationStructure:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setMeshIntersectionFunctionTable:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -drawMeshThreadgroupsWithIndirectBuffer:indirectBufferOffset:threadsPerObjectThreadgroup:threa
+  _MTLCommandEncoder -setMeshIntersectionFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  _MTLCommandEncoder -setFragmentAccelerationStructure:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setObjectVisibleFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  _MTLCommandEncoder -dealloc v16@0:8
+  _MTLCommandEncoder -globalTraceObjectID Q16@0:8
+  _MTLCommandEncoder -dispatchType Q16@0:8
+  _MTLCommandEncoder -setObjectSamplerState:atIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setObjectBufferOffset:atIndex: v32@0:8Q16Q24
+  _MTLCommandEncoder -setMeshBytes:length:atIndex: v40@0:8r^v16Q24Q32
+  _MTLCommandEncoder -setMeshVisibleFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  _MTLCommandEncoder -setObjectIntersectionFunctionTable:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setMeshVisibleFunctionTable:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setObjectTextures:withRange: v40@0:8r^@16{_NSRange=QQ}24
+  _MTLCommandEncoder -setMeshBuffers:offsets:withRange: v48@0:8r^@16r^Q24{_NSRange=QQ}32
+  _MTLCommandEncoder -description @16@0:8
+  _MTLCommandEncoder -setObjectBuffer:offset:atIndex: v40@0:8@16Q24Q32
+  _MTLCommandEncoder -setAccelerationStructure:atBufferIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setMeshTexture:atIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -setMeshBufferOffset:atIndex: v32@0:8Q16Q24
+  _MTLCommandEncoder -setObjectBytes:length:atIndex: v40@0:8r^v16Q24Q32
+  _MTLCommandEncoder -setObjectSamplerStates:withRange: v40@0:8r^@16{_NSRange=QQ}24
+  _MTLCommandEncoder -getDriverUniqueID Q16@0:8
+  _MTLCommandEncoder -endEncodingAndRetrieveProgramAddressTable @16@0:8
+  _MTLCommandEncoder -setObjectBuffers:offsets:withRange: v48@0:8r^@16r^Q24{_NSRange=QQ}32
+  _MTLCommandEncoder -filterCounterRangeWithFirstBatch:lastBatch:filterIndex: v28@0:8I16I20I24
+  _MTLCommandEncoder -setMeshBuffer:offset:atIndex: v40@0:8@16Q24Q32
+  _MTLCommandEncoder -setObjectSamplerState:lodMinClamp:lodMaxClamp:atIndex: v40@0:8@16f24f28Q32
+  _MTLCommandEncoder -setThreadgroupDistributionModeWithClusterGroupIndex: v20@0:8I16
+  _MTLCommandEncoder -initWithCommandBuffer: @24@0:8@16
+  _MTLCommandEncoder -commandBuffer @16@0:8
+  _MTLCommandEncoder -formattedDescription: @24@0:8Q16
+  _MTLCommandEncoder -setMeshTextures:withRange: v40@0:8r^@16{_NSRange=QQ}24
+  _MTLCommandEncoder -drawMeshThreads:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup: v88@0:8{?=QQQ}16{?=QQQ
+  _MTLCommandEncoder -setObjectSamplerStates:lodMinClamps:lodMaxClamps:withRange: v56@0:8r^@16r^f24r^f32{_NSRange=Q
+  _MTLCommandEncoder -invalidateCompressedTexture: v24@0:8@16
+  _MTLCommandEncoder -setObjectTexture:atIndex: v32@0:8@16Q24
+  _MTLCommandEncoder -invalidateCompressedTexture:slice:level: v40@0:8@16Q24Q32
+  _MTLCommandEncoder -setObjectThreadgroupMemoryLength:atIndex: v32@0:8Q16Q24
+  _MTLCommandEncoder -setMeshSamplerStates:withRange: v40@0:8r^@16{_NSRange=QQ}24
+  _MTLCommandEncoder -drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup: v88@0:8{?=QQQ}16{
+  _MTLCommandEncoder -setMeshSamplerState:lodMinClamp:lodMaxClamp:atIndex: v40@0:8@16f24f28Q32
+  _MTLCommandEncoder -setMeshSamplerStates:lodMinClamps:lodMaxClamps:withRange: v56@0:8r^@16r^f24r^f32{_NSRange=QQ}
+  _MTLCommandEncoder -device @16@0:8
+  _MTLCommandEncoder -insertDebugSignpost: v24@0:8@16
+  _MTLCommandEncoder -memoryBarrierNotificationWithResources:count: v32@0:8r^@16Q24
+  _MTLCommandEncoder -memoryBarrierNotificationWithScope: v24@0:8Q16
+  _MTLCommandEncoder -numThisEncoder Q16@0:8
+  _MTLCommandEncoder -preEndEncoding v16@0:8
+  _MTLCommandEncoder -setNumThisEncoder: v24@0:8Q16
+  _MTLCommandEncoder -setThreadgroupPackingDisabled: v20@0:8B16
+class _MTLRenderCommandEncoder: none
+class _MTLComputeCommandEncoder: none
+class _MTLBlitCommandEncoder: none
+class _MTLParallelRenderCommandEncoder < _MTLObjectWithLabel < NSObject (instance size 200)
+  _MTLParallelRenderCommandEncoder protocol MTLParallelRenderCommandEncoder
+  _MTLParallelRenderCommandEncoder ivar _device @24 @"<MTLDevice>"
+  _MTLParallelRenderCommandEncoder ivar _queue @32 @"<MTLCommandQueue>"
+  _MTLParallelRenderCommandEncoder ivar _globalTraceObjectID @40 Q
+  _MTLParallelRenderCommandEncoder ivar _labelTraceID @48 Q
+  _MTLParallelRenderCommandEncoder ivar _commandBuffer @56 @"_MTLCommandBuffer<MTLCommandBuffer>"
+  _MTLParallelRenderCommandEncoder ivar _renderPassDescriptor @64 @"MTLRenderPassDescriptor"
+  _MTLParallelRenderCommandEncoder ivar _lock @72 {_opaque_pthread_mutex_t="__sig"q"__opaque"[56c]}
+  _MTLParallelRenderCommandEncoder ivar _commandBuffersSize @136 Q
+  _MTLParallelRenderCommandEncoder ivar _commandBuffersCount @144 Q
+  _MTLParallelRenderCommandEncoder ivar _commandBuffers @152 ^@
+  _MTLParallelRenderCommandEncoder ivar _retainedReferences @160 B
+  _MTLParallelRenderCommandEncoder ivar _StatEnabled @161 B
+  _MTLParallelRenderCommandEncoder ivar _numThisEncoder @168 Q
+  _MTLParallelRenderCommandEncoder ivar _progressFence @176 @"<MTLFence>"
+  _MTLParallelRenderCommandEncoder ivar _needsFrameworkAssistedErrorTracking @184 B
+  _MTLParallelRenderCommandEncoder ivar _debugSignposts @192 @"NSMutableArray"
+  _MTLParallelRenderCommandEncoder -endEncoding v16@0:8
+  _MTLParallelRenderCommandEncoder -setDepthStoreAction: v24@0:8Q16
+  _MTLParallelRenderCommandEncoder -isMemorylessRender B16@0:8
+  _MTLParallelRenderCommandEncoder -pushDebugGroup: v24@0:8@16
+  _MTLParallelRenderCommandEncoder -setStencilStoreActionOptions: v24@0:8Q16
+  _MTLParallelRenderCommandEncoder -popDebugGroup v16@0:8
+  _MTLParallelRenderCommandEncoder -setColorStoreActionOptions:atIndex: v32@0:8Q16Q24
+  _MTLParallelRenderCommandEncoder -setDepthStoreActionOptions: v24@0:8Q16
+  _MTLParallelRenderCommandEncoder -setColorStoreAction:atIndex: v32@0:8Q16Q24
+  _MTLParallelRenderCommandEncoder -setStencilStoreAction: v24@0:8Q16
+  _MTLParallelRenderCommandEncoder -dealloc v16@0:8
+  _MTLParallelRenderCommandEncoder -globalTraceObjectID Q16@0:8
+  _MTLParallelRenderCommandEncoder -description @16@0:8
+  _MTLParallelRenderCommandEncoder -getDriverUniqueID Q16@0:8
+  _MTLParallelRenderCommandEncoder -endEncodingAndRetrieveProgramAddressTable @16@0:8
+  _MTLParallelRenderCommandEncoder -commandBuffer @16@0:8
+  _MTLParallelRenderCommandEncoder -formattedDescription: @24@0:8Q16
+  _MTLParallelRenderCommandEncoder -device @16@0:8
+  _MTLParallelRenderCommandEncoder -insertDebugSignpost: v24@0:8@16
+  _MTLParallelRenderCommandEncoder -_renderCommandEncoderCommon @16@0:8
+  _MTLParallelRenderCommandEncoder -initWithCommandBuffer:renderPassDescriptor: @32@0:8@16@24
+  _MTLParallelRenderCommandEncoder -initializeEnhancedCommandBufferErrors v16@0:8
+  _MTLParallelRenderCommandEncoder -preEndEncoding v16@0:8
+  _MTLParallelRenderCommandEncoder -renderCommandEncoder @16@0:8
+  _MTLParallelRenderCommandEncoder -sampledRenderCommandEncoderWithProgramInfoBuffer:capacity: @32@0:8^(?={?=b8b24I
+class _MTLLibrary < _MTLObjectWithLabel < NSObject (instance size 64)
+  _MTLLibrary protocol MTLLibrarySPI
+  _MTLLibrary ivar _device @24 @"<MTLDevice>"
+  _MTLLibrary ivar _libraryData @32 ^{MTLLibraryData=^^?{?=[32C]}Ai@@}
+  _MTLLibrary ivar _functionDictionary @40 @"NSMutableDictionary"
+  _MTLLibrary ivar _cacheEntry @48 ^{MTLLibraryContainer=^{MTLPipelineCollection}Ai{?=[32C]}^{MTLLibraryData}@@@@@}
+  _MTLLibrary ivar _shaderValidationEnabled @56 B
+  _MTLLibrary -cacheEntry ^{MTLLibraryContainer=^{MTLPipelineCollection}Ai{?=[32C]}^{MTLLibraryData}@@@@@}16@0:8
+  _MTLLibrary -newSpecializedFunctionWithHash: @24@0:8r^{?=[32C]}16
+  _MTLLibrary -shaderValidationEnabled B16@0:8
+  _MTLLibrary -serializeToURL:error: B32@0:8@16^@24
+  _MTLLibrary -setShaderValidationEnabled: v20@0:8B16
+  _MTLLibrary -newFunctionWithName:constantValues:completionHandler: v40@0:8@16@24@?32
+  _MTLLibrary -newIntersectionFunctionWithDescriptor:error: @32@0:8@16^@24
+  _MTLLibrary -dealloc v16@0:8
+  _MTLLibrary -newFunctionWithName:constantValues:pipelineLibrary:error: @48@0:8@16@24@32^@40
+  _MTLLibrary -newFunctionWithName:constantValues:pipelineLibrary:completionHandler: v48@0:8@16@24@32@?40
+  _MTLLibrary -bitCodeWithHash: @24@0:8r^{?=[32C]}16
+  _MTLLibrary -libraryDataContents @16@0:8
+  _MTLLibrary -libraryData ^{MTLLibraryData=^^?{?=[32C]}Ai@@}16@0:8
+  _MTLLibrary -newFunctionWithName:constantValues:error: @40@0:8@16@24^@32
+  _MTLLibrary -functionNames @16@0:8
+  _MTLLibrary -newExternFunctionWithName: @24@0:8@16
+  _MTLLibrary -setOverrideTriple: v24@0:8@16
+  _MTLLibrary -newFunctionWithName:constantValues:functionCache:specializedName:error: @56@0:8@16@24@32@40^@48
+  _MTLLibrary -description @16@0:8
+  _MTLLibrary -newFunctionWithDescriptor:destinationArchive:functionCache:completionHandler: v48@0:8@16@24@32@?40
+  _MTLLibrary -type q16@0:8
+  _MTLLibrary -newFunctionWithName:constantValues:functionCache:specializedName:completionHandler: v56@0:8@16@24@32
+  _MTLLibrary -newIntersectionFunctionWithDescriptor:completionHandler: v32@0:8@16@?24
+  _MTLLibrary -overrideTriple @16@0:8
+  _MTLLibrary -newFunctionWithDescriptor:error: @32@0:8@16^@24
+  _MTLLibrary -newFunctionWithDescriptor:completionHandler: v32@0:8@16@?24
+  _MTLLibrary -newFunctionWithDescriptor:destinationArchive:error: @40@0:8@16@24^@32
+  _MTLLibrary -bitcodeData @16@0:8
+  _MTLLibrary -newFunctionWithHash: @24@0:8r^{?=[32C]}16
+  _MTLLibrary -newFunctionWithName: @24@0:8@16
+  _MTLLibrary -initWithLibraryContainer:device: @32@0:8^{MTLLibraryContainer=^{MTLPipelineCollection}Ai{?=[32C]}^{M
+  _MTLLibrary -libraryIdentifier @16@0:8
+  _MTLLibrary -externFunctionNames @16@0:8
+  _MTLLibrary -installName @16@0:8
+  _MTLLibrary -formattedDescription: @24@0:8Q16
+  _MTLLibrary -variableList @16@0:8
+  _MTLLibrary -newFunctionWithNameInternal: @24@0:8@16
+  _MTLLibrary -newFunctionWithName:constantValues:functionCache:error: @48@0:8@16@24@32^@40
+  _MTLLibrary -newSpecializedFunctionWithDescriptorInternal:destinationArchive:functionCache:error: @48@0:8@16@24@3
+  _MTLLibrary -functionDictionary @16@0:8
+  _MTLLibrary -device @16@0:8
+  _MTLLibrary -newMetalScript @16@0:8
+class _MTLFunction < _MTLObjectWithLabel < NSObject (instance size 200)
+  _MTLFunction protocol MTLFunctionSPI
+  _MTLFunction ivar _device @24 @"<MTLDevice>"
+  _MTLFunction ivar _functionType @32 Q
+  _MTLFunction ivar _name @40 @"NSString"
+  _MTLFunction ivar _libraryData @48 ^{MTLLibraryData=^^?{?=[32C]}Ai@@}
+  _MTLFunction ivar _vendorPrivate @56 @
+  _MTLFunction ivar _vertexAttributes @64 @"NSArray"
+  _MTLFunction ivar _functionConstants @72 @"NSArray"
+  _MTLFunction ivar _functionConstantDictionary @80 @"NSDictionary"
+  _MTLFunction ivar _options @88 Q
+  _MTLFunction ivar _precompiledOutput @96 @"NSObject<OS_dispatch_data>"
+  _MTLFunction ivar _debugInstrumentationData @104 @"MTLDebugInstrumentationData"
+  _MTLFunction ivar _returnType @112 @"MTLType"
+  _MTLFunction ivar _arguments @120 @"NSArray"
+  _MTLFunction ivar _bindings @128 @"NSArray"
+  _MTLFunction ivar _unpackedFilePath @136 @"NSString"
+  _MTLFunction ivar _functionConstantSpecializationHash @144 {?="key"[32C]}
+  _MTLFunction ivar _relocations @176 @"NSArray"
+  _MTLFunction ivar _importedSymbols @184 @"NSArray"
+  _MTLFunction ivar _importedLibraries @192 @"NSArray"
+  _MTLFunction -functionConstantSpecializationHash r^{?=[32C]}16@0:8
+  _MTLFunction -newArgumentEncoderWithBufferIndex:reflection:functionReflection: @40@0:8Q16^@24@32
+  _MTLFunction -importedSymbols @16@0:8
+  _MTLFunction -initWithName:type:libraryData:device: @48@0:8@16Q24^{MTLLibraryData=^^?{?=[32C]}Ai@@}32@40
+  _MTLFunction -setDebugInstrumentationData: v24@0:8@16
+  _MTLFunction -functionHandle @16@0:8
+  _MTLFunction -functionRef I16@0:8
+  _MTLFunction -functionConstantsDictionary @16@0:8
+  _MTLFunction -dealloc v16@0:8
+  _MTLFunction -reflectionWithOptions:pipelineLibrary: @32@0:8Q16@24
+  _MTLFunction -reflectionWithOptions:binaryArchives: @32@0:8Q16@24
+  _MTLFunction -functionType Q16@0:8
+  _MTLFunction -newArgumentEncoderWithBufferIndex:pipelineLibrary: @32@0:8Q16@24
+  _MTLFunction -newArgumentEncoderWithBufferIndex:reflection:pipelineLibrary: @40@0:8Q16^@24@32
+  _MTLFunction -newArgumentEncoderWithBufferIndex: @24@0:8Q16
+  _MTLFunction -libraryData ^{MTLLibraryData=^^?{?=[32C]}Ai@@}16@0:8
+  _MTLFunction -newArgumentEncoderWithBufferIndex:reflection:binaryArchives: @40@0:8Q16^@24@32
+  _MTLFunction -name @16@0:8
+  _MTLFunction -reflectionWithOptions:completionHandler: v32@0:8Q16@?24
+  _MTLFunction -setUnpackedFilePath: v24@0:8@16
+  _MTLFunction -reflectionWithOptions: @24@0:8Q16
+  _MTLFunction -options Q16@0:8
+  _MTLFunction -description @16@0:8
+  _MTLFunction -importedLibraries @16@0:8
+  _MTLFunction -bitCodeFileSize Q16@0:8
+  _MTLFunction -newArgumentEncoderWithBufferIndex:reflection: @32@0:8Q16^@24
+  _MTLFunction -setVendorPrivate: v24@0:8@16
+  _MTLFunction -bitCodeHash r^{?=[32C]}16@0:8
+  _MTLFunction -bitcodeData @16@0:8
+  _MTLFunction -vendorPrivate @16@0:8
+  _MTLFunction -debugInstrumentationData @16@0:8
+  _MTLFunction -formattedDescription: @24@0:8Q16
+  _MTLFunction -newFunctionWithPluginData:bitcodeType: @28@0:8@16C24
+  _MTLFunction -unpackedFilePath @16@0:8
+  _MTLFunction -device @16@0:8
+class _MTLObjectWithLabel < NSObject (instance size 24)
+  _MTLObjectWithLabel ivar _label @8 @"NSString"
+  _MTLObjectWithLabel ivar _labelLock @16 {os_unfair_lock_s="_os_unfair_lock_opaque"I}
+  _MTLObjectWithLabel -setLabel: v24@0:8@16
+  _MTLObjectWithLabel -dealloc v16@0:8
+  _MTLObjectWithLabel -label @16@0:8
+  _MTLObjectWithLabel -init @16@0:8
+  _MTLObjectWithLabel -retainedLabel @16@0:8
+class MTLIOAccelDevice < _MTLDevice < NSObject (instance size 54104)
+  MTLIOAccelDevice ivar _deviceRef @528 ^{__IOAccelDevice=}
+  MTLIOAccelDevice ivar _sharedRef @536 ^{__IOAccelShared=}
+  MTLIOAccelDevice ivar _acceleratorPort @544 I
+  MTLIOAccelDevice ivar _storageCreateParams @552 {?="segmentListShmemPool"@"MTLIOAccelDeviceShmemPool""kernelComma
+  MTLIOAccelDevice ivar _commandBufferStoragePool @600 ^{MTLIOAccelCommandBufferStoragePool={storageQueue=^{MTLIOAc
+  MTLIOAccelDevice ivar _configBits @608 I
+  MTLIOAccelDevice ivar _deviceBits @612 I
+  MTLIOAccelDevice ivar _textureRam @616 Q
+  MTLIOAccelDevice ivar _videoRam @624 Q
+  MTLIOAccelDevice ivar _sharedMemorySize @632 Q
+  MTLIOAccelDevice ivar _accelID @640 I
+  MTLIOAccelDevice ivar _numCommandBuffers @644 Ai
+  MTLIOAccelDevice ivar _segmentByteThreshold @648 Q
+  MTLIOAccelDevice ivar _bufferHeaps @656 [16{MTLIOAccelBufferHeap="buffers"[64@"MTLIOAccelBuffer"]"allocators"[64{
+  MTLIOAccelDevice ivar _device_dispatch_queue @54032 @"NSObject<OS_dispatch_queue>"
+  MTLIOAccelDevice ivar _device_pool_cleanup_queue @54040 @"NSObject<OS_dispatch_queue>"
+  MTLIOAccelDevice ivar _device_pool_cleanup_source @54048 @"NSObject<OS_dispatch_source>"
+  MTLIOAccelDevice ivar _device_pool_cleanup_scheduled @54056 B
+  MTLIOAccelDevice ivar _fenceAllocatedCount @54060 I
+  MTLIOAccelDevice ivar _fenceMaximumCount @54064 I
+  MTLIOAccelDevice ivar _fenceBitmapSearchStart @54068 I
+  MTLIOAccelDevice ivar _fenceBitmapCount @54072 I
+  MTLIOAccelDevice ivar _fenceAllocationBitmap @54080 ^Q
+  MTLIOAccelDevice ivar _registryID @54088 Q
+  MTLIOAccelDevice ivar _deviceWrapper @54096 @"<MTLDeviceSPI>"
+  MTLIOAccelDevice -heapIndexWithOptions: s24@0:8Q16
+  MTLIOAccelDevice -newAccelerationStructureWithBuffer:offset:resourceIndex: @40@0:8@16Q24Q32
+  MTLIOAccelDevice -_setDeviceWrapper: v24@0:8@16
+  MTLIOAccelDevice -newCommandQueueWithDescriptor: @24@0:8@16
+  MTLIOAccelDevice -_purgeDevice v16@0:8
+  MTLIOAccelDevice -memoryInfo @16@0:8
+  MTLIOAccelDevice -setIndirectArgumentBufferDecodingData: v24@0:8@16
+  MTLIOAccelDevice -indirectArgumentBufferDecodingData @16@0:8
+  MTLIOAccelDevice -_removeResource: v24@0:8@16
+  MTLIOAccelDevice -newAccelerationStructureWithBuffer:offset: @32@0:8@16Q24
+  MTLIOAccelDevice -akPrivateResourceListPool @16@0:8
+  MTLIOAccelDevice -newEvent @16@0:8
+  MTLIOAccelDevice -registryID Q16@0:8
+  MTLIOAccelDevice -kickCleanupQueue v16@0:8
+  MTLIOAccelDevice -newIntersectionFunctionTableWithDescriptor: @24@0:8@16
+  MTLIOAccelDevice -supportPriorityBand B16@0:8
+  MTLIOAccelDevice -initWithAcceleratorPort: @20@0:8I16
+  MTLIOAccelDevice -initialSegmentListShmemSize I16@0:8
+  MTLIOAccelDevice -setComputePipelineStateCommandShmemSize: v20@0:8I16
+  MTLIOAccelDevice -akResourceListPool @16@0:8
+  MTLIOAccelDevice -newFence @16@0:8
+  MTLIOAccelDevice -setHwResourcePool:count: v28@0:8^@16i24
+  MTLIOAccelDevice -initialKernelCommandShmemSize I16@0:8
+  MTLIOAccelDevice -deallocBufferSubData:heapIndex:bufferIndex:bufferOffset:length: v48@0:8@16s24s28Q32Q40
+  MTLIOAccelDevice -_deviceWrapper @16@0:8
+  MTLIOAccelDevice -hwResourcePools ^@16@0:8
+  MTLIOAccelDevice -_addResource: v24@0:8@16
+  MTLIOAccelDevice -numCommandBuffers i16@0:8
+  MTLIOAccelDevice -newArgumentEncoderWithLayout: @24@0:8@16
+  MTLIOAccelDevice -dealloc v16@0:8
+  MTLIOAccelDevice -supportsVertexAmplificationCount: B24@0:8Q16
+  MTLIOAccelDevice -newIndirectArgumentBufferLayoutWithStructType: @24@0:8@16
+  MTLIOAccelDevice -maxBufferLength Q16@0:8
+  MTLIOAccelDevice -setSegmentListShmemSize: v20@0:8I16
+  MTLIOAccelDevice -hwResourcePoolCount I16@0:8
+  MTLIOAccelDevice -dedicatedMemorySize Q16@0:8
+  MTLIOAccelDevice -hasUnifiedMemory B16@0:8
+  MTLIOAccelDevice -newIndirectArgumentEncoderWithLayout: @24@0:8@16
+  MTLIOAccelDevice -supportsVertexAmplification B16@0:8
+  MTLIOAccelDevice -.cxx_destruct v16@0:8
+  MTLIOAccelDevice -allocBufferSubDataWithLength:options:alignment:heapIndex:bufferIndex:bufferOffset: @64@0:8Q16Q2
+  MTLIOAccelDevice -sharedMemorySize Q16@0:8
+  MTLIOAccelDevice -acceleratorPort I16@0:8
+  MTLIOAccelDevice -deviceRef ^{__IOAccelDevice=}16@0:8
+  MTLIOAccelDevice -recommendedMaxWorkingSetSize Q16@0:8
+  MTLIOAccelDevice -newAccelerationStructureWithSize:withDescriptor: @32@0:8Q16@24
+  MTLIOAccelDevice -newAccelerationStructureWithSize: @24@0:8Q16
+  MTLIOAccelDevice -newIndirectCommandBufferWithDescriptor:maxCommandCount:options: @40@0:8@16Q24Q32
+  MTLIOAccelDevice -newAccelerationStructureWithSize:resourceIndex: @32@0:8Q16Q24
+  MTLIOAccelDevice -sharedRef ^{__IOAccelShared=}16@0:8
+  MTLIOAccelDevice -supportLazyInitialization B16@0:8
+  MTLIOAccelDevice -updateResourcePoolPurgeability v16@0:8
+  MTLIOAccelDevice -releaseFenceIndex: v20@0:8I16
+  MTLIOAccelDevice -currentAllocatedSize Q16@0:8
+  MTLIOAccelDevice -lazyInitialize B16@0:8
+class MTLIOAccelCommandQueue < _MTLCommandQueue < _MTLObjectWithLabel < NSObject (instance size 384)
+  MTLIOAccelCommandQueue ivar _commandQueue @352 ^{__IOAccelCommandQueue=}
+  MTLIOAccelCommandQueue ivar _device @360 @"MTLIOAccelDevice<MTLDevice>"
+  MTLIOAccelCommandQueue ivar _priority @368 Q
+  MTLIOAccelCommandQueue ivar _backgroundPriority @376 Q
+  MTLIOAccelCommandQueue -setBackgroundGPUPriority: B24@0:8Q16
+  MTLIOAccelCommandQueue -setBackgroundGPUPriority:offset: B28@0:8Q16S24
+  MTLIOAccelCommandQueue -getBackgroundGPUPriority Q16@0:8
+  MTLIOAccelCommandQueue -setGPUPriority:offset: B28@0:8Q16S24
+  MTLIOAccelCommandQueue -getGPUPriority Q16@0:8
+  MTLIOAccelCommandQueue -setGPUPriority: B24@0:8Q16
+  MTLIOAccelCommandQueue -_setGPUPriority:backgroundPriority: B32@0:8Q16Q24
+  MTLIOAccelCommandQueue -setLabel: v24@0:8@16
+  MTLIOAccelCommandQueue -submitCommandBuffers:count: v32@0:8r^@16Q24
+  MTLIOAccelCommandQueue -setCompletionQueue: v24@0:8@16
+  MTLIOAccelCommandQueue -dealloc v16@0:8
+  MTLIOAccelCommandQueue -initWithDevice:descriptor: @32@0:8@16@24
+  MTLIOAccelCommandQueue -device @16@0:8
+class MTLIOAccelCommandBuffer < _MTLCommandBuffer < _MTLObjectWithLabel < NSObject (instance size 552)
+  MTLIOAccelCommandBuffer ivar _device @488 @"MTLIOAccelDevice<MTLDevice>"
+  MTLIOAccelCommandBuffer ivar _storage @496 ^{MTLIOAccelCommandBufferStorage=@^{MTLIOAccelCommandBufferStoragePool
+  MTLIOAccelCommandBuffer ivar _submitToHardwareTimeStampPointer @504 ^Q
+  MTLIOAccelCommandBuffer ivar _protectionOptions @512 Q
+  MTLIOAccelCommandBuffer ivar _scheduledCallbackBlockPtr @520 ^v
+  MTLIOAccelCommandBuffer ivar _completedCallbackBlockPtr @528 ^v
+  MTLIOAccelCommandBuffer ivar _commitAndResetSem @536 @"NSObject<OS_dispatch_semaphore>"
+  MTLIOAccelCommandBuffer ivar _purgedResources @544 @"NSMutableSet"
+  MTLIOAccelCommandBuffer -getCurrentKernelCommandBufferStart:current:end: v40@0:8^^v16^^v24^^v32
+  MTLIOAccelCommandBuffer -growSegmentList v16@0:8
+  MTLIOAccelCommandBuffer -commandBufferStorage ^{MTLIOAccelCommandBufferStorage=@^{MTLIOAccelCommandBufferStorageP
+  MTLIOAccelCommandBuffer -getSegmentListPointerStart:current:end: v40@0:8^^v16^^v24^^v32
+  MTLIOAccelCommandBuffer -akPrivateResourceList @16@0:8
+  MTLIOAccelCommandBuffer -endCurrentSegment v16@0:8
+  MTLIOAccelCommandBuffer -kernelCommandCollectTimeStamp v16@0:8
+  MTLIOAccelCommandBuffer -beginSegment: v24@0:8^v16
+  MTLIOAccelCommandBuffer -pushDebugGroup: v24@0:8@16
+  MTLIOAccelCommandBuffer -addPurgedResource: v24@0:8@16
+  MTLIOAccelCommandBuffer -commitAndReset v16@0:8
+  MTLIOAccelCommandBuffer -validate v16@0:8
+  MTLIOAccelCommandBuffer -_reserveKernelCommandBufferSpace: ^v24@0:8Q16
+  MTLIOAccelCommandBuffer -encodeWaitForEvent:value: v32@0:8@16Q24
+  MTLIOAccelCommandBuffer -getCurrentKernelCommandBufferPointer:end: v32@0:8^^v16^^v24
+  MTLIOAccelCommandBuffer -didCompleteWithStartTime:endTime:error: v40@0:8Q16Q24@32
+  MTLIOAccelCommandBuffer -getSegmentListHeader ^{IOAccelSegmentListHeader=QII[0{IOAccelSegmentResourceListHeader=Q
+  MTLIOAccelCommandBuffer -encodeSignalEvent:value: v32@0:8@16Q24
+  MTLIOAccelCommandBuffer -setCurrentCommandEncoder: v24@0:8@16
+  MTLIOAccelCommandBuffer -setCurrentKernelCommandBufferPointer: v24@0:8^v16
+  MTLIOAccelCommandBuffer -initWithQueue:retainedReferences: @28@0:8@16B24
+  MTLIOAccelCommandBuffer -growKernelCommandBuffer: v24@0:8Q16
+  MTLIOAccelCommandBuffer -popDebugGroup v16@0:8
+  MTLIOAccelCommandBuffer -allocCommandBufferResourceAtIndex: v20@0:8I16
+  MTLIOAccelCommandBuffer -setLabel: v24@0:8@16
+  MTLIOAccelCommandBuffer -encodeSubmitSleepMS: v20@0:8I16
+  MTLIOAccelCommandBuffer -_encodePurgedResources v16@0:8
+  MTLIOAccelCommandBuffer -setCurrentSegmentListPointer: v24@0:8^v16
+  MTLIOAccelCommandBuffer -addPurgedHeap: v24@0:8@16
+  MTLIOAccelCommandBuffer -_debugBytes:length:output_type: v36@0:8r*16Q24I32
+  MTLIOAccelCommandBuffer -encodeWaitForEvent:value:timeout: v36@0:8@16Q24I32
+  MTLIOAccelCommandBuffer -commandBufferResourceInfo ^{MTLIOAccelCommandBufferResourceInfo=Q^I^I^I@{IOAccelResource
+  MTLIOAccelCommandBuffer -commitEncoder v16@0:8
+  MTLIOAccelCommandBuffer -initWithQueue:retainedReferences:synchronousDebugMode: @32@0:8@16B24B28
+  MTLIOAccelCommandBuffer -akResourceList @16@0:8
+  MTLIOAccelCommandBuffer -kprintfBytes:length: v32@0:8r*16Q24
+  MTLIOAccelCommandBuffer -dealloc v16@0:8
+  MTLIOAccelCommandBuffer -commit v16@0:8
+  MTLIOAccelCommandBuffer -ioAccelResourceList ^{IOAccelResourceList=[256S]^{IOAccelSegmentResourceDescriptorGroup}
+  MTLIOAccelCommandBuffer -protectionOptions Q16@0:8
+  MTLIOAccelCommandBuffer -setProtectionOptions: v24@0:8Q16
+  MTLIOAccelCommandBuffer -device @16@0:8
+class MTLIOAccelResource < _MTLResource < _MTLObjectWithLabel < NSObject (instance size 296)
+  MTLIOAccelResource protocol MTLResourceSPI
+  MTLIOAccelResource ivar _res @24 {_MTLIOAccelResource="vendor"(?="reserved"[4Q])"info"{IOAccelResourceInfo="iosur
+  MTLIOAccelResource ivar next @272 @"MTLIOAccelResource"
+  MTLIOAccelResource ivar prev @280 @"MTLIOAccelResource"
+  MTLIOAccelResource ivar uniqueId @288 Q
+  MTLIOAccelResource -isAliasable B16@0:8
+  MTLIOAccelResource -makeAliasable v16@0:8
+  MTLIOAccelResource -copyAnnotations ^{__CFArray=}16@0:8
+  MTLIOAccelResource -resourceID I16@0:8
+  MTLIOAccelResource -allocatedSize Q16@0:8
+  MTLIOAccelResource -isComplete B16@0:8
+  MTLIOAccelResource -setLabel: v24@0:8@16
+  MTLIOAccelResource -initWithResource: @24@0:8@16
+  MTLIOAccelResource -gpuAddress Q16@0:8
+  MTLIOAccelResource -dealloc v16@0:8
+  MTLIOAccelResource -label @16@0:8
+  MTLIOAccelResource -cpuCacheMode Q16@0:8
+  MTLIOAccelResource -gpuHandle Q16@0:8
+  MTLIOAccelResource -waitUntilComplete v16@0:8
+  MTLIOAccelResource -hazardTrackingMode Q16@0:8
+  MTLIOAccelResource -protectionOptions Q16@0:8
+  MTLIOAccelResource -setPurgeableState: Q24@0:8Q16
+  MTLIOAccelResource -storageMode Q16@0:8
+  MTLIOAccelResource -resourceOptions Q16@0:8
+  MTLIOAccelResource -resourceSize Q16@0:8
+  MTLIOAccelResource -virtualAddress ^v16@0:8
+  MTLIOAccelResource -unfilteredResourceOptions Q16@0:8
+  MTLIOAccelResource -device @16@0:8
+  MTLIOAccelResource -allocationID Q16@0:8
+  MTLIOAccelResource -annotateResource: v24@0:8^{__CFDictionary=}16
+  MTLIOAccelResource -copyAnnotationDictionary:obj_key_name:obj_dict: ^{__CFDictionary=}40@0:8Q16^{__CFString=}24^{
+  MTLIOAccelResource -doesAliasAllResources:count: B32@0:8r^@16Q24
+  MTLIOAccelResource -doesAliasAnyResources:count: B32@0:8r^@16Q24
+  MTLIOAccelResource -doesAliasResource: B24@0:8@16
+  MTLIOAccelResource -heap @16@0:8
+  MTLIOAccelResource -heapOffset Q16@0:8
+  MTLIOAccelResource -initMemoryless:descriptor: @32@0:8@16@24
+  MTLIOAccelResource -initStandinWithDevice: @24@0:8@16
+  MTLIOAccelResource -initWithDevice:options:args:argsSize: @44@0:8@16Q24^{IOAccelNewResourceArgs={IOAccelNewResour
+  MTLIOAccelResource -isPurgeable B16@0:8
+  MTLIOAccelResource -resourceRef ^{__IOAccelResource=}16@0:8
+  MTLIOAccelResource -responsibleProcess i16@0:8
+  MTLIOAccelResource -retainedLabel @16@0:8
+  MTLIOAccelResource -setOwnerWithIdentity: i20@0:8I16
+  MTLIOAccelResource -setResponsibleProcess: v20@0:8i16
+class MTLIOAccelBuffer < MTLIOAccelResource < _MTLResource < _MTLObjectWithLabel < NSObject (instance size 352)
+  MTLIOAccelBuffer ivar _pointer @296 ^v
+  MTLIOAccelBuffer ivar _deallocator @304 @?
+  MTLIOAccelBuffer ivar _masterBuffer @312 @"MTLIOAccelBuffer"
+  MTLIOAccelBuffer ivar _masterHeapIndex @320 s
+  MTLIOAccelBuffer ivar _masterBufferIndex @322 s
+  MTLIOAccelBuffer ivar _masterBufferOffset @328 Q
+  MTLIOAccelBuffer ivar _length @336 Q
+  MTLIOAccelBuffer ivar _iosurface @344 ^{__IOSurface=}
+  MTLIOAccelBuffer -newLinearTextureWithDescriptor:offset:bytesPerRow:bytesPerImage: @48@0:8@16Q24Q32Q40
+  MTLIOAccelBuffer -didModifyRange: v32@0:8{_NSRange=QQ}16
+  MTLIOAccelBuffer -initWithDevice:pointer:length:options:sysMemSize:vidMemSize:args:argsSize:deallocator: @84@0:8@
+  MTLIOAccelBuffer -iosurface ^{__IOSurface=}16@0:8
+  MTLIOAccelBuffer -addDebugMarker:range: v40@0:8@16{_NSRange=QQ}24
+  MTLIOAccelBuffer -_aneIOSurface ^{__IOSurface=}16@0:8
+  MTLIOAccelBuffer -removeAllDebugMarkers v16@0:8
+  MTLIOAccelBuffer -copyAnnotations ^{__CFArray=}16@0:8
+  MTLIOAccelBuffer -initWithHeap:resource:offset:length: @48@0:8@16@24Q32Q40
+  MTLIOAccelBuffer -allocatedSize Q16@0:8
+  MTLIOAccelBuffer -contents ^v16@0:8
+  MTLIOAccelBuffer -length Q16@0:8
+  MTLIOAccelBuffer -dealloc v16@0:8
+  MTLIOAccelBuffer -description @16@0:8
+  MTLIOAccelBuffer -formattedDescription: @24@0:8Q16
+  MTLIOAccelBuffer -initWithDevice:iosurface:args:argsSize: @44@0:8@16^{__IOSurface=}24^{IOAccelNewResourceArgs={IO
+  MTLIOAccelBuffer -initWithDevice:pointer:length:options:sysMemSize:vidMemSize:gpuAddress:args:argsSize:deallocato
+  MTLIOAccelBuffer -initWithMasterBuffer:heapIndex:bufferIndex:bufferOffset:length:args:argsSize: @60@0:8@16s24s28Q
+class MTLIOAccelTexture < MTLIOAccelResource < _MTLResource < _MTLObjectWithLabel < NSObject (instance size 512)
+  MTLIOAccelTexture ivar _parentTexture @296 @"MTLIOAccelTexture"
+  MTLIOAccelTexture ivar _parentRelativeLevel @304 Q
+  MTLIOAccelTexture ivar _parentRelativeSlice @312 Q
+  MTLIOAccelTexture ivar _buffer @320 @"MTLIOAccelBuffer"
+  MTLIOAccelTexture ivar _swizzle @328 I
+  MTLIOAccelTexture ivar _writeSwizzleEnabled @332 B
+  MTLIOAccelTexture ivar _isCompressed @333 B
+  MTLIOAccelTexture ivar _masterBuffer @336 @"MTLIOAccelBuffer"
+  MTLIOAccelTexture ivar _iosurface @344 ^{__IOSurface=}
+  MTLIOAccelTexture ivar _iosurfacePlane @352 Q
+  MTLIOAccelTexture ivar _textureType @360 Q
+  MTLIOAccelTexture ivar _pixelFormat @368 Q
+  MTLIOAccelTexture ivar _usage @376 Q
+  MTLIOAccelTexture ivar _rotation @384 Q
+  MTLIOAccelTexture ivar _width @392 Q
+  MTLIOAccelTexture ivar _height @400 Q
+  MTLIOAccelTexture ivar _depth @408 Q
+  MTLIOAccelTexture ivar _mipmapLevelCount @416 Q
+  MTLIOAccelTexture ivar _sampleCount @424 Q
+  MTLIOAccelTexture ivar _arrayLength @432 Q
+  MTLIOAccelTexture ivar _numFaces @440 Q
+  MTLIOAccelTexture ivar _shareable @448 B
+  MTLIOAccelTexture ivar _framebufferOnly @449 B
+  MTLIOAccelTexture ivar _isDrawable @450 B
+  MTLIOAccelTexture ivar _rootResourceIsSuballocatedBuffer @451 B
+  MTLIOAccelTexture ivar _masterHeapIndex @452 s
+  MTLIOAccelTexture ivar _masterBufferIndex @454 s
+  MTLIOAccelTexture ivar _masterBufferOffset @456 Q
+  MTLIOAccelTexture ivar _length @464 Q
+  MTLIOAccelTexture ivar _bufferOffset @472 Q
+  MTLIOAccelTexture ivar _bufferBytesPerRow @480 Q
+  MTLIOAccelTexture ivar _pointer @488 ^v
+  MTLIOAccelTexture ivar _deallocator @496 @?
+  MTLIOAccelTexture ivar _allowGPUOptimizedContents @504 B
+  MTLIOAccelTexture +initNewTextureDataWithDevice:descriptor:sysMemSize:sysMemRowBytes:vidMemSize:vidMemRowBytes:ar
+  MTLIOAccelTexture -newSharedTextureHandle @16@0:8
+  MTLIOAccelTexture -iosurfacePlane Q16@0:8
+  MTLIOAccelTexture -initWithDevice:descriptor:iosurface:plane:field:args:argsSize: @60@0:8@16@24^{__IOSurface=}32I
+  MTLIOAccelTexture -initWithTexture:pixelFormat:textureType:levels:slices:swizzle: @76@0:8@16Q24Q32{_NSRange=QQ}40
+  MTLIOAccelTexture -mipmapLevelCount Q16@0:8
+  MTLIOAccelTexture -isAliasable B16@0:8
+  MTLIOAccelTexture -bufferOffset Q16@0:8
+  MTLIOAccelTexture -allowGPUOptimizedContents B16@0:8
+  MTLIOAccelTexture -compressionFeedback q16@0:8
+  MTLIOAccelTexture -rootResource @16@0:8
+  MTLIOAccelTexture -iosurface ^{__IOSurface=}16@0:8
+  MTLIOAccelTexture -isSparse B16@0:8
+  MTLIOAccelTexture -parentRelativeSlice Q16@0:8
+  MTLIOAccelTexture -getBytes:bytesPerRow:fromRegion:mipmapLevel: v88@0:8^v16Q24{?={?=QQQ}{?=QQQ}}32Q80
+  MTLIOAccelTexture -initWithBuffer:descriptor:sysMemOffset:sysMemRowBytes:vidMemSize:vidMemRowBytes:args:argsSize:
+  MTLIOAccelTexture -copyFromSlice:mipmapLevel:origin:size:toPixels:rowBytes:imageBytes: v104@0:8Q16Q24{?=QQQ}32{?=
+  MTLIOAccelTexture -parentTexture @16@0:8
+  MTLIOAccelTexture -copyFromPixels:rowBytes:imageBytes:toSlice:mipmapLevel:origin:size: v104@0:8r^v16Q24Q32Q40Q48{
+  MTLIOAccelTexture -numFaces Q16@0:8
+  MTLIOAccelTexture -replaceRegion:mipmapLevel:withBytes:bytesPerRow: v88@0:8{?={?=QQQ}{?=QQQ}}16Q64r^v72Q80
+  MTLIOAccelTexture -arrayLength Q16@0:8
+  MTLIOAccelTexture -parentRelativeLevel Q16@0:8
+  MTLIOAccelTexture -initWithBuffer:descriptor:offset:bytesPerRow: @48@0:8@16@24Q32Q40
+  MTLIOAccelTexture -rootResourceIsSuballocatedBuffer B16@0:8
+  MTLIOAccelTexture -gpuResourceID {MTLResourceID=Q}16@0:8
+  MTLIOAccelTexture -swizzle {?=CCCC}16@0:8
+  MTLIOAccelTexture -isCompressed B16@0:8
+  MTLIOAccelTexture -isShareable B16@0:8
+  MTLIOAccelTexture -initWithHeap:resource:offset:length:device:descriptor: @64@0:8@16@24Q32Q40@48@56
+  MTLIOAccelTexture -initWithDevice:descriptor:sysMemSize:sysMemRowBytes:vidMemSize:vidMemRowBytes:args:argsSize: @
+  MTLIOAccelTexture -initWithCompressedTexture:pixelFormat:textureType:level:slice: @56@0:8@16Q24Q32Q40Q48
+  MTLIOAccelTexture -makeAliasable v16@0:8
+  MTLIOAccelTexture -initWithTexture:pixelFormat: @32@0:8@16Q24
+  MTLIOAccelTexture -swizzleKey I16@0:8
+  MTLIOAccelTexture -initWithTextureInternal:pixelFormat:textureType:levels:slices:swizzle:compressedView: @80@0:8@
+  MTLIOAccelTexture -copyAnnotations ^{__CFArray=}16@0:8
+  MTLIOAccelTexture -bufferBytesPerRow Q16@0:8
+  MTLIOAccelTexture -initWithDevice:descriptor:sysMemPointer:sysMemSize:sysMemLength:sysMemRowBytes:args:argsSize:d
+  MTLIOAccelTexture -depth Q16@0:8
+  MTLIOAccelTexture -isDrawable B16@0:8
+  MTLIOAccelTexture -allocatedSize Q16@0:8
+  MTLIOAccelTexture -textureType Q16@0:8
+  MTLIOAccelTexture -width Q16@0:8
+  MTLIOAccelTexture -dealloc v16@0:8
+  MTLIOAccelTexture -initWithTexture:pixelFormat:textureType:levels:slices: @72@0:8@16Q24Q32{_NSRange=QQ}40{_NSRang
+  MTLIOAccelTexture -usage Q16@0:8
+  MTLIOAccelTexture -initWithBuffer:descriptor:sysMemOffset:sysMemRowBytes:vidMemSize:vidMemRowBytes:args:argsSize:
+  MTLIOAccelTexture -gpuHandle Q16@0:8
+  MTLIOAccelTexture -description @16@0:8
+  MTLIOAccelTexture -isFramebufferOnly B16@0:8
+  MTLIOAccelTexture -rotation Q16@0:8
+  MTLIOAccelTexture -hazardTrackingMode Q16@0:8
+  MTLIOAccelTexture -formattedDescription: @24@0:8Q16
+  MTLIOAccelTexture -uniqueIdentifier Q16@0:8
+  MTLIOAccelTexture -pixelFormat Q16@0:8
+  MTLIOAccelTexture -sampleCount Q16@0:8
+  MTLIOAccelTexture -buffer @16@0:8
+  MTLIOAccelTexture -height Q16@0:8
+  MTLIOAccelTexture -initWithMasterBuffer:heapIndex:bufferIndex:bufferOffset:length:descriptor:sysMemRowBytes:vidMe
+class MTLIOAccelCommandEncoder < _MTLCommandEncoder < _MTLObjectWithLabel < NSObject (instance size 88)
+  MTLIOAccelCommandEncoder -endEncoding v16@0:8
+  MTLIOAccelCommandEncoder -pushDebugGroup: v24@0:8@16
+  MTLIOAccelCommandEncoder -popDebugGroup v16@0:8
+  MTLIOAccelCommandEncoder -setLabel: v24@0:8@16
+  MTLIOAccelCommandEncoder -globalTraceObjectID Q16@0:8
+  MTLIOAccelCommandEncoder -initWithCommandBuffer: @24@0:8@16
+class MTLIOAccelRenderCommandEncoder < MTLIOAccelCommandEncoder < _MTLCommandEncoder < _MTLObjectWithLabel < NSObje
+  MTLIOAccelRenderCommandEncoder -useHeap:stages: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -setFragmentVisibleFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -getType Q16@0:8
+  MTLIOAccelRenderCommandEncoder -useResource:usage:stages: v40@0:8@16Q24Q32
+  MTLIOAccelRenderCommandEncoder -initWithCommandBuffer:descriptor: @32@0:8@16@24
+  MTLIOAccelRenderCommandEncoder -useHeaps:count: v32@0:8r^@16Q24
+  MTLIOAccelRenderCommandEncoder -setDepthStoreAction: v24@0:8Q16
+  MTLIOAccelRenderCommandEncoder -useHeaps:count:stages: v40@0:8r^@16Q24Q32
+  MTLIOAccelRenderCommandEncoder -sampleCountersInBuffer:atSampleIndex:withBarrier: v36@0:8@16Q24B32
+  MTLIOAccelRenderCommandEncoder -setTileIntersectionFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -isMemorylessRender B16@0:8
+  MTLIOAccelRenderCommandEncoder -setVertexIntersectionFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -setStencilStoreActionOptions: v24@0:8Q16
+  MTLIOAccelRenderCommandEncoder -setObjectAccelerationStructure:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -useResource:usage: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -setVertexAmplificationCount:viewMappings: v32@0:8Q16r^{?=II}24
+  MTLIOAccelRenderCommandEncoder -setTileVisibleFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -setDepthClipModeSPI: v24@0:8Q16
+  MTLIOAccelRenderCommandEncoder -setVertexIntersectionFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -waitForFence:beforeStages: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -setObjectIntersectionFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -updateFence:afterStages: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -setVertexVisibleFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -getVertexBufferContentsAtIndex: ^v24@0:8Q16
+  MTLIOAccelRenderCommandEncoder -setFragmentIntersectionFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -memoryBarrierWithScope:afterStages:beforeStages: v40@0:8Q16Q24Q32
+  MTLIOAccelRenderCommandEncoder -useResources:count:usage: v40@0:8r^@16Q24Q32
+  MTLIOAccelRenderCommandEncoder -setStencilCleared v16@0:8
+  MTLIOAccelRenderCommandEncoder -setMeshAccelerationStructure:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -setTileVisibleFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -setColorStoreActionOptions:atIndex: v32@0:8Q16Q24
+  MTLIOAccelRenderCommandEncoder -setDepthStoreActionOptions: v24@0:8Q16
+  MTLIOAccelRenderCommandEncoder -memoryBarrierWithResources:count:afterStages:beforeStages: v48@0:8r^@16Q24Q32Q40
+  MTLIOAccelRenderCommandEncoder -setDepthCleared v16@0:8
+  MTLIOAccelRenderCommandEncoder -executeCommandsInBuffer:indirectBuffer:indirectBufferOffset: v40@0:8@16@24Q32
+  MTLIOAccelRenderCommandEncoder -executeCommandsInBuffer:withRange: v40@0:8@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -setMeshIntersectionFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -setTileIntersectionFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -textureBarrier v16@0:8
+  MTLIOAccelRenderCommandEncoder -useHeap: v24@0:8@16
+  MTLIOAccelRenderCommandEncoder -setColorStoreAction:atIndex: v32@0:8Q16Q24
+  MTLIOAccelRenderCommandEncoder -setStencilStoreAction: v24@0:8Q16
+  MTLIOAccelRenderCommandEncoder -useResources:count:usage:stages: v48@0:8r^@16Q24Q32Q40
+  MTLIOAccelRenderCommandEncoder -setMeshIntersectionFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -getRenderPipelineState @16@0:8
+  MTLIOAccelRenderCommandEncoder -setFragmentVisibleFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -setVertexVisibleFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -setFragmentIntersectionFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}2
+  MTLIOAccelRenderCommandEncoder -setFragmentTexture:atTextureIndex:samplerState:atSamplerIndex: v48@0:8@16Q24@32Q4
+  MTLIOAccelRenderCommandEncoder -setObjectIntersectionFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelRenderCommandEncoder -getFragmentBufferContentsAtIndex: ^v24@0:8Q16
+  MTLIOAccelRenderCommandEncoder -bindEmulationArguments v16@0:8
+  MTLIOAccelRenderCommandEncoder -setEmulationFragmentBuffers:offsets:withRange: v48@0:8r^@16r^Q24{_NSRange=QQ}32
+  MTLIOAccelRenderCommandEncoder -setEmulationFragmentSamplerStates:withRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -setEmulationFragmentTextures:withRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -setEmulationVertexBuffers:offsets:withRange: v48@0:8r^@16r^Q24{_NSRange=QQ}32
+  MTLIOAccelRenderCommandEncoder -setEmulationVertexSamplerStates:withRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelRenderCommandEncoder -setEmulationVertexTextures:withRange: v40@0:8r^@16{_NSRange=QQ}24
+class MTLIOAccelComputeCommandEncoder < MTLIOAccelCommandEncoder < _MTLCommandEncoder < _MTLObjectWithLabel < NSObj
+  MTLIOAccelComputeCommandEncoder -setVisibleFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelComputeCommandEncoder -getType Q16@0:8
+  MTLIOAccelComputeCommandEncoder -setVisibleFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelComputeCommandEncoder -useHeaps:count: v32@0:8r^@16Q24
+  MTLIOAccelComputeCommandEncoder -sampleCountersInBuffer:atSampleIndex:withBarrier: v36@0:8@16Q24B32
+  MTLIOAccelComputeCommandEncoder -useResource:usage: v32@0:8@16Q24
+  MTLIOAccelComputeCommandEncoder -useResources:count:usage: v40@0:8r^@16Q24Q32
+  MTLIOAccelComputeCommandEncoder -executeCommandsInBuffer:indirectBuffer:indirectBufferOffset: v40@0:8@16@24Q32
+  MTLIOAccelComputeCommandEncoder -executeCommandsInBuffer:withRange: v40@0:8@16{_NSRange=QQ}24
+  MTLIOAccelComputeCommandEncoder -useHeap: v24@0:8@16
+  MTLIOAccelComputeCommandEncoder -getComputePipelineState @16@0:8
+  MTLIOAccelComputeCommandEncoder -getBufferContentsAtIndex: ^v24@0:8Q16
+  MTLIOAccelComputeCommandEncoder -setIntersectionFunctionTables:withBufferRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelComputeCommandEncoder -waitForFence: v24@0:8@16
+  MTLIOAccelComputeCommandEncoder -memoryBarrierWithScope: v24@0:8Q16
+  MTLIOAccelComputeCommandEncoder -setIntersectionFunctionTable:atBufferIndex: v32@0:8@16Q24
+  MTLIOAccelComputeCommandEncoder -memoryBarrierWithResources:count: v32@0:8r^@16Q24
+  MTLIOAccelComputeCommandEncoder -updateFence: v24@0:8@16
+  MTLIOAccelComputeCommandEncoder -setEmulationTextures:withRange: v40@0:8r^@16{_NSRange=QQ}24
+  MTLIOAccelComputeCommandEncoder -bindEmulationArguments v16@0:8
+  MTLIOAccelComputeCommandEncoder -setEmulationBuffers:offsets:withRange: v48@0:8r^@16r^Q24{_NSRange=QQ}32
+  MTLIOAccelComputeCommandEncoder -setEmulationSamplerStates:withRange: v40@0:8r^@16{_NSRange=QQ}24
+class MTLIOAccelBlitCommandEncoder < MTLIOAccelCommandEncoder < _MTLCommandEncoder < _MTLObjectWithLabel < NSObject
+  MTLIOAccelBlitCommandEncoder -getType Q16@0:8
+  MTLIOAccelBlitCommandEncoder -sampleCountersInBuffer:atSampleIndex:withBarrier: v36@0:8@16Q24B32
+  MTLIOAccelBlitCommandEncoder -optimizeContentsForGPUAccess:slice:level: v40@0:8@16Q24Q32
+  MTLIOAccelBlitCommandEncoder -copyFromTexture:sourceSlice:sourceLevel:toTexture:destinationSlice:destinationLevel
+  MTLIOAccelBlitCommandEncoder -optimizeContentsForCPUAccess:slice:level: v40@0:8@16Q24Q32
+  MTLIOAccelBlitCommandEncoder -optimizeContentsForGPUAccess: v24@0:8@16
+  MTLIOAccelBlitCommandEncoder -fillBuffer:range:pattern4: v44@0:8@16{_NSRange=QQ}24I40
+  MTLIOAccelBlitCommandEncoder -fillTexture:level:slice:region:color:pixelFormat: v128@0:8@16Q24Q32{?={?=QQQ}{?=QQQ
+  MTLIOAccelBlitCommandEncoder -optimizeContentsForCPUAccess: v24@0:8@16
+  MTLIOAccelBlitCommandEncoder -copyIndirectCommandBuffer:sourceRange:destination:destinationIndex: v56@0:8@16{_NSR
+  MTLIOAccelBlitCommandEncoder -waitForFence: v24@0:8@16
+  MTLIOAccelBlitCommandEncoder -resetCommandsInBuffer:withRange: v40@0:8@16{_NSRange=QQ}24
+  MTLIOAccelBlitCommandEncoder -optimizeIndirectCommandBuffer:withRange: v40@0:8@16{_NSRange=QQ}24
+  MTLIOAccelBlitCommandEncoder -copyFromTexture:toTexture: v32@0:8@16@24
+  MTLIOAccelBlitCommandEncoder -synchronizeResource: v24@0:8@16
+  MTLIOAccelBlitCommandEncoder -fillTexture:level:slice:region:color: v120@0:8@16Q24Q32{?={?=QQQ}{?=QQQ}}40{?=dddd}
+  MTLIOAccelBlitCommandEncoder -synchronizeTexture:slice:level: v40@0:8@16Q24Q32
+  MTLIOAccelBlitCommandEncoder -resolveCounters:inRange:destinationBuffer:destinationOffset: v56@0:8@16{_NSRange=QQ
+  MTLIOAccelBlitCommandEncoder -updateFence: v24@0:8@16
+  MTLIOAccelBlitCommandEncoder -fillTexture:level:slice:region:bytes:length: v104@0:8@16Q24Q32{?={?=QQQ}{?=QQQ}}40r
+class MTLIOAccelHeap < _MTLHeap < _MTLObjectWithLabel < NSObject (instance size 176)
+  MTLIOAccelHeap ivar _resource @48 @"MTLIOAccelResource"
+  MTLIOAccelHeap ivar _device @56 @"MTLIOAccelDevice<MTLDevice>"
+  MTLIOAccelHeap ivar _allocator @64 {MTLRangeAllocator="elements"^{MTLRangeAllocatorElement}"numElements"I"capacit
+  MTLIOAccelHeap ivar _mutex @104 {_opaque_pthread_mutex_t="__sig"q"__opaque"[56c]}
+  MTLIOAccelHeap ivar _size @168 Q
+  MTLIOAccelHeap -deallocHeapSubResource v16@0:8
+  MTLIOAccelHeap -initWithDevice:size:options:args:argsSize:desc: @60@0:8@16Q24Q32^{IOAccelNewResourceArgs={IOAccel
+  MTLIOAccelHeap -maxAvailableSizeWithAlignment: Q24@0:8Q16
+  MTLIOAccelHeap -gpuAddress Q16@0:8
+  MTLIOAccelHeap -unpinMemoryAtOffset:withLength: v32@0:8Q16Q24
+  MTLIOAccelHeap -dealloc v16@0:8
+  MTLIOAccelHeap -newAccelerationStructureWithSize: @24@0:8Q16
+  MTLIOAccelHeap -newSubResourceAtOffset:withLength:alignment:options: @48@0:8Q16Q24Q32Q40
+  MTLIOAccelHeap -newAccelerationStructureWithSize:offset: @32@0:8Q16Q24
+  MTLIOAccelHeap -newAccelerationStructureWithDescriptor: @24@0:8@16
+  MTLIOAccelHeap -usedSize Q16@0:8
+  MTLIOAccelHeap -newAccelerationStructureWithSize:resourceIndex: @32@0:8Q16Q24
+  MTLIOAccelHeap -initWithDevice:size:options:args:argsSize: @52@0:8@16Q24Q32^{IOAccelNewResourceArgs={IOAccelNewRe
+  MTLIOAccelHeap -newSubResourceWithLength:alignment:options:offset: @48@0:8Q16Q24Q32^Q40
+  MTLIOAccelHeap -protectionOptions Q16@0:8
+  MTLIOAccelHeap -newAccelerationStructureWithSize:offset:resourceIndex: @40@0:8Q16Q24Q32
+  MTLIOAccelHeap -newAccelerationStructureWithDescriptor:offset: @32@0:8@16Q24
+  MTLIOAccelHeap -size Q16@0:8
+  MTLIOAccelHeap -setPurgeableState: Q24@0:8Q16
+  MTLIOAccelHeap -currentAllocatedSize Q16@0:8
+  MTLIOAccelHeap -device @16@0:8
+class MTLRenderPipelineDescriptor < NSObject (instance size 48)
+  MTLRenderPipelineDescriptor protocol NSCopying
+  MTLRenderPipelineDescriptor ivar _supportAddingVertexBinaryFunctions @8 B
+  MTLRenderPipelineDescriptor ivar _supportAddingFragmentBinaryFunctions @9 B
+  MTLRenderPipelineDescriptor ivar _vertexPreloadedLibraries @16 @"NSArray"
+  MTLRenderPipelineDescriptor ivar _fragmentPreloadedLibraries @24 @"NSArray"
+  MTLRenderPipelineDescriptor ivar _maxVertexCallStackDepth @32 Q
+  MTLRenderPipelineDescriptor ivar _maxFragmentCallStackDepth @40 Q
+  MTLRenderPipelineDescriptor +alloc @16@0:8
+  MTLRenderPipelineDescriptor +allocWithZone: @24@0:8^{_NSZone=}16
+  MTLRenderPipelineDescriptor -setMaxFragmentCallStackDepth: v24@0:8Q16
+  MTLRenderPipelineDescriptor -setFragmentPreloadedLibraries: v24@0:8@16
+  MTLRenderPipelineDescriptor -maxFragmentCallStackDepth Q16@0:8
+  MTLRenderPipelineDescriptor -vertexPreloadedLibraries @16@0:8
+  MTLRenderPipelineDescriptor -copyWithZone: @24@0:8^{_NSZone=}16
+  MTLRenderPipelineDescriptor -setVertexPreloadedLibraries: v24@0:8@16
+  MTLRenderPipelineDescriptor -fragmentPreloadedLibraries @16@0:8
+  MTLRenderPipelineDescriptor -supportAddingFragmentBinaryFunctions B16@0:8
+  MTLRenderPipelineDescriptor -maxVertexCallStackDepth Q16@0:8
+  MTLRenderPipelineDescriptor -setSupportAddingVertexBinaryFunctions: v20@0:8B16
+  MTLRenderPipelineDescriptor -supportAddingVertexBinaryFunctions B16@0:8
+  MTLRenderPipelineDescriptor -setMaxVertexCallStackDepth: v24@0:8Q16
+  MTLRenderPipelineDescriptor -setSupportAddingFragmentBinaryFunctions: v20@0:8B16
+  MTLRenderPipelineDescriptor -reset v16@0:8
+class MTLRenderPassDescriptor < NSObject (instance size 40)
+  MTLRenderPassDescriptor protocol NSCopying
+  MTLRenderPassDescriptor ivar _imageblockSampleLength @8 Q
+  MTLRenderPassDescriptor ivar _threadgroupMemoryLength @16 Q
+  MTLRenderPassDescriptor ivar _tileWidth @24 Q
+  MTLRenderPassDescriptor ivar _tileHeight @32 Q
+  MTLRenderPassDescriptor +alloc @16@0:8
+  MTLRenderPassDescriptor +renderPassDescriptor @16@0:8
+  MTLRenderPassDescriptor +allocWithZone: @24@0:8^{_NSZone=}16
+  MTLRenderPassDescriptor -tileWidth Q16@0:8
+  MTLRenderPassDescriptor -getSamplePositions:count: Q32@0:8^{?=ff}16Q24
+  MTLRenderPassDescriptor -copyWithZone: @24@0:8^{_NSZone=}16
+  MTLRenderPassDescriptor -setThreadgroupMemoryLength: v24@0:8Q16
+  MTLRenderPassDescriptor -setSamplePositions:count: v32@0:8r^{?=ff}16Q24
+  MTLRenderPassDescriptor -threadgroupMemoryLength Q16@0:8
+  MTLRenderPassDescriptor -setTileHeight: v24@0:8Q16
+  MTLRenderPassDescriptor -tileHeight Q16@0:8
+  MTLRenderPassDescriptor -setTileWidth: v24@0:8Q16
+  MTLRenderPassDescriptor -setImageblockSampleLength: v24@0:8Q16
+  MTLRenderPassDescriptor -imageblockSampleLength Q16@0:8
+class MTLTextureDescriptor < NSObject (instance size 8)
+  MTLTextureDescriptor protocol NSCopying
+  MTLTextureDescriptor +alloc @16@0:8
+  MTLTextureDescriptor +textureCubeDescriptorWithPixelFormat:size:mipmapped: @36@0:8Q16Q24B32
+  MTLTextureDescriptor +textureBufferDescriptorWithPixelFormat:width:resourceOptions:usage: @48@0:8Q16Q24Q32Q40
+  MTLTextureDescriptor +allocWithZone: @24@0:8^{_NSZone=}16
+  MTLTextureDescriptor +texture2DDescriptorWithPixelFormat:width:height:mipmapped: @44@0:8Q16Q24Q32B40
+  MTLTextureDescriptor -copyWithZone: @24@0:8^{_NSZone=}16
+done: 1776 lines

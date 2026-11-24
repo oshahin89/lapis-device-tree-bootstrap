@@ -1,2 +1,3 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+device/xnu-lapis/patches/0092-lapis-gpu-uapi.patch -text

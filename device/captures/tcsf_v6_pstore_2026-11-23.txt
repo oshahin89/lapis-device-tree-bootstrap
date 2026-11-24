@@ -1,0 +1,46 @@
+
+LAPIS tcsf v6: CSF boot + first command stream
+POWER gpueb ipi x100us=00000006 gpu_id= B8A31030
+GPU mmu_features=00002830 as_present= 000000FF
+GPU csf_id=04100412 mcu_status= 00000000
+RESET done x10us=00000000 l2 on x10us= 00000013
+FW load result=00000000 sections= 00000007
+FW shared pa=580AC000 pool used= 000B9000
+MMU as0 update x10us=00000000 levels= 00000004
+MCU glb irq x10us=00000008 mcu_status= 00000001
+MCU job_rawstat=80000000 gpu_fault= 00000000
+MMU as0 fault=00000000 addr= 00000000
+GLB version=02050000 features= 00000010
+GLB input_va=04002000 output_va= 04006000
+GLB group_num=00000008 group_stride= 000000A0
+GLB config ack x10us=00000005 ping ack x10us= 00000001
+CSG0 suspend_size=00006740 streams= 0008000C
+CS0 features=0007105F csg features= 00000000
+CSG0 start ack x10us=00000005 glb db ack x10us= 00000000
+GLBDB req/ack before=00000000 after= 00010001
+CSG0 ack=00000011 ep cur/req= 00000000
+CS0 start ack x10us=FFFFFFFF csg db ack x10us= 00000000
+CS0 ack=00000000 req= 00000501
+GLBDB req/ack=00000000 mcu= 00000001
+IFACE csg in/out=04003000  04007000
+IFACE cs in/out=04003400  04007200
+CS0IN ring lo=10000000 size= 00001000
+CS0IN uin=10001000 uout= 10002000
+CS0IN config=00000101 irqmask= FFFFFFFF
+IRQ job_raw=80000001 csg req/ack= 00000000
+IRQ csg req=00000011 csg ack= 00000011
+IRQ glb req=0000058E glb ack= 0000058E
+IRQ serviced, cs start ack x10us=FFFFFFFF job_raw now= 00000000
+STATUS ack x10us=FFFFFFFF csg state= 00000000
+STATUS ep current=00000000 ep req= 00000000
+STATUS cs_irq_req=00000000 resource_dep= 00000000
+STATUS job_raw=00000000 tiler_present= 00000001
+CS0 after user doorbell ack x10us=FFFFFFFF ack= 00000000
+RUN target=11111111 after x10us= 00002710
+RUN extract=00000000 active= 00000000
+CS0 cmd_ptr=00000000 blocked= 00000000
+CS0 fault=00000000 fatal= 00000000
+MMU as1 fault=00000000 addr= 00000000
+DONE no store seen
+STOP mcu_status=00000000 gpu_id= 00000000
+DUAL press Power = Android (log kept in pstore)

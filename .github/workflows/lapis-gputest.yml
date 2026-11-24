@@ -1,0 +1,41 @@
+name: lapis-gputest
+
+# Builds tools/lapis_gputest (a program that drives the lapis GPU through the
+# kernel's LapisGPU service, device/lapis_gpu_plan.md) for the phone's iOS:
+# arm64, ad-hoc signed (AMFI is relaxed in this port). The iOS SDK ships
+# IOKit.framework without headers; the program declares what it calls.
+# tools/lapis_iosroot_add_gputest.sh puts it into the iOS root.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/lapis_gputest/**
+      - .github/workflows/lapis-gputest.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build for iOS arm64
+        run: |
+          set -euxo pipefail
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          ls "$SDK/System/Library/Frameworks/IOKit.framework"
+          mkdir -p out
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.0 -O2 -Wall -Wextra \
+            -o out/lapis_gputest tools/lapis_gputest/lapis_gputest.c \
+            -framework IOKit -framework CoreFoundation
+          codesign -s - -f out/lapis_gputest
+          file out/lapis_gputest
+          otool -L out/lapis_gputest
+          shasum -a 256 out/lapis_gputest | tee out/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapis-gputest
+          path: out/
