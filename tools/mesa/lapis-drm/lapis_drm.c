@@ -49,9 +49,16 @@ extern kern_return_t IOConnectMapMemory64(io_connect_t connect, uint32_t memoryT
 extern kern_return_t IOConnectUnmapMemory64(io_connect_t connect, uint32_t memoryType, task_port_t fromTask,
     mach_vm_address_t atAddress);
 #define kIOMapAnywhere          0x00000001
-/* write-combined, as panthor maps buffers for Mesa: the cache mode comes
- * from the program's options, not the driver's (lapis v49) */
-#define kIOMapWriteCombineCache 0x00000400
+/*
+ * Buffers are mapped cacheable: write-combined mappings panic this port's
+ * kernel (lapis v44, v49b), and the GPU is not coherent (no dma-coherent in
+ * the FDT; Android's kbase runs it non-coherent too, on write-combined
+ * memory). So every mapped buffer is cleaned + invalidated here (dc civac at
+ * EL0) before a submission goes to the kernel and after a wait sees one done:
+ * what Mesa wrote reaches memory for the GPU, and what the GPU wrote is read
+ * from memory. Slow for big buffers, correct for a start.
+ */
+static void sync_all_maps(void);
 
 #define LAPIS_WAIT              0x7d
 #define LAPIS_LOG               0x7f
@@ -351,6 +358,7 @@ drmSyncobjTimelineWait(int fd, uint32_t *handles, uint64_t *points, unsigned cou
 						*first = i;
 					}
 					pthread_mutex_unlock(&syncobj_lock);
+					sync_all_maps();
 					return 0;
 				}
 			} else if (!on_the_way) {
@@ -362,6 +370,7 @@ drmSyncobjTimelineWait(int fd, uint32_t *handles, uint64_t *points, unsigned cou
 				*first = 0;
 			}
 			pthread_mutex_unlock(&syncobj_lock);
+			sync_all_maps();
 			return 0;
 		}
 		if (unknown != 0 && !(flags & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_FOR_SUBMIT)) {
@@ -501,6 +510,7 @@ group_submit(struct drm_panthor_group_submit *gs, size_t size)
 			return -r;
 		}
 	}
+	sync_all_maps();
 	pthread_mutex_lock(&submit_lock);
 	int error = call(DRM_COMMAND_BASE + DRM_PANTHOR_GROUP_SUBMIT, gs, size);
 	struct lapis_wait w = { .group_handle = gs->group_handle, .seq = 0, .timeout_ns = 0 };
@@ -632,6 +642,22 @@ int drmGetNodeTypeFromFd(int fd) { (void)fd; return DRM_NODE_RENDER; }
 static struct { uintptr_t base; size_t size; uint32_t handle; } maps[MAPS];
 static pthread_mutex_t map_lock = PTHREAD_MUTEX_INITIALIZER;
 
+static void
+sync_all_maps(void)
+{
+	pthread_mutex_lock(&map_lock);
+	for (unsigned i = 0; i < MAPS; i++) {
+		if (maps[i].base != 0) {
+			uintptr_t a = maps[i].base & ~(uintptr_t)63, end = maps[i].base + maps[i].size;
+			for (; a < end; a += 64) {
+				__asm__ volatile("dc civac, %0" :: "r"(a) : "memory");
+			}
+		}
+	}
+	__asm__ volatile("dsb sy" ::: "memory");
+	pthread_mutex_unlock(&map_lock);
+}
+
 void *
 lapis_drm_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
@@ -645,7 +671,7 @@ lapis_drm_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	}
 	mach_vm_address_t at = 0;
 	mach_vm_size_t size = 0;
-	if (IOConnectMapMemory64(connection, (uint32_t)offset, mach_task_self(), &at, &size, kIOMapAnywhere | kIOMapWriteCombineCache) != KERN_SUCCESS) {
+	if (IOConnectMapMemory64(connection, (uint32_t)offset, mach_task_self(), &at, &size, kIOMapAnywhere) != KERN_SUCCESS) {
 		errno = ENOMEM;
 		return MAP_FAILED;
 	}

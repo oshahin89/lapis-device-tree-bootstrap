@@ -34,10 +34,22 @@ extern kern_return_t IOConnectCallStructMethod(mach_port_t connection, uint32_t 
 extern kern_return_t IOConnectMapMemory64(io_connect_t connect, uint32_t memoryType, task_port_t intoTask,
     mach_vm_address_t *atAddress, mach_vm_size_t *ofSize, uint32_t options);
 #define kIOMapAnywhere 0x00000001
-/* the cache mode is the program's to ask for: IOKit takes the mapping's
- * cache bits from these options, not from the driver's clientMemoryForType
- * (v49: asked without it, the "write-combined" round read stale memory) */
-#define kIOMapWriteCombineCache 0x00000400
+/*
+ * Mappings stay cacheable: asking for write-combined (kIOMapWriteCombineCache,
+ * the cache bits come from the program's options) panicked the kernel on the
+ * phone (v49b), as write-combined buffers did in v44. Instead the program
+ * cleans and invalidates the lines itself (dc civac at EL0, if XNU lets it:
+ * SCTLR_EL1.UCI); if it does not, only this program dies (SIGILL).
+ */
+static void
+user_sync(volatile void *p, size_t len)
+{
+	uintptr_t a = (uintptr_t)p & ~(uintptr_t)63, end = (uintptr_t)p + len;
+	for (; a < end; a += 64) {
+		__asm__ volatile("dc civac, %0" :: "r"(a) : "memory");
+	}
+	__asm__ volatile("dsb sy" ::: "memory");
+}
 
 /* panthor_drm.h (MIT, Collabora) and LapisGPU.cpp: requests and structures */
 enum {
@@ -143,7 +155,7 @@ new_buffer(uint64_t size, uint32_t *handle, void **cpu)
 	mach_vm_address_t addr = 0;
 	mach_vm_size_t msize = 0;
 	if (kr == 0) {
-		kr = IOConnectMapMemory64(conn, (uint32_t)mo.offset, mach_task_self(), &addr, &msize, kIOMapAnywhere | kIOMapWriteCombineCache);
+		kr = IOConnectMapMemory64(conn, (uint32_t)mo.offset, mach_task_self(), &addr, &msize, kIOMapAnywhere);
 	}
 	if (kr) {
 		say("BO map %u: %#x", bo.handle, kr);
@@ -193,7 +205,7 @@ main(void)
 		printf("lapis_gputest: IOServiceOpen %#x\n", kr);
 		return 1;
 	}
-	say("lapis_gputest: opened LapisGPU (pid %d)", getpid());
+	say("lapis_gputest v4: opened LapisGPU (pid %d)", getpid());
 
 	struct gpu_info gi;
 	struct csif_info ci;
@@ -230,12 +242,12 @@ main(void)
 	say("VM %u, buffers %u/%u at %p/%p, group %u", vc.id, cmd, tgt, (void *)c, (void *)t, gc.group_handle);
 
 	/*
-	 * Rounds of 1000 streams: with the cache syncs (0x7e), without them (the
-	 * program's mapping is write-combined: lapisgpuwc), and again 30 s later
+	 * Rounds of 1000 streams: the kernel cleans/invalidates (0x7e), the program
+	 * does it itself (dc civac), and that again 30 s later
 	 * (v48: 1.85 ms a round trip during boot, against 26 us from the kernel).
 	 */
 	static const struct { int sync, delay; const char *what; } rounds[] = {
-		{ 1, 0, "synced" }, { 0, 0, "no syncs (write-combined)" }, { 0, 30, "no syncs, 30 s later" },
+		{ 1, 0, "kernel syncs" }, { 2, 0, "dc civac in the program" }, { 2, 30, "dc civac, 30 s later" },
 	};
 	uint32_t total_ok = 0;
 	for (unsigned r = 0; r < sizeof(rounds) / sizeof(rounds[0]); r++) {
@@ -252,16 +264,20 @@ main(void)
 			c[at + 3] = (3ull << 56) | (0xffffull << 16);                   /* WAIT all */
 			__asm__ volatile("dsb sy" ::: "memory");
 			uint64_t t0 = now_us();
-			if (rounds[r].sync) {
+			if (rounds[r].sync == 1) {
 				sync_buffer(cmd, at * 8, 64);
+			} else if (rounds[r].sync == 2) {
+				user_sync(&c[at], 64);
 			}
 			struct queue_submit qs = { .queue_index = 0, .stream_size = 32, .stream_addr = CMD_VA + at * 8 };
 			struct group_submit gs = { .group_handle = gc.group_handle, .queue_submits = { sizeof(qs), 1, (uint64_t)(uintptr_t)&qs } };
 			kern_return_t ks = call(kGroupSubmit, &gs, sizeof(gs));
 			struct lapis_wait w = { .group_handle = gc.group_handle, .seq = 0, .timeout_ns = 100000000 };
 			kern_return_t kw = ks ? ks : call(kLapisWait, &w, sizeof(w));
-			if (rounds[r].sync) {
+			if (rounds[r].sync == 1) {
 				sync_buffer(tgt, 0, 64);
+			} else if (rounds[r].sync == 2) {
+				user_sync(t, 64);
 			}
 			uint32_t us = (uint32_t)(now_us() - t0);
 			if (kw == 0 && t[i % 16] == value) {
