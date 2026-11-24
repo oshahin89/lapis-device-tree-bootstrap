@@ -630,8 +630,91 @@ int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) {
 int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) { (void)fd; (void)prime_fd; (void)handle; return none(); }
 int drmSyncobjFDToHandle(int fd, int obj_fd, uint32_t *handle) { (void)fd; (void)obj_fd; (void)handle; return none(); }
 int drmSyncobjHandleToFD(int fd, uint32_t handle, int *obj_fd) { (void)fd; (void)handle; (void)obj_fd; return none(); }
-int drmSyncobjImportSyncFile(int fd, uint32_t handle, int sync_file_fd) { (void)fd; (void)handle; (void)sync_file_fd; return none(); }
-int drmSyncobjExportSyncFile(int fd, uint32_t handle, int *sync_file_fd) { (void)fd; (void)handle; (void)sync_file_fd; return none(); }
+
+/*
+ * Sync files, within this process only: gallium panfrost makes every fence
+ * by exporting the context's syncobj as a sync file and importing that into
+ * a new syncobj (pan_fence.c). A sync file here is a descriptor (a dup of the
+ * connection's) standing for a copy of the syncobj's binary state then: done,
+ * or the submission it waits for. (lapis v49e: without them, "export failed"
+ * and no fences.)
+ */
+#define SYNC_FILES 256
+static struct { int fd; bool done; struct fence fence; } sync_files[SYNC_FILES];
+static unsigned sync_files_next;
+
+int
+drmSyncobjExportSyncFile(int fd, uint32_t handle, int *sync_file_fd)
+{
+	(void)fd;
+	pthread_mutex_lock(&syncobj_lock);
+	struct syncobj *s = syncobj_of(handle);
+	if (s == NULL) {
+		pthread_mutex_unlock(&syncobj_lock);
+		errno = EINVAL;
+		return -EINVAL;
+	}
+	syncobj_poll(s);
+	bool done = s->reached >= 1;
+	struct fence f = { 0, 0 };
+	for (unsigned k = 0; !done && k < s->pending; k++) {
+		if (s->on_the_way[k].point >= 1) {
+			f = s->on_the_way[k].fence;
+			break;
+		}
+	}
+	if (!done && f.seq == 0) {
+		done = true;            /* (nothing submitted for it: as good as signalled) */
+	}
+	int sf = dup(connection_fd);
+	if (sf < 0) {
+		pthread_mutex_unlock(&syncobj_lock);
+		return -errno;
+	}
+	unsigned slot = sync_files_next++ % SYNC_FILES;
+	for (unsigned i = 0; i < SYNC_FILES; i++) {
+		if (sync_files[i].fd == sf) {
+			slot = i;       /* a reused descriptor number */
+			break;
+		}
+	}
+	sync_files[slot].fd = sf;
+	sync_files[slot].done = done;
+	sync_files[slot].fence = f;
+	pthread_mutex_unlock(&syncobj_lock);
+	*sync_file_fd = sf;
+	return 0;
+}
+
+int
+drmSyncobjImportSyncFile(int fd, uint32_t handle, int sync_file_fd)
+{
+	(void)fd;
+	pthread_mutex_lock(&syncobj_lock);
+	struct syncobj *s = syncobj_of(handle);
+	int found = -1;
+	for (unsigned i = 0; i < SYNC_FILES; i++) {
+		if (sync_files[i].fd == sync_file_fd && sync_file_fd > 0) {
+			found = (int)i;
+			break;
+		}
+	}
+	if (s == NULL || found < 0) {
+		pthread_mutex_unlock(&syncobj_lock);
+		errno = EINVAL;
+		return -EINVAL;
+	}
+	s->reached = 0;
+	s->pending = 0;
+	if (sync_files[found].done) {
+		s->reached = 1;
+	} else {
+		syncobj_add(s, 1, sync_files[found].fence);
+	}
+	pthread_cond_broadcast(&syncobj_submitted);
+	pthread_mutex_unlock(&syncobj_lock);
+	return 0;
+}
 int drmGetDevice2(int fd, uint32_t flags, drmDevicePtr *device) { (void)fd; (void)flags; *device = NULL; return -ENODEV; }
 void drmFreeDevice(drmDevicePtr *device) { (void)device; }
 int drmGetNodeTypeFromFd(int fd) { (void)fd; return DRM_NODE_RENDER; }
@@ -645,6 +728,11 @@ static pthread_mutex_t map_lock = PTHREAD_MUTEX_INITIALIZER;
 static void
 sync_all_maps(void)
 {
+	static unsigned calls;
+	static int64_t spent;
+	int64_t t0 = now_ns();
+	uint64_t bytes = 0;
+	unsigned n = 0;
 	pthread_mutex_lock(&map_lock);
 	for (unsigned i = 0; i < MAPS; i++) {
 		if (maps[i].base != 0) {
@@ -652,10 +740,19 @@ sync_all_maps(void)
 			for (; a < end; a += 64) {
 				__asm__ volatile("dc civac, %0" :: "r"(a) : "memory");
 			}
+			bytes += maps[i].size;
+			n++;
 		}
 	}
 	__asm__ volatile("dsb sy" ::: "memory");
 	pthread_mutex_unlock(&map_lock);
+	spent += now_ns() - t0;
+	calls++;
+	/* what this costs (lapis v49e: 52 ms a clear): the first few, then every 50 */
+	if (calls <= 4 || calls % 50 == 0) {
+		lapis_drm_log("lapis-drm: cache sync #%u: %u maps, %llu KiB, avg %lld us", calls, n,
+		    (unsigned long long)(bytes >> 10), (long long)(spent / calls / 1000));
+	}
 }
 
 void *
