@@ -85,7 +85,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,164 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -118,6 +118,9 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +};
 +
 +typedef void (*lapis_log_fn)(const char *line);
++
++PUBLIC struct pipe_screen *lapis_gallium_screen(void);
++PUBLIC int lapis_gallium_test(lapis_log_fn log);
 +
 +static void
 +say(lapis_log_fn log, const char *fmt, ...)
