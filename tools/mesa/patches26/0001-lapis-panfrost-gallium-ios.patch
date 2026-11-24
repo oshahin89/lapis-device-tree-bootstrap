@@ -95,16 +95,18 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,164 @@
+@@ -0,0 +1,283 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
 + *
 + * lapis: gallium panfrost on the lapis phone's Mali-G615 over LapisGPU, for
 + * programs (no GL/EGL/Vulkan frontend). lapis_gallium_screen() makes the
-+ * screen; lapis_gallium_test() is the first test: a context, a linear
-+ * 256x256 RGBA render target cleared on the GPU, fenced, read back, then 100
-+ * clears for a rate. Everything it finds is said through log() (the
++ * screen; lapis_gallium_test(): a context, a linear 256x256 RGBA render
++ * target cleared on the GPU, fenced, read back, 100 clears for a rate; then
++ * a triangle: gallium's passthrough shaders (TGSI -> NIR -> Valhall by
++ * panfrost's compiler), a red triangle over a blue clear, read back, and 100
++ * frames of it. Everything it finds is said through log() (the
 + * program's line into the kernel's log).
 + */
 +#include <stdarg.h>
@@ -113,14 +115,19 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +#include <time.h>
 +#include <xf86drm.h>
 +
++#include "cso_cache/cso_context.h"
++#include "compiler/shader_enums.h"
 +#include "pipe/p_context.h"
++#include "pipe/p_shader_tokens.h"
 +#include "pipe/p_defines.h"
 +#include "pipe/p_screen.h"
 +#include "pipe/p_state.h"
 +#include "panfrost/pan_public.h"
 +#include "util/driconf.h"
 +#include "util/os_time.h"
++#include "util/u_draw_quad.h"
 +#include "util/u_inlines.h"
++#include "util/u_simple_shaders.h"
 +#include "util/xmlconfig.h"
 +
 +static const driOptionDescription panfrost_options[] = {
@@ -184,6 +191,116 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      pipe_texture_unmap(ctx, xfer);
 +   }
 +   return done;
++}
++
++/* the pixels at (128,128), (4,4) and (128,250) after the work so far */
++static bool
++finish_and_read(struct pipe_screen *screen, struct pipe_context *ctx, struct pipe_resource *rt,
++                uint32_t *px)
++{
++   struct pipe_fence_handle *fence = NULL;
++   ctx->flush(ctx, &fence, 0);
++   bool done = fence && screen->fence_finish(screen, NULL, fence, OS_TIMEOUT_INFINITE);
++   screen->fence_reference(screen, &fence, NULL);
++   if (px) {
++      struct pipe_transfer *xfer = NULL;
++      const uint8_t *map = pipe_texture_map(ctx, rt, 0, 0, PIPE_MAP_READ, 0, 0, 256, 256, &xfer);
++      if (!map)
++         return false;
++      memcpy(&px[0], map + 128 * xfer->stride + 128 * 4, 4);
++      memcpy(&px[1], map + 4 * xfer->stride + 4 * 4, 4);
++      memcpy(&px[2], map + 250 * xfer->stride + 128 * 4, 4);
++      pipe_texture_unmap(ctx, xfer);
++   }
++   return done;
++}
++
++static void
++triangle_test(lapis_log_fn log, struct pipe_screen *screen, struct pipe_context *ctx,
++              struct pipe_resource *rt, const struct pipe_framebuffer_state *fb)
++{
++   static const enum tgsi_semantic names[] = { TGSI_SEMANTIC_POSITION, TGSI_SEMANTIC_GENERIC };
++   static const unsigned indexes[] = { 0, 0 };
++   /* x, y, z, w; r, g, b, a */
++   static const float red[3][2][4] = {
++      { { -0.8f, -0.8f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
++      { {  0.8f, -0.8f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
++      { {  0.0f,  0.8f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
++   };
++   static const float rgb[3][2][4] = {
++      { { -0.8f, -0.8f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
++      { {  0.8f, -0.8f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
++      { {  0.0f,  0.8f, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
++   };
++   union pipe_color_union blue = { .f = { 0.0f, 0.5f, 1.0f, 1.0f } };
++
++   struct cso_context *cso = cso_create_context(ctx, 0);
++   int64_t t0 = os_time_get_nano();
++   void *vs = util_make_vertex_passthrough_shader(ctx, 2, names, indexes, false);
++   void *fs = util_make_fragment_passthrough_shader(ctx, TGSI_SEMANTIC_GENERIC,
++                                                    TGSI_INTERPOLATE_PERSPECTIVE, true);
++   int64_t compile = os_time_get_nano() - t0;
++   struct pipe_resource *vb_red = pipe_buffer_create_with_data(ctx, PIPE_BIND_VERTEX_BUFFER,
++                                                              PIPE_USAGE_DEFAULT, sizeof(red), red);
++   struct pipe_resource *vb_rgb = pipe_buffer_create_with_data(ctx, PIPE_BIND_VERTEX_BUFFER,
++                                                              PIPE_USAGE_DEFAULT, sizeof(rgb), rgb);
++   if (!cso || !vs || !fs || !vb_red || !vb_rgb) {
++      say(log, "triangle: setup failed (cso %p vs %p fs %p vb %p/%p)", (void *)cso, vs, fs,
++          (void *)vb_red, (void *)vb_rgb);
++      goto out;
++   }
++   say(log, "triangle: passthrough shaders made in %lld us", (long long)(compile / 1000));
++
++   struct pipe_blend_state blend;
++   memset(&blend, 0, sizeof(blend));
++   blend.rt[0].colormask = PIPE_MASK_RGBA;
++   struct pipe_rasterizer_state rast;
++   memset(&rast, 0, sizeof(rast));
++   rast.cull_face = PIPE_FACE_NONE;
++   rast.half_pixel_center = 1;
++   rast.bottom_edge_rule = 1;
++   rast.depth_clip_near = 1;
++   rast.depth_clip_far = 1;
++   struct pipe_depth_stencil_alpha_state dsa;
++   memset(&dsa, 0, sizeof(dsa));
++
++   cso_set_framebuffer(cso, fb);
++   cso_set_blend(cso, &blend);
++   cso_set_rasterizer(cso, &rast);
++   cso_set_depth_stencil_alpha(cso, &dsa);
++   cso_set_viewport_dims(cso, 256, 256, false);
++   cso_set_vertex_shader_handle(cso, vs);
++   cso_set_fragment_shader_handle(cso, fs);
++
++   uint32_t px[3] = { 0, 0, 0 };
++   t0 = os_time_get_nano();
++   ctx->clear(ctx, PIPE_CLEAR_COLOR0, 0xf, 0, NULL, &blue, 0.0, 0);
++   util_draw_vertex_buffer(ctx, cso, vb_red, 0, MESA_PRIM_TRIANGLES, 2, 3);
++   bool done = finish_and_read(screen, ctx, rt, px);
++   say(log, "triangle: first draw %s in %lld us; center %08x (want ff0000ff) corner %08x (want ffff8000) %08x",
++       done ? "fenced" : "NOT fenced", (long long)((os_time_get_nano() - t0) / 1000), px[0], px[1], px[2]);
++
++   t0 = os_time_get_nano();
++   unsigned fenced = 0;
++   for (unsigned i = 0; i < 100; i++) {
++      ctx->clear(ctx, PIPE_CLEAR_COLOR0, 0xf, 0, NULL, &blue, 0.0, 0);
++      util_draw_vertex_buffer(ctx, cso, vb_rgb, 0, MESA_PRIM_TRIANGLES, 2, 3);
++      fenced += finish_and_read(screen, ctx, rt, NULL);
++   }
++   int64_t frames = os_time_get_nano() - t0;
++   finish_and_read(screen, ctx, rt, px);
++   say(log, "triangle: 100 frames (clear + colored triangle): %u fenced, %lld us each; center %08x corner %08x",
++       fenced, (long long)(frames / 100000), px[0], px[1]);
++
++out:
++   if (cso)
++      cso_destroy_context(cso);
++   if (vs)
++      ctx->delete_vs_state(ctx, vs);
++   if (fs)
++      ctx->delete_fs_state(ctx, fs);
++   pipe_resource_reference(&vb_red, NULL);
++   pipe_resource_reference(&vb_rgb, NULL);
 +}
 +
 +PUBLIC int
@@ -251,6 +368,8 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   clear_and_read(screen, ctx, rt, 0.0f, 1.0f, 0.0f, px, &ns);
 +   say(log, "gallium: 100 clears: %u fenced, %lld us each; then green: %08x (want ff00ff00)",
 +       done, (long long)(total / 100000), px[1]);
++
++   triangle_test(log, screen, ctx, rt, &fb);
 +
 +   memset(&fb, 0, sizeof(fb));
 +   ctx->set_framebuffer_state(ctx, &fb);
