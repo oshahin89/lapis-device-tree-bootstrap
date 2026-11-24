@@ -248,10 +248,12 @@ deviceNewQueue(id self, SEL _cmd)
  * -dealloc of what is made with plain -init (the queue, buffers): NSObject's
  * own, not Metal's, which lets go of state its initializer would have made
  * (sweetlog_m2c: SIGSEGV at 0 when the test's autorelease pool drained). As
- * hakios's deallocPlain.
+ * hakios's deallocPlain. self is __unsafe_unretained in every -dealloc here:
+ * ARC would otherwise retain it on entry and release it after NSObject's
+ * -dealloc freed it (sweetlog_m2d: SIGSEGV at 0x20 in bufferDealloc).
  */
 static void
-deallocPlain(id self, SEL _cmd)
+deallocPlain(__unsafe_unretained id self, SEL _cmd)
 {
 	struct objc_super sup = { self, [NSObject class] };
 	((void (*)(struct objc_super *, SEL))objc_msgSendSuper)(&sup, _cmd);
@@ -273,7 +275,7 @@ struct lapis_buffer {
 };
 
 static struct lapis_buffer *
-bufferState(id self)
+bufferState(__unsafe_unretained id self)
 {
 	return (struct lapis_buffer *)((uint8_t *)(__bridge void *)self + ivar_getOffset(gBufState));
 }
@@ -291,7 +293,7 @@ static MTLPurgeableState bufferPurgeable(id self, SEL _cmd, MTLPurgeableState s)
 static id bufferDevice(id self, SEL _cmd) { (void)self; (void)_cmd; return gDevice; }
 
 static void
-bufferDealloc(id self, SEL _cmd)
+bufferDealloc(__unsafe_unretained id self, SEL _cmd)
 {
 	struct lapis_buffer *b = bufferState(self);
 	if (b->deallocator) {
