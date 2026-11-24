@@ -30,6 +30,7 @@
 #import <mach/mach.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+#include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/sysctl.h>
@@ -264,6 +265,56 @@ deallocPlain(__unsafe_unretained id self, SEL _cmd)
  * methods (after hakios's HakiosMetalBuffer). Plain page-aligned memory for
  * now; the GPU's (gallium panfrost buffers over LapisGPU) comes next.
  */
+/*
+ * The GPU: liblapis_gallium (Mesa's gallium panfrost over LapisGPU, slot
+ * bbfw) and its lapis_gpu_* C interface, reached by dlopen so this plug-in
+ * builds without Mesa. NULL: no GPU, and buffers are plain memory and blits
+ * run on the CPU.
+ */
+#define LAPIS_GALLIUM_PATH "/usr/standalone/update/ICE17.Release.bbfw"
+static struct {
+	void *gpu;
+	void *(*open)(void);
+	void *(*buf_new)(void *, uint64_t);
+	void *(*buf_map)(void *);
+	void (*buf_free)(void *, void *);
+	void (*copy)(void *, void *, uint64_t, void *, uint64_t, uint64_t);
+	void (*fill)(void *, void *, uint64_t, uint64_t, uint8_t);
+	void *(*flush)(void *);
+	int (*fence_wait)(void *, void *, uint64_t);
+	void (*fence_free)(void *, void *);
+} G;
+
+static void *
+gpu(void)
+{
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		void *h = dlopen(LAPIS_GALLIUM_PATH, RTLD_NOW | RTLD_LOCAL);
+		if (!h) {
+			say([NSString stringWithFormat:@"no GPU library: %s", dlerror()]);
+			return;
+		}
+		G.open = dlsym(h, "lapis_gpu_open");
+		G.buf_new = dlsym(h, "lapis_gpu_buf_new");
+		G.buf_map = dlsym(h, "lapis_gpu_buf_map");
+		G.buf_free = dlsym(h, "lapis_gpu_buf_free");
+		G.copy = dlsym(h, "lapis_gpu_copy");
+		G.fill = dlsym(h, "lapis_gpu_fill");
+		G.flush = dlsym(h, "lapis_gpu_flush");
+		G.fence_wait = dlsym(h, "lapis_gpu_fence_wait");
+		G.fence_free = dlsym(h, "lapis_gpu_fence_free");
+		if (!G.open || !G.buf_new || !G.buf_map || !G.buf_free || !G.copy || !G.fill || !G.flush ||
+		    !G.fence_wait || !G.fence_free) {
+			say(@"the GPU library has no lapis_gpu_* interface");
+			return;
+		}
+		G.gpu = G.open();
+		say([NSString stringWithFormat:@"GPU: %@", G.gpu ? @"Mesa panfrost over LapisGPU" : @"lapis_gpu_open failed"]);
+	});
+	return G.gpu;
+}
+
 static Class gResourceBase, gBufferClass;
 static Ivar gBufState;
 
@@ -272,6 +323,7 @@ struct lapis_buffer {
 	NSUInteger length;
 	MTLResourceOptions options;
 	void (^deallocator)(void *, NSUInteger);
+	void *gpubuf;                   /* lapis_gpu_buf, or NULL: plain memory */
 };
 
 static struct lapis_buffer *
@@ -296,7 +348,10 @@ static void
 bufferDealloc(__unsafe_unretained id self, SEL _cmd)
 {
 	struct lapis_buffer *b = bufferState(self);
-	if (b->deallocator) {
+	if (b->gpubuf) {
+		G.buf_free(G.gpu, b->gpubuf);
+		b->gpubuf = NULL;
+	} else if (b->deallocator) {
 		b->deallocator(b->memory, b->length);
 		b->deallocator = nil;
 	} else {
@@ -333,14 +388,31 @@ pageMemory(NSUInteger length)
 	return m;
 }
 
+/* a buffer in the GPU's memory (mapped into this process), or plain memory without a GPU */
+static id
+gpuBuffer(NSUInteger length, MTLResourceOptions options)
+{
+	void *g = gpu() ? G.buf_new(G.gpu, length) : NULL;
+	if (!g) {
+		return newBuffer(pageMemory(length), length, options, nil);
+	}
+	id b = newBuffer(G.buf_map(g), length, options, nil);
+	if (b) {
+		bufferState(b)->gpubuf = g;
+	} else {
+		G.buf_free(G.gpu, g);
+	}
+	return b;
+}
+
 static id
 deviceNewBuffer(id self, SEL _cmd, NSUInteger length, MTLResourceOptions options)
 {
 	(void)self;
 	(void)_cmd;
-	id b = newBuffer(pageMemory(length), length, options, nil);
+	id b = gpuBuffer(length, options);
 	say([NSString stringWithFormat:@"newBufferWithLength:%lu options:%#lx -> %@", (unsigned long)length,
-	    (unsigned long)options, b ? @"plain memory" : @"nil"]);
+	    (unsigned long)options, !b ? @"nil" : bufferState(b)->gpubuf ? @"GPU memory" : @"plain memory"]);
 	return b;
 }
 
@@ -349,11 +421,11 @@ deviceNewBufferBytes(id self, SEL _cmd, const void *bytes, NSUInteger length, MT
 {
 	(void)self;
 	(void)_cmd;
-	void *m = pageMemory(length);
-	if (m && bytes) {
-		memcpy(m, bytes, length);
+	id b = gpuBuffer(length, options);
+	if (b && bytes) {
+		memcpy(bufferState(b)->memory, bytes, length);
 	}
-	return newBuffer(m, length, options, nil);
+	return b;
 }
 
 static id
@@ -376,7 +448,7 @@ registerBufferClass(Class device)
 		return;
 	}
 	gBufferClass = objc_allocateClassPair(gResourceBase, "LapisMetalBuffer", 0);
-	class_addIvar(gBufferClass, "lapis_buffer", sizeof(struct lapis_buffer), 3, "{lapis_buffer=^vQQ@?}");
+	class_addIvar(gBufferClass, "lapis_buffer", sizeof(struct lapis_buffer), 3, "{lapis_buffer=^vQQ@?^v}");
 	class_addProtocol(gBufferClass, @protocol(MTLBuffer));
 	class_addProtocol(gBufferClass, @protocol(MTLResource));
 	gProtocols[gProtocolCount++] = @protocol(MTLBuffer);
@@ -401,6 +473,269 @@ registerBufferClass(Class device)
 	class_addMethod(device, sel_registerName("newBufferWithBytes:length:options:"), (IMP)deviceNewBufferBytes, "@@:r^vQQ");
 	class_addMethod(device, sel_registerName("newBufferWithBytesNoCopy:length:options:deallocator:"),
 	    (IMP)deviceNewBufferNoCopy, "@@:^vQQ@?");
+}
+
+/*
+ * Command buffers and blit encoders (milestone 3): subclasses of Metal's
+ * private _MTLCommandBuffer / _MTLCommandEncoder made with plain -init (as
+ * the queue), their state in an associated object the runtime frees with
+ * them. A blit encoder records copies and fills on the GPU's context
+ * (gallium's resource_copy_region / clear_buffer) as they come; -commit
+ * flushes them (one submission) and waits for its fence on a dispatch queue,
+ * then calls the completed handlers; -waitUntilCompleted waits for that.
+ * Without a GPU the work is done on the CPU as it is recorded.
+ */
+@interface LapisCBState : NSObject
+@property (nonatomic, strong) id queue;
+@property (nonatomic, strong) NSMutableArray *completed;
+@property (nonatomic, strong) NSMutableArray *scheduled;
+@property (nonatomic, strong) dispatch_semaphore_t done;
+@property (atomic) NSInteger status;
+@property (nonatomic, copy) NSString *label;
+@property (nonatomic) uint64_t committedNs, completedNs;
+@end
+@implementation LapisCBState
+@end
+
+@interface LapisEncState : NSObject
+@property (nonatomic, strong) id commandBuffer;
+@property (nonatomic, copy) NSString *label;
+@end
+@implementation LapisEncState
+@end
+
+static char kStateKey;
+static Class gCommandBufferClass, gBlitClass;
+
+static id stateOf(id self) { return objc_getAssociatedObject(self, &kStateKey); }
+
+static id
+plainNew(Class cls, id state)
+{
+	id (*plain)(id, SEL) = (id (*)(id, SEL))objc_msgSend;
+	id o = plain(plain((id)cls, sel_registerName("alloc")), sel_registerName("init"));
+	if (o) {
+		objc_setAssociatedObject(o, &kStateKey, state, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	}
+	return o;
+}
+
+static id
+queueCommandBuffer(id self, SEL _cmd)
+{
+	(void)_cmd;
+	LapisCBState *st = [LapisCBState new];
+	st.queue = self;
+	st.completed = [NSMutableArray new];
+	st.scheduled = [NSMutableArray new];
+	st.done = dispatch_semaphore_create(0);
+	st.status = MTLCommandBufferStatusNotEnqueued;
+	return gCommandBufferClass ? plainNew(gCommandBufferClass, st) : nil;
+}
+
+static id cbQueue(id self, SEL _cmd) { (void)_cmd; return ((LapisCBState *)stateOf(self)).queue; }
+static id objDevice(id self, SEL _cmd) { (void)self; (void)_cmd; return gDevice; }
+static NSInteger cbStatus(id self, SEL _cmd) { (void)_cmd; return ((LapisCBState *)stateOf(self)).status; }
+static id cbError(id self, SEL _cmd) { (void)self; (void)_cmd; return nil; }
+static BOOL cbRetained(id self, SEL _cmd) { (void)self; (void)_cmd; return YES; }
+static id cbLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisCBState *)stateOf(self)).label; }
+static void cbSetLabel(id self, SEL _cmd, NSString *l) { (void)_cmd; ((LapisCBState *)stateOf(self)).label = l; }
+static void cbEnqueue(id self, SEL _cmd) { (void)_cmd; ((LapisCBState *)stateOf(self)).status = MTLCommandBufferStatusEnqueued; }
+static void cbNothing(id self, SEL _cmd) { (void)self; (void)_cmd; }
+static double cbTimeZero(id self, SEL _cmd) { (void)self; (void)_cmd; return 0; }
+
+static void
+cbAddCompleted(id self, SEL _cmd, void (^handler)(id))
+{
+	(void)_cmd;
+	LapisCBState *st = stateOf(self);
+	if (st.status == MTLCommandBufferStatusCompleted) {
+		handler(self);
+		return;
+	}
+	@synchronized(st) {
+		[st.completed addObject:[handler copy]];
+	}
+}
+
+static void
+cbAddScheduled(id self, SEL _cmd, void (^handler)(id))
+{
+	(void)_cmd;
+	LapisCBState *st = stateOf(self);
+	if (st.status >= MTLCommandBufferStatusScheduled) {
+		handler(self);
+		return;
+	}
+	@synchronized(st) {
+		[st.scheduled addObject:[handler copy]];
+	}
+}
+
+static uint64_t
+nowNs(void)
+{
+	return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+}
+
+static void
+cbCommit(id self, SEL _cmd)
+{
+	(void)_cmd;
+	LapisCBState *st = stateOf(self);
+	if (st.status >= MTLCommandBufferStatusCommitted) {
+		return;
+	}
+	st.committedNs = nowNs();
+	st.status = MTLCommandBufferStatusCommitted;
+	void *fence = gpu() ? G.flush(G.gpu) : NULL;
+	st.status = MTLCommandBufferStatusScheduled;
+	NSArray *sched;
+	@synchronized(st) {
+		sched = [st.scheduled copy];
+	}
+	for (void (^h)(id) in sched) {
+		h(self);
+	}
+	id me = self;   /* (the block keeps the command buffer until it completes) */
+	dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+		if (fence) {
+			int r = G.fence_wait(G.gpu, fence, UINT64_MAX);
+			G.fence_free(G.gpu, fence);
+			if (r != 0) {
+				say(@"a command buffer's fence was not signalled");
+			}
+		}
+		LapisCBState *s2 = stateOf(me);
+		s2.completedNs = nowNs();
+		s2.status = MTLCommandBufferStatusCompleted;
+		NSArray *done;
+		@synchronized(s2) {
+			done = [s2.completed copy];
+		}
+		for (void (^h)(id) in done) {
+			h(me);
+		}
+		dispatch_semaphore_signal(s2.done);
+	});
+}
+
+static void
+cbWait(id self, SEL _cmd)
+{
+	(void)_cmd;
+	LapisCBState *st = stateOf(self);
+	if (st.status < MTLCommandBufferStatusCommitted) {
+		return;
+	}
+	dispatch_semaphore_wait(st.done, DISPATCH_TIME_FOREVER);
+	dispatch_semaphore_signal(st.done);     /* (for the next waiter) */
+}
+
+static double cbGPUStart(id self, SEL _cmd) { (void)_cmd; return ((LapisCBState *)stateOf(self)).committedNs / 1e9; }
+static double cbGPUEnd(id self, SEL _cmd) { (void)_cmd; return ((LapisCBState *)stateOf(self)).completedNs / 1e9; }
+
+static id
+cbBlitEncoder(id self, SEL _cmd)
+{
+	(void)_cmd;
+	LapisEncState *es = [LapisEncState new];
+	es.commandBuffer = self;
+	return gBlitClass ? plainNew(gBlitClass, es) : nil;
+}
+
+static id encLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisEncState *)stateOf(self)).label; }
+static void encSetLabel(id self, SEL _cmd, NSString *l) { (void)_cmd; ((LapisEncState *)stateOf(self)).label = l; }
+
+static void
+blitCopy(id self, SEL _cmd, id src, NSUInteger srcOffset, id dst, NSUInteger dstOffset, NSUInteger size)
+{
+	(void)self;
+	(void)_cmd;
+	if (!src || !dst || !size) {
+		return;
+	}
+	struct lapis_buffer *s1 = bufferState(src), *d1 = bufferState(dst);
+	if (srcOffset + size > s1->length || dstOffset + size > d1->length) {
+		say(@"refused: a copy past a buffer's end");
+		return;
+	}
+	if (s1->gpubuf && d1->gpubuf) {
+		G.copy(G.gpu, d1->gpubuf, dstOffset, s1->gpubuf, srcOffset, size);
+	} else {
+		memmove((uint8_t *)d1->memory + dstOffset, (uint8_t *)s1->memory + srcOffset, size);
+	}
+}
+
+static void
+blitFill(id self, SEL _cmd, id buffer, NSRange range, uint8_t value)
+{
+	(void)self;
+	(void)_cmd;
+	if (!buffer || !range.length) {
+		return;
+	}
+	struct lapis_buffer *b = bufferState(buffer);
+	if (range.location + range.length > b->length) {
+		say(@"refused: a fill past a buffer's end");
+		return;
+	}
+	if (b->gpubuf) {
+		G.fill(G.gpu, b->gpubuf, range.location, range.length, value);
+	} else {
+		memset((uint8_t *)b->memory + range.location, value, range.length);
+	}
+}
+
+static void
+registerCommandClasses(void)
+{
+	Class cbBase = objc_getClass("_MTLCommandBuffer"), encBase = objc_getClass("_MTLCommandEncoder");
+	if (!cbBase || !encBase) {
+		say(@"no _MTLCommandBuffer / _MTLCommandEncoder: no command buffers");
+		return;
+	}
+	gCommandBufferClass = objc_allocateClassPair(cbBase, "LapisMetalCommandBuffer", 0);
+	class_addProtocol(gCommandBufferClass, @protocol(MTLCommandBuffer));
+	gProtocols[gProtocolCount++] = @protocol(MTLCommandBuffer);
+	struct { const char *sel; IMP imp; const char *types; } cb[] = {
+		{ "commandQueue", (IMP)cbQueue, "@@:" }, { "device", (IMP)objDevice, "@@:" },
+		{ "status", (IMP)cbStatus, "q@:" }, { "error", (IMP)cbError, "@@:" },
+		{ "retainedReferences", (IMP)cbRetained, "B@:" }, { "label", (IMP)cbLabel, "@@:" },
+		{ "setLabel:", (IMP)cbSetLabel, "v@:@" }, { "enqueue", (IMP)cbEnqueue, "v@:" },
+		{ "commit", (IMP)cbCommit, "v@:" }, { "waitUntilCompleted", (IMP)cbWait, "v@:" },
+		{ "waitUntilScheduled", (IMP)cbNothing, "v@:" },
+		{ "addCompletedHandler:", (IMP)cbAddCompleted, "v@:@?" },
+		{ "addScheduledHandler:", (IMP)cbAddScheduled, "v@:@?" },
+		{ "blitCommandEncoder", (IMP)cbBlitEncoder, "@@:" },
+		{ "GPUStartTime", (IMP)cbGPUStart, "d@:" }, { "GPUEndTime", (IMP)cbGPUEnd, "d@:" },
+		{ "kernelStartTime", (IMP)cbTimeZero, "d@:" }, { "kernelEndTime", (IMP)cbTimeZero, "d@:" },
+		{ "dealloc", (IMP)deallocPlain, "v@:" },
+		{ "methodSignatureForSelector:", (IMP)stubSignature, "@@::" },
+		{ "forwardInvocation:", (IMP)stubForward, "v@:@" },
+	};
+	for (unsigned i = 0; i < sizeof(cb) / sizeof(cb[0]); i++) {
+		class_addMethod(gCommandBufferClass, sel_registerName(cb[i].sel), cb[i].imp, cb[i].types);
+	}
+	objc_registerClassPair(gCommandBufferClass);
+
+	gBlitClass = objc_allocateClassPair(encBase, "LapisMetalBlitCommandEncoder", 0);
+	class_addProtocol(gBlitClass, @protocol(MTLBlitCommandEncoder));
+	gProtocols[gProtocolCount++] = @protocol(MTLBlitCommandEncoder);
+	gProtocols[gProtocolCount++] = @protocol(MTLCommandEncoder);
+	struct { const char *sel; IMP imp; const char *types; } be[] = {
+		{ "device", (IMP)objDevice, "@@:" }, { "label", (IMP)encLabel, "@@:" },
+		{ "setLabel:", (IMP)encSetLabel, "v@:@" }, { "endEncoding", (IMP)cbNothing, "v@:" },
+		{ "copyFromBuffer:sourceOffset:toBuffer:destinationOffset:size:", (IMP)blitCopy, "v@:@Q@QQ" },
+		{ "fillBuffer:range:value:", (IMP)blitFill, "v@:@{_NSRange=QQ}C" },
+		{ "dealloc", (IMP)deallocPlain, "v@:" },
+		{ "methodSignatureForSelector:", (IMP)stubSignature, "@@::" },
+		{ "forwardInvocation:", (IMP)stubForward, "v@:@" },
+	};
+	for (unsigned i = 0; i < sizeof(be) / sizeof(be[0]); i++) {
+		class_addMethod(gBlitClass, sel_registerName(be[i].sel), be[i].imp, be[i].types);
+	}
+	objc_registerClassPair(gBlitClass);
 }
 
 static id
@@ -477,10 +812,13 @@ registerClasses(void)
 		addProtocols(gQueueClass, queueProtocols);
 		class_addMethod(gQueueClass, sel_registerName("device"), (IMP)queueDevice, "@@:");
 		class_addMethod(gQueueClass, sel_registerName("dealloc"), (IMP)deallocPlain, "v@:");
+		class_addMethod(gQueueClass, sel_registerName("commandBuffer"), (IMP)queueCommandBuffer, "@@:");
+		class_addMethod(gQueueClass, sel_registerName("commandBufferWithUnretainedReferences"), (IMP)queueCommandBuffer, "@@:");
 		class_addMethod(gQueueClass, sel_registerName("methodSignatureForSelector:"), (IMP)stubSignature, "@@::");
 		class_addMethod(gQueueClass, sel_registerName("forwardInvocation:"), (IMP)stubForward, "v@:@");
 		objc_registerClassPair(gQueueClass);
 	}
 	registerBufferClass(device);
+	registerCommandClasses();
 	say(@"LapisMetalDevice registered (a subclass of _MTLDevice)");
 }

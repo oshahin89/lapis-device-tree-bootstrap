@@ -95,7 +95,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,297 @@
+@@ -0,0 +1,460 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -392,6 +392,169 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   screen->destroy(screen);
 +   say(log, "gallium: done");
 +   return 0;
++}
++
++/*
++ * lapis_gpu_*: the GPU for the LapisMetal plug-in (tools/lapis_metal), a C
++ * interface it reaches with dlopen/dlsym (tools/lapis_metal/lapis_gpu_api.h
++ * declares the same): one screen and context per process behind a lock,
++ * buffers mapped persistently into the process (panfrost's BOs over
++ * LapisGPU; lapis-drm keeps the CPU caches right around each submission),
++ * copies and fills recorded on the context, a flush that hands back a
++ * fence, and waits on it.
++ */
++#include <pthread.h>
++
++struct lapis_gpu {
++   struct pipe_screen *screen;
++   struct pipe_context *ctx;
++   pthread_mutex_t lock;
++};
++
++struct lapis_gpu_buf {
++   struct pipe_resource *res;
++   struct pipe_transfer *xfer;
++   void *map;
++   uint64_t size;
++};
++
++PUBLIC struct lapis_gpu *lapis_gpu_open(void);
++PUBLIC struct lapis_gpu_buf *lapis_gpu_buf_new(struct lapis_gpu *gpu, uint64_t size);
++PUBLIC void *lapis_gpu_buf_map(struct lapis_gpu_buf *buf);
++PUBLIC void lapis_gpu_buf_free(struct lapis_gpu *gpu, struct lapis_gpu_buf *buf);
++PUBLIC void lapis_gpu_copy(struct lapis_gpu *gpu, struct lapis_gpu_buf *dst, uint64_t dst_offset,
++                           struct lapis_gpu_buf *src, uint64_t src_offset, uint64_t size);
++PUBLIC void lapis_gpu_fill(struct lapis_gpu *gpu, struct lapis_gpu_buf *buf, uint64_t offset, uint64_t size,
++                           uint8_t value);
++PUBLIC void *lapis_gpu_flush(struct lapis_gpu *gpu);
++PUBLIC int lapis_gpu_fence_wait(struct lapis_gpu *gpu, void *fence, uint64_t timeout_ns);
++PUBLIC void lapis_gpu_fence_free(struct lapis_gpu *gpu, void *fence);
++
++PUBLIC struct lapis_gpu *
++lapis_gpu_open(void)
++{
++   static struct lapis_gpu *gpu;
++   static pthread_mutex_t once = PTHREAD_MUTEX_INITIALIZER;
++
++   pthread_mutex_lock(&once);
++   if (!gpu) {
++      struct pipe_screen *screen = lapis_gallium_screen();
++      struct pipe_context *ctx = screen ? screen->context_create(screen, NULL, 0) : NULL;
++      if (ctx) {
++         gpu = calloc(1, sizeof(*gpu));
++         gpu->screen = screen;
++         gpu->ctx = ctx;
++         pthread_mutex_init(&gpu->lock, NULL);
++      } else if (screen) {
++         screen->destroy(screen);
++      }
++   }
++   pthread_mutex_unlock(&once);
++   return gpu;
++}
++
++PUBLIC struct lapis_gpu_buf *
++lapis_gpu_buf_new(struct lapis_gpu *gpu, uint64_t size)
++{
++   struct pipe_resource templ = {
++      .target = PIPE_BUFFER,
++      .format = PIPE_FORMAT_R8_UNORM,
++      .width0 = (unsigned)(size ? size : 1),
++      .height0 = 1,
++      .depth0 = 1,
++      .array_size = 1,
++      .bind = PIPE_BIND_VERTEX_BUFFER | PIPE_BIND_INDEX_BUFFER | PIPE_BIND_CONSTANT_BUFFER |
++              PIPE_BIND_SHADER_BUFFER,
++      .usage = PIPE_USAGE_DEFAULT,
++      .flags = PIPE_RESOURCE_FLAG_MAP_PERSISTENT | PIPE_RESOURCE_FLAG_MAP_COHERENT,
++   };
++   if (!gpu || size == 0 || size > (1ull << 31))
++      return NULL;
++   struct lapis_gpu_buf *buf = calloc(1, sizeof(*buf));
++   pthread_mutex_lock(&gpu->lock);
++   buf->res = gpu->screen->resource_create(gpu->screen, &templ);
++   if (buf->res) {
++      buf->map = pipe_buffer_map(gpu->ctx, buf->res,
++                                 PIPE_MAP_READ | PIPE_MAP_WRITE | PIPE_MAP_PERSISTENT | PIPE_MAP_COHERENT |
++                                 PIPE_MAP_UNSYNCHRONIZED, &buf->xfer);
++   }
++   pthread_mutex_unlock(&gpu->lock);
++   if (!buf->res || !buf->map) {
++      lapis_gpu_buf_free(gpu, buf);
++      return NULL;
++   }
++   buf->size = size;
++   memset(buf->map, 0, size);
++   return buf;
++}
++
++PUBLIC void *
++lapis_gpu_buf_map(struct lapis_gpu_buf *buf)
++{
++   return buf ? buf->map : NULL;
++}
++
++PUBLIC void
++lapis_gpu_buf_free(struct lapis_gpu *gpu, struct lapis_gpu_buf *buf)
++{
++   if (!buf)
++      return;
++   pthread_mutex_lock(&gpu->lock);
++   if (buf->xfer)
++      pipe_buffer_unmap(gpu->ctx, buf->xfer);
++   pipe_resource_reference(&buf->res, NULL);
++   pthread_mutex_unlock(&gpu->lock);
++   free(buf);
++}
++
++PUBLIC void
++lapis_gpu_copy(struct lapis_gpu *gpu, struct lapis_gpu_buf *dst, uint64_t dst_offset,
++               struct lapis_gpu_buf *src, uint64_t src_offset, uint64_t size)
++{
++   struct pipe_box box;
++   u_box_1d((int)src_offset, (int)size, &box);
++   pthread_mutex_lock(&gpu->lock);
++   gpu->ctx->resource_copy_region(gpu->ctx, dst->res, 0, (unsigned)dst_offset, 0, 0, src->res, 0, &box);
++   pthread_mutex_unlock(&gpu->lock);
++}
++
++PUBLIC void
++lapis_gpu_fill(struct lapis_gpu *gpu, struct lapis_gpu_buf *buf, uint64_t offset, uint64_t size, uint8_t value)
++{
++   pthread_mutex_lock(&gpu->lock);
++   if ((offset & 3) == 0 && (size & 3) == 0) {
++      uint32_t v = value * 0x01010101u;
++      gpu->ctx->clear_buffer(gpu->ctx, buf->res, (unsigned)offset, (unsigned)size, &v, 4);
++   } else {
++      gpu->ctx->clear_buffer(gpu->ctx, buf->res, (unsigned)offset, (unsigned)size, &value, 1);
++   }
++   pthread_mutex_unlock(&gpu->lock);
++}
++
++PUBLIC void *
++lapis_gpu_flush(struct lapis_gpu *gpu)
++{
++   struct pipe_fence_handle *fence = NULL;
++   pthread_mutex_lock(&gpu->lock);
++   gpu->ctx->flush(gpu->ctx, &fence, 0);
++   pthread_mutex_unlock(&gpu->lock);
++   return fence;
++}
++
++PUBLIC int
++lapis_gpu_fence_wait(struct lapis_gpu *gpu, void *fence, uint64_t timeout_ns)
++{
++   if (!fence)
++      return 0;
++   return gpu->screen->fence_finish(gpu->screen, NULL, (struct pipe_fence_handle *)fence, timeout_ns) ? 0 : -1;
++}
++
++PUBLIC void
++lapis_gpu_fence_free(struct lapis_gpu *gpu, void *fence)
++{
++   struct pipe_fence_handle *f = fence;
++   if (f)
++      gpu->screen->fence_reference(gpu->screen, &f, NULL);
 +}
 diff -ruN a/src/gallium/targets/lapis/meson.build b/src/gallium/targets/lapis/meson.build
 --- a/src/gallium/targets/lapis/meson.build

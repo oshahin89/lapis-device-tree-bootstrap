@@ -86,6 +86,57 @@ main(void)
 			    b2 ? ((uint32_t *)b2.contents)[2] : 0, b2 ? ((uint32_t *)b2.contents)[3] : 0);
 			id<MTLCommandBuffer> cb = [q commandBuffer];
 			say(@"commandBuffer: %s", cb ? object_getClassName(cb) : "nil");
+
+			/* milestone 3: a blit through Metal, run by the GPU (gallium panfrost) */
+			const NSUInteger n = 1 << 20;
+			id<MTLBuffer> A = [dev newBufferWithLength:n options:0], B = [dev newBufferWithLength:n options:0],
+			              C = [dev newBufferWithLength:65536 options:0];
+			uint32_t *a = (uint32_t *)A.contents;
+			for (NSUInteger i = 0; i < n / 4; i++) {
+				a[i] = 0xb1170000u ^ (uint32_t)(i * 2654435761u);
+			}
+			memset(B.contents, 0xee, n);
+			memset(C.contents, 0xee, 65536);
+			id<MTLBlitCommandEncoder> blit = [cb blitCommandEncoder];
+			say(@"blitCommandEncoder: %s", blit ? object_getClassName(blit) : "nil");
+			[blit copyFromBuffer:A sourceOffset:0 toBuffer:B destinationOffset:0 size:n];
+			[blit fillBuffer:C range:NSMakeRange(0, 65536) value:0xab];
+			[blit fillBuffer:C range:NSMakeRange(100, 17) value:0x5a];
+			[blit endEncoding];
+			__block int handler = 0;
+			[cb addCompletedHandler:^(id<MTLCommandBuffer> done) {
+				handler = (int)done.status;
+			}];
+			NSDate *t0 = [NSDate date];
+			[cb commit];
+			[cb waitUntilCompleted];
+			double ms = -[t0 timeIntervalSinceNow] * 1000;
+			uint32_t *bb = (uint32_t *)B.contents;
+			NSUInteger same = 0;
+			for (NSUInteger i = 0; i < n / 4; i++) {
+				same += bb[i] == a[i];
+			}
+			const uint8_t *c = C.contents;
+			NSUInteger fill = 0;
+			for (NSUInteger i = 0; i < 65536; i++) {
+				fill += c[i] == ((i >= 100 && i < 117) ? 0x5a : 0xab);
+			}
+			say(@"blit: %.2f ms, status %ld, handler saw %d; copy %lu/%lu words, fill %lu/65536 bytes", ms,
+			    (long)cb.status, handler, (unsigned long)same, (unsigned long)(n / 4), (unsigned long)fill);
+
+			/* 100 command buffers of a 4 KiB copy each */
+			t0 = [NSDate date];
+			unsigned ok = 0;
+			for (unsigned i = 0; i < 100; i++) {
+				id<MTLCommandBuffer> c2 = [q commandBuffer];
+				id<MTLBlitCommandEncoder> e2 = [c2 blitCommandEncoder];
+				[e2 fillBuffer:B range:NSMakeRange(0, 4096) value:(uint8_t)i];
+				[e2 endEncoding];
+				[c2 commit];
+				[c2 waitUntilCompleted];
+				ok += ((uint8_t *)B.contents)[4095] == (uint8_t)i;
+			}
+			say(@"100 command buffers: %u right, %.3f ms each", ok, -[t0 timeIntervalSinceNow] * 10);
 		}
 		say(@"done");
 	}
