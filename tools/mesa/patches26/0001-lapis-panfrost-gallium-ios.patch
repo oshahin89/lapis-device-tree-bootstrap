@@ -271,6 +271,51 @@ diff -ruN a/src/gallium/targets/lapis/meson.build b/src/gallium/targets/lapis/me
 +  gnu_symbol_visibility : 'hidden',
 +  install : true,
 +)
+diff -ruN a/src/panfrost/lib/kmod/meson.build b/src/panfrost/lib/kmod/meson.build
+--- a/src/panfrost/lib/kmod/meson.build
++++ b/src/panfrost/lib/kmod/meson.build
+@@ -6,9 +6,12 @@
+ libpankmod_lib_inc = []
+ libpankmod_lib_code = [
+   'pan_kmod.c',
+-  'panfrost_kmod.c',
+   'panthor_kmod.c',
+ ]
++if host_machine.system() != 'darwin'
++  # lapis: Linux's eventfd/timerfd; Darwin gets panthor only
++  libpankmod_lib_code += 'panfrost_kmod.c'
++endif
+ 
+ if with_panfrost_vdrm
+   libpankmod_lib_inc += [inc_virtio_gpu, inc_virtio_vdrm, include_directories('virtio')]
+diff -ruN a/src/panfrost/lib/kmod/pan_kmod.c b/src/panfrost/lib/kmod/pan_kmod.c
+--- a/src/panfrost/lib/kmod/pan_kmod.c
++++ b/src/panfrost/lib/kmod/pan_kmod.c
+@@ -12,7 +12,9 @@
+ #include "pan_kmod.h"
+ #include "pan_kmod_backend.h"
+ 
++#ifndef __APPLE__
+ extern const struct pan_kmod_ops panfrost_kmod_ops;
++#endif
+ extern const struct pan_kmod_ops panthor_kmod_ops;
+ #ifdef HAVE_PANFROST_VDRM
+ extern const struct pan_kmod_ops panfrost_virtio_gpu_ops;
+@@ -23,10 +25,14 @@
+    const char *name;
+    const struct pan_kmod_ops *ops;
+ } backends[] = {
++#ifndef __APPLE__
++   /* (lapis: the job-manager backend needs Linux's eventfd/timerfd; the
++    * lapis GPU is CSF, panthor only) */
+    {
+       "panfrost",
+       &panfrost_kmod_ops,
+    },
++#endif
+    {
+       "panthor",
+       &panthor_kmod_ops,
 diff -ruN a/src/panfrost/lib/kmod/panthor_kmod.c b/src/panfrost/lib/kmod/panthor_kmod.c
 --- a/src/panfrost/lib/kmod/panthor_kmod.c
 +++ b/src/panfrost/lib/kmod/panthor_kmod.c
