@@ -147,8 +147,14 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   from one), keeping buffer mappings across panfrost's unmap/map (an IOKit
   map is a kernel round trip), answering BO_MMAP_OFFSET locally, and
   measuring after boot (iOS's first minute slows every round trip down).
-  Next: draw (shaders: a triangle through u_simple_shaders), then hakios's
-  Metal path (AIR -> NIR -> this gallium screen) for CoreAnimation.
+- ~~Milestone 10: shaders and a draw~~ **done (v49k, 2026-11-24).**
+  gallium's passthrough shaders (TGSI -> NIR -> Valhall) compiled in 21 ms,
+  a red triangle over a blue clear read back exactly (center ff0000ff,
+  corner ffff8000), 100 frames of a colored triangle 481 us each
+  (device/captures/sweetlog_v49k_triangle.txt). The one fix (v49j crashed
+  in u_vbuf_draw_vbo): the caller sets the vertex elements.
+  Next: hakios's Metal path (AIR -> NIR -> this gallium screen) so
+  CoreAnimation draws on the GPU; an IOSurface as a render target.
 - Milestone 8 (2026-11-24): Mesa. What it needed from LapisGPU,
   proven by gputest v2..v4 on dual_v49 (device/captures/sweetlog_v49c_gputest.txt):
   tiler heaps (TILER_HEAP_CREATE/DESTROY, 5 x 2 MiB as gallium asks) work;
