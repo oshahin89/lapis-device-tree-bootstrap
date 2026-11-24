@@ -16,6 +16,12 @@
 #         (com.apple.iomfb_fdr_loader: factory display calibration, absent here)
 #   bbfw  /usr/standalone/update/ICE17.Release.bbfw (an Intel modem's update
 #         firmware; lapis has no such modem): room for a 20 MB dylib
+#   agxds /System/Library/Extensions/AGXMetalA11.bundle/ds.g10p (data of
+#         Apple's A11 GPU driver, which cannot run on the Mali): the LapisMetal
+#         plug-in, 1.1 MB
+#   agxinfo that bundle's Info.plist, CFBundleExecutable pointing at ds.g10p
+#         (tools/lapis_agx_infoplist.py; not a Mach-O: installed over the
+#         original only)
 DEV=/dev/block/by-name/iosroot
 [ -e "$DEV" ] || DEV=/dev/block/sdc92
 DIR=/sdcard/Download
@@ -23,8 +29,10 @@ DIR=/sdcard/Download
 slot() {
 	case "$1" in
 	fdr)  START=2094775; COUNT=36;   ORIG=abf677d9fd40ed2faba2cca784ec8d16484a0ca94ac3e9b29fdbf40c8ab7212d; BACKUP=$DIR/iomfb_fdr_loader_orig.blocks ;;
+	agxds) START=307202; COUNT=283; ORIG=3ef8b7d904e65075657788ee5d7127826da3d5485b655f6a8111cb025ef995a5; BACKUP=$DIR/agxmetal_ds_g10p_orig.blocks ;;
+	agxinfo) START=307201; COUNT=1; ORIG=1cb266b55a19ef53bc30254f9529be8b958ee60ac333769c45e3801175ed4303; BACKUP=$DIR/agxmetal_infoplist_orig.blocks ;;
 	bbfw) START=2192798; COUNT=4912; ORIG=012fc192313009320d91aafec04408542e02f82457179f6a22657ae6e526b50b; BACKUP=$DIR/ice17_bbfw_orig.blocks ;;
-	*) echo "no slot $1 (fdr, bbfw)"; exit 1 ;;
+	*) echo "no slot $1 (fdr, bbfw, agxds, agxinfo)"; exit 1 ;;
 	esac
 }
 cur() { dd if="$DEV" bs=4096 skip=$START count=$COUNT 2>/dev/null | sha256sum | cut -c1-64; }
@@ -55,7 +63,7 @@ restore)
 	[ "$(cur)" = "$ORIG" ] && echo "$2: restored" || { echo "$2: verify FAILED"; exit 1; }
 	;;
 *)
-	for s in fdr bbfw; do
+	for s in fdr bbfw agxds agxinfo; do
 		slot $s
 		now=$(cur)
 		[ "$now" = "$ORIG" ] && st=original || st="replaced ($(magic))"

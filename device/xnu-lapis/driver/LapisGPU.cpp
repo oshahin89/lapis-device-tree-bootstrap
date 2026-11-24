@@ -978,6 +978,49 @@ done:
 	IOLog("LapisGPU: self-test: done\n");
 }
 
+/*
+ * The accelerator service Metal looks for (device/lapis_metal_plan.md): an
+ * IOAcceleratorES that names the plug-in. Metal reads MetalPluginName (the
+ * bundle in /System/Library/Extensions) and MetalPluginClassName (the
+ * _MTLDevice subclass in it). The bundle is Apple's AGXMetalA11.bundle with
+ * tools/lapis_metal/LapisMetal.m over its ds.g10p and CFBundleExecutable
+ * pointing there. Only with boot-arg lapismetal=N (the plug-in reads N for
+ * which processes it shows the device to); backboardd matches this class too.
+ */
+class IOAcceleratorES : public IOService
+{
+	OSDeclareDefaultStructors(IOAcceleratorES);
+};
+
+OSDefineMetaClassAndStructors(IOAcceleratorES, IOService);
+
+static void
+lgMetalStart(IOService * provider)
+{
+	int metal = 0;
+	if (!PE_parse_boot_argn("lapismetal", &metal, sizeof(metal)) || metal == 0) {
+		return;
+	}
+	IOAcceleratorES * acc = OSTypeAlloc(IOAcceleratorES);
+	if (acc == NULL || !acc->init() || !acc->attach(provider)) {
+		OSSafeReleaseNULL(acc);
+		IOLog("LapisGPU: no IOAcceleratorES\n");
+		return;
+	}
+	acc->setName("LapisMetalAccelerator");
+	acc->setProperty("MetalPluginName", "AGXMetalA11");
+	acc->setProperty("MetalPluginClassName", "LapisMetalDevice");
+	if (!acc->start(provider)) {
+		acc->detach(provider);
+		acc->release();
+		IOLog("LapisGPU: IOAcceleratorES did not start\n");
+		return;
+	}
+	acc->registerService();
+	acc->release();
+	IOLog("LapisGPU: IOAcceleratorES published (lapismetal=%d): MetalPluginName AGXMetalA11, class LapisMetalDevice\n", metal);
+}
+
 void
 LapisGPUStart(void)
 {
@@ -1003,5 +1046,6 @@ LapisGPUStart(void)
 	}
 	gpu->release();
 	IOLog("LapisGPU: the GPU is there for programs (panthor requests)\n");
+	lgMetalStart(provider);
 }
 #endif /* ARM64_BOARD_CONFIG_SWEET */
