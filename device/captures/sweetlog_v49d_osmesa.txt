@@ -1,0 +1,8 @@
+LapisGPU client: osmesatest: start
+LapisGPU client: osmesatest: context in 3768031 us
+LapisGPU client: GL_RENDERER softpipe
+LapisGPU client: GL_VERSION 3.3 (Compatibility Profile) Mesa 25.0.7
+LapisGPU client: clear: 4201 us, pixel (0,0) = ffff8000 (want ff ff 80 00 as RGBA bytes: ffff8000), gl error 0
+LapisGPU client: triangle: 338171 us, center ff0000ff (want ff0000ff), corner ffff8000 (want ffff8000), gl error 0
+LapisGPU client: 100 frames: 4732073 us (47320 us each), center ff80403f
+LapisGPU client: osmesatest: done

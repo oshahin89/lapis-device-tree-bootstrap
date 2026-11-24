@@ -1,0 +1,50 @@
+name: lapis-mesa26
+
+# Mesa 26.3.1's gallium panfrost (G615 / v11) for the lapis iOS over LapisGPU
+# as liblapis_gallium, and tools/lapis_galliumtest against it
+# (tools/mesa/build-mesa26-ios.sh: the build machine's CL tools first). Mesa's
+# sources are fetched (archive.mesa3d.org, hash checked) and patched at build
+# time; nothing of Mesa is committed here beyond our patches.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/mesa/patches26/**
+      - tools/mesa/lapis-drm/**
+      - tools/mesa/build-mesa26-ios.sh
+      - tools/lapis_galliumtest/**
+      - .github/workflows/lapis-mesa26.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          brew install bison flex llvm spirv-llvm-translator libclc spirv-tools pkgconf
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: bash tools/mesa/build-mesa26-ios.sh "$RUNNER_TEMP/mesa26-ios"
+      - name: Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lapis-mesa26-logs
+          path: |
+            ${{ runner.temp }}/mesa26-ios/meson-setup.log
+            ${{ runner.temp }}/mesa26-ios/ninja.log
+            ${{ runner.temp }}/mesa26-ios/build/meson-logs/meson-log.txt
+            ${{ runner.temp }}/mesa26-ios/native-setup.log
+            ${{ runner.temp }}/mesa26-ios/native-ninja.log
+            ${{ runner.temp }}/mesa26-ios/native/meson-logs/meson-log.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapis-mesa26
+          path: ${{ runner.temp }}/mesa26-ios/out/
