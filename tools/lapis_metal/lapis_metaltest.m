@@ -66,7 +66,24 @@ main(void)
 			id<MTLCommandQueue> q = [dev newCommandQueue];
 			say(@"newCommandQueue: %s", q ? object_getClassName(q) : "nil");
 			id<MTLBuffer> b = [dev newBufferWithLength:4096 options:MTLResourceStorageModeShared];
-			say(@"newBufferWithLength: %s length %lu", b ? object_getClassName(b) : "nil", (unsigned long)b.length);
+			say(@"newBufferWithLength: %s length %lu contents %p", b ? object_getClassName(b) : "nil", (unsigned long)b.length,
+			    b.contents);
+			if (b.contents) {
+				uint32_t *w = (uint32_t *)b.contents;
+				for (unsigned i = 0; i < 1024; i++) {
+					w[i] = 0x1a915000u + i;
+				}
+				unsigned ok = 0;
+				for (unsigned i = 0; i < 1024; i++) {
+					ok += w[i] == 0x1a915000u + i;
+				}
+				say(@"buffer: %u/1024 words written and read back; storage mode %lu", ok, (unsigned long)b.storageMode);
+			}
+			static const uint32_t init[4] = { 1, 2, 3, 4 };
+			id<MTLBuffer> b2 = [dev newBufferWithBytes:init length:sizeof(init) options:0];
+			say(@"newBufferWithBytes: %s [%u %u %u %u]", b2 ? object_getClassName(b2) : "nil",
+			    b2 ? ((uint32_t *)b2.contents)[0] : 0, b2 ? ((uint32_t *)b2.contents)[1] : 0,
+			    b2 ? ((uint32_t *)b2.contents)[2] : 0, b2 ? ((uint32_t *)b2.contents)[3] : 0);
 			id<MTLCommandBuffer> cb = [q commandBuffer];
 			say(@"commandBuffer: %s", cb ? object_getClassName(cb) : "nil");
 		}

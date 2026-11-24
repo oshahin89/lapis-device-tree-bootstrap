@@ -244,6 +244,161 @@ deviceNewQueue(id self, SEL _cmd)
 	return q;
 }
 
+/*
+ * -dealloc of what is made with plain -init (the queue, buffers): NSObject's
+ * own, not Metal's, which lets go of state its initializer would have made
+ * (sweetlog_m2c: SIGSEGV at 0 when the test's autorelease pool drained). As
+ * hakios's deallocPlain.
+ */
+static void
+deallocPlain(id self, SEL _cmd)
+{
+	struct objc_super sup = { self, [NSObject class] };
+	((void (*)(struct objc_super *, SEL))objc_msgSendSuper)(&sup, _cmd);
+}
+
+/*
+ * Buffers: a subclass of Metal's private _MTLResource with MTLBuffer's
+ * methods (after hakios's HakiosMetalBuffer). Plain page-aligned memory for
+ * now; the GPU's (gallium panfrost buffers over LapisGPU) comes next.
+ */
+static Class gResourceBase, gBufferClass;
+static Ivar gBufState;
+
+struct lapis_buffer {
+	void *memory;
+	NSUInteger length;
+	MTLResourceOptions options;
+	void (^deallocator)(void *, NSUInteger);
+};
+
+static struct lapis_buffer *
+bufferState(id self)
+{
+	return (struct lapis_buffer *)((uint8_t *)(__bridge void *)self + ivar_getOffset(gBufState));
+}
+
+static void *bufferContents(id self, SEL _cmd) { (void)_cmd; return bufferState(self)->memory; }
+static NSUInteger bufferLength(id self, SEL _cmd) { (void)_cmd; return bufferState(self)->length; }
+static NSUInteger bufferAllocatedSize(id self, SEL _cmd) { (void)_cmd; return (bufferState(self)->length + 16383) & ~(NSUInteger)16383; }
+static MTLResourceOptions bufferOptions(id self, SEL _cmd) { (void)_cmd; return bufferState(self)->options; }
+static MTLStorageMode bufferStorageMode(id self, SEL _cmd) { (void)_cmd; return (MTLStorageMode)((bufferState(self)->options & MTLResourceStorageModeMask) >> MTLResourceStorageModeShift); }
+static MTLCPUCacheMode bufferCacheMode(id self, SEL _cmd) { (void)_cmd; return (MTLCPUCacheMode)(bufferState(self)->options & MTLResourceCPUCacheModeMask); }
+static MTLHazardTrackingMode bufferHazardMode(id self, SEL _cmd) { (void)self; (void)_cmd; return MTLHazardTrackingModeTracked; }
+static uint64_t bufferGPUAddress(id self, SEL _cmd) { (void)_cmd; return (uint64_t)(uintptr_t)bufferState(self)->memory; }
+static void bufferDidModify(id self, SEL _cmd, NSRange r) { (void)self; (void)_cmd; (void)r; }
+static MTLPurgeableState bufferPurgeable(id self, SEL _cmd, MTLPurgeableState s) { (void)self; (void)_cmd; (void)s; return MTLPurgeableStateNonVolatile; }
+static id bufferDevice(id self, SEL _cmd) { (void)self; (void)_cmd; return gDevice; }
+
+static void
+bufferDealloc(id self, SEL _cmd)
+{
+	struct lapis_buffer *b = bufferState(self);
+	if (b->deallocator) {
+		b->deallocator(b->memory, b->length);
+		b->deallocator = nil;
+	} else {
+		free(b->memory);
+	}
+	b->memory = NULL;
+	deallocPlain(self, _cmd);
+}
+
+static id
+newBuffer(void *memory, NSUInteger length, MTLResourceOptions options, void (^deallocator)(void *, NSUInteger))
+{
+	if (!gBufferClass || !memory) {
+		return nil;
+	}
+	id (*plain)(id, SEL) = (id (*)(id, SEL))objc_msgSend;
+	id buf = plain(plain((id)gBufferClass, sel_registerName("alloc")), sel_registerName("init"));
+	struct lapis_buffer *b = bufferState(buf);
+	b->memory = memory;
+	b->length = length;
+	b->options = options;
+	b->deallocator = deallocator;
+	return buf;
+}
+
+static void *
+pageMemory(NSUInteger length)
+{
+	void *m = NULL;
+	if (posix_memalign(&m, 16384, (length + 16383) & ~(NSUInteger)16383) != 0) {
+		return NULL;
+	}
+	memset(m, 0, length);
+	return m;
+}
+
+static id
+deviceNewBuffer(id self, SEL _cmd, NSUInteger length, MTLResourceOptions options)
+{
+	(void)self;
+	(void)_cmd;
+	id b = newBuffer(pageMemory(length), length, options, nil);
+	say([NSString stringWithFormat:@"newBufferWithLength:%lu options:%#lx -> %@", (unsigned long)length,
+	    (unsigned long)options, b ? @"plain memory" : @"nil"]);
+	return b;
+}
+
+static id
+deviceNewBufferBytes(id self, SEL _cmd, const void *bytes, NSUInteger length, MTLResourceOptions options)
+{
+	(void)self;
+	(void)_cmd;
+	void *m = pageMemory(length);
+	if (m && bytes) {
+		memcpy(m, bytes, length);
+	}
+	return newBuffer(m, length, options, nil);
+}
+
+static id
+deviceNewBufferNoCopy(id self, SEL _cmd, void *bytes, NSUInteger length, MTLResourceOptions options,
+                      void (^deallocator)(void *, NSUInteger))
+{
+	(void)self;
+	(void)_cmd;
+	return newBuffer(bytes, length, options, deallocator ? [deallocator copy] : ^(void *p, NSUInteger n) { (void)p; (void)n; });
+}
+
+static void
+registerBufferClass(Class device)
+{
+	gResourceBase = objc_getClass("_MTLResource");
+	if (!gResourceBase) {
+		say(@"no _MTLResource: no buffers");
+		return;
+	}
+	gBufferClass = objc_allocateClassPair(gResourceBase, "LapisMetalBuffer", 0);
+	class_addIvar(gBufferClass, "lapis_buffer", sizeof(struct lapis_buffer), 3, "{lapis_buffer=^vQQ@?}");
+	class_addProtocol(gBufferClass, @protocol(MTLBuffer));
+	class_addProtocol(gBufferClass, @protocol(MTLResource));
+	gProtocols[gProtocolCount++] = @protocol(MTLBuffer);
+	gProtocols[gProtocolCount++] = @protocol(MTLResource);
+	class_addMethod(gBufferClass, sel_registerName("contents"), (IMP)bufferContents, "^v@:");
+	class_addMethod(gBufferClass, sel_registerName("length"), (IMP)bufferLength, "Q@:");
+	class_addMethod(gBufferClass, sel_registerName("allocatedSize"), (IMP)bufferAllocatedSize, "Q@:");
+	class_addMethod(gBufferClass, sel_registerName("resourceOptions"), (IMP)bufferOptions, "Q@:");
+	class_addMethod(gBufferClass, sel_registerName("storageMode"), (IMP)bufferStorageMode, "Q@:");
+	class_addMethod(gBufferClass, sel_registerName("cpuCacheMode"), (IMP)bufferCacheMode, "Q@:");
+	class_addMethod(gBufferClass, sel_registerName("hazardTrackingMode"), (IMP)bufferHazardMode, "Q@:");
+	class_addMethod(gBufferClass, sel_registerName("gpuAddress"), (IMP)bufferGPUAddress, "Q@:");
+	class_addMethod(gBufferClass, sel_registerName("didModifyRange:"), (IMP)bufferDidModify, "v@:{_NSRange=QQ}");
+	class_addMethod(gBufferClass, sel_registerName("setPurgeableState:"), (IMP)bufferPurgeable, "Q@:Q");
+	class_addMethod(gBufferClass, sel_registerName("device"), (IMP)bufferDevice, "@@:");
+	class_addMethod(gBufferClass, sel_registerName("dealloc"), (IMP)bufferDealloc, "v@:");
+	class_addMethod(gBufferClass, sel_registerName("methodSignatureForSelector:"), (IMP)stubSignature, "@@::");
+	class_addMethod(gBufferClass, sel_registerName("forwardInvocation:"), (IMP)stubForward, "v@:@");
+	objc_registerClassPair(gBufferClass);
+	gBufState = class_getInstanceVariable(gBufferClass, "lapis_buffer");
+	class_addMethod(device, sel_registerName("newBufferWithLength:options:"), (IMP)deviceNewBuffer, "@@:QQ");
+	class_addMethod(device, sel_registerName("newBufferWithBytes:length:options:"), (IMP)deviceNewBufferBytes, "@@:r^vQQ");
+	class_addMethod(device, sel_registerName("newBufferWithBytesNoCopy:length:options:deallocator:"),
+	    (IMP)deviceNewBufferNoCopy, "@@:^vQQ@?");
+}
+
 static id
 deviceNewQueueMax(id self, SEL _cmd, unsigned long max)
 {
@@ -317,9 +472,11 @@ registerClasses(void)
 		static const char *const queueProtocols[] = { "MTLCommandQueueSPI", NULL };
 		addProtocols(gQueueClass, queueProtocols);
 		class_addMethod(gQueueClass, sel_registerName("device"), (IMP)queueDevice, "@@:");
+		class_addMethod(gQueueClass, sel_registerName("dealloc"), (IMP)deallocPlain, "v@:");
 		class_addMethod(gQueueClass, sel_registerName("methodSignatureForSelector:"), (IMP)stubSignature, "@@::");
 		class_addMethod(gQueueClass, sel_registerName("forwardInvocation:"), (IMP)stubForward, "v@:@");
 		objc_registerClassPair(gQueueClass);
 	}
+	registerBufferClass(device);
 	say(@"LapisMetalDevice registered (a subclass of _MTLDevice)");
 }

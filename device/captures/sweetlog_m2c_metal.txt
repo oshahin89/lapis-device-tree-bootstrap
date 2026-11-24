@@ -1,0 +1,20 @@
+LapisGPU client: metaltest: start (pid 88); IOAcceleratorES present
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: loaded
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: no protocol MTLCommandQueueSPI in this system's Metal
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: LapisMetalDevice registered (a subclass of _MTLDevice)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: -[NSBundle principalClass] -> LapisMetalDevice
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: +[LapisMetalDevice allocWithZone:]
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: a device for the accelerator port 6147 (made)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: asked and not implemented: LapisMetalDevice -featureProfile (returns Q, answered with 
+LapisGPU client: metaltest: MTLCreateSystemDefaultDevice: LapisMetalDevice "Mali-G615 MC2 (lapis, Mesa panfrost)"
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newCommandQueue: a queue that queues nothing (yet)
+LapisGPU client: metaltest: newCommandQueue: LapisMetalCommandQueue
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: asked and not implemented: LapisMetalDevice -newBufferWithLength:options: (returns @, 
+LapisGPU client: metaltest: newBufferWithLength: nil length 0
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: asked and not implemented: LapisMetalCommandQueue -commandBuffer (returns @, answered 
+LapisGPU client: metaltest: commandBuffer: nil
+LapisGPU client: metaltest: done
+CRASH IOMFB_FDR_Loader[88] sig 11 code 0x100000001 sub 0x0 slide 0x288b4000 mh 0x1029f4000
+CRASH IOMFB_FDR_Loader pc 0x1b641b628 lr 0x1aa2ee554 sp 0x16d40b970 fp 0x16d40b970 far 0x0
+CRASH IOMFB_FDR_Loader bt 0x1aa2ee554 0x1a896dd98 0x1a89711b0 0x1029f8210 0x1cced8344 0x0
+CRASH IOMFB_FDR_Loader reason ns 2 code 0xb: (none)
