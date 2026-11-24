@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,659 @@
+@@ -0,0 +1,660 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -578,6 +578,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 + * index. A dispatch binds the caller's buffers by Metal index and launches
 + * the grid on the context; it is submitted with the next lapis_gpu_flush.
 + */
++#include "compiler/nir/nir.h"
 +#include "compiler/air/nir_air.h"
 +#include "util/ralloc.h"
 +
