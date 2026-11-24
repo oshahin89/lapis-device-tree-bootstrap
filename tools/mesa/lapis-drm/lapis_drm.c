@@ -99,12 +99,27 @@ drmOpenWithType(const char *name, const char *busid, int type)
 	return name != NULL && strcmp(name, "panthor") == 0 ? lapis_drm_open() : -1;
 }
 
+/* where the time goes (lapis v49f: 42 ms a clear, cache syncs only ~0.2 ms):
+ * per request number, calls and time in the kernel, said every 500 calls */
+static struct { uint32_t calls; int64_t ns; } call_stats[256];
+static uint32_t call_total;
+static int64_t now_ns(void);
+static void call_stats_say(void);
+
 /* the kernel's answer as an errno */
 static int
 call(unsigned number, void *data, size_t size)
 {
 	size_t returned = size;
+	int64_t t0 = now_ns();
 	kern_return_t r = IOConnectCallStructMethod(connection, number, data, size, data, &returned);
+	if (number < 256 && number != 0x7f) {
+		__atomic_add_fetch(&call_stats[number].calls, 1, __ATOMIC_RELAXED);
+		__atomic_add_fetch(&call_stats[number].ns, now_ns() - t0, __ATOMIC_RELAXED);
+		if (__atomic_add_fetch(&call_total, 1, __ATOMIC_RELAXED) % 500 == 0) {
+			call_stats_say();
+		}
+	}
 
 	switch (r) {
 	case KERN_SUCCESS: return 0;
@@ -136,6 +151,20 @@ lapis_drm_log(const char *fmt, ...)
 	if (connection_fd >= 0) {
 		(void)call(LAPIS_LOG, &l, sizeof(l));
 	}
+}
+
+static void
+call_stats_say(void)
+{
+	char line[120];
+	int at = snprintf(line, sizeof(line), "lapis-drm: %u calls:", call_total);
+	for (unsigned n = 0; n < 256 && at < (int)sizeof(line) - 24; n++) {
+		if (call_stats[n].calls) {
+			at += snprintf(line + at, sizeof(line) - at, " %02x:%u/%lldus", n, call_stats[n].calls,
+			    (long long)(call_stats[n].ns / call_stats[n].calls / 1000));
+		}
+	}
+	lapis_drm_log("%s", line);
 }
 
 static int64_t
