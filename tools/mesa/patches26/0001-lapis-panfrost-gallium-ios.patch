@@ -304,17 +304,30 @@ diff -ruN a/src/panfrost/lib/kmod/meson.build b/src/panfrost/lib/kmod/meson.buil
 diff -ruN a/src/panfrost/lib/kmod/pan_kmod.c b/src/panfrost/lib/kmod/pan_kmod.c
 --- a/src/panfrost/lib/kmod/pan_kmod.c
 +++ b/src/panfrost/lib/kmod/pan_kmod.c
-@@ -12,7 +12,9 @@
+@@ -12,7 +12,22 @@
  #include "pan_kmod.h"
  #include "pan_kmod_backend.h"
  
 +#ifndef __APPLE__
  extern const struct pan_kmod_ops panfrost_kmod_ops;
++#else
++#include <errno.h>
++#include "panfrost_kmod.h"
++
++/* lapis: panfrost_kmod.c is not built on Darwin; the job-manager gallium
++ * path (pan_jm.c, arch <= 9) still links to this, and never runs here */
++int
++panfrost_kmod_submit(struct pan_kmod_dev *pan_kdev, struct drm_panfrost_submit *submit)
++{
++   (void)pan_kdev;
++   (void)submit;
++   return -ENOSYS;
++}
 +#endif
  extern const struct pan_kmod_ops panthor_kmod_ops;
  #ifdef HAVE_PANFROST_VDRM
  extern const struct pan_kmod_ops panfrost_virtio_gpu_ops;
-@@ -23,10 +25,14 @@
+@@ -23,10 +38,14 @@
     const char *name;
     const struct pan_kmod_ops *ops;
  } backends[] = {
