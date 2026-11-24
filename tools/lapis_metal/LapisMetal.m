@@ -217,15 +217,28 @@ static uint64_t deviceRegistryID(id self, SEL _cmd) { (void)self; (void)_cmd; re
 static uint64_t deviceMaxBufferLength(id self, SEL _cmd) { (void)self; (void)_cmd; return 256ull << 20; }
 static MTLSize deviceMaxThreads(id self, SEL _cmd) { (void)self; (void)_cmd; return MTLSizeMake(1024, 1024, 1024); }
 
+/*
+ * The queue: alloc + plain init, as hakios does. _MTLCommandQueue's
+ * -initWithDevice: reads state an MTLIOAccelDevice has and ours does not
+ * (sweetlog_m2b: SIGSEGV at 0 inside it, right after the device was made).
+ */
+static id
+queueDevice(id self, SEL _cmd)
+{
+	(void)self;
+	(void)_cmd;
+	return gDevice;
+}
+
 static id
 deviceNewQueue(id self, SEL _cmd)
 {
 	(void)_cmd;
+	gDevice = self;
 	id q = nil;
 	if (gQueueClass) {
-		struct objc_super sup = { class_createInstance(gQueueClass, 0), gQueueBase };
-		id (*init)(struct objc_super *, SEL, id) = (id (*)(struct objc_super *, SEL, id))objc_msgSendSuper;
-		q = init(&sup, sel_registerName("initWithDevice:"), self);
+		id (*plain)(id, SEL) = (id (*)(id, SEL))objc_msgSend;
+		q = plain(plain((id)gQueueClass, sel_registerName("alloc")), sel_registerName("init"));
 	}
 	say([NSString stringWithFormat:@"newCommandQueue: %@", q ? @"a queue that queues nothing (yet)" : @"none"]);
 	return q;
@@ -303,6 +316,7 @@ registerClasses(void)
 		gProtocols[gProtocolCount++] = @protocol(MTLCommandQueue);
 		static const char *const queueProtocols[] = { "MTLCommandQueueSPI", NULL };
 		addProtocols(gQueueClass, queueProtocols);
+		class_addMethod(gQueueClass, sel_registerName("device"), (IMP)queueDevice, "@@:");
 		class_addMethod(gQueueClass, sel_registerName("methodSignatureForSelector:"), (IMP)stubSignature, "@@::");
 		class_addMethod(gQueueClass, sel_registerName("forwardInvocation:"), (IMP)stubForward, "v@:@");
 		objc_registerClassPair(gQueueClass);

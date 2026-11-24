@@ -1,0 +1,20 @@
+LapisGPU: IOAcceleratorES published (lapismetal=1): MetalPluginName AGXMetalA11, class LapisMetalDevice
+LapisGPU client: metaltest: start (pid 88); IOAcceleratorES present
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: loaded
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: no protocol MTLCommandQueueSPI in this system's Metal
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: LapisMetalDevice registered (a subclass of _MTLDevice)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: -[NSBundle principalClass] -> LapisMetalDevice
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: +[LapisMetalDevice allocWithZone:]
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: a device for the accelerator port 3587 (made)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: asked and not implemented: LapisMetalDevice -featureProfile (returns Q, answered with 
+LapisGPU client: metaltest: MTLCreateSystemDefaultDevice: LapisMetalDevice "Mali-G615 MC2 (lapis, Mesa panfrost)"
+CRASH IOMFB_FDR_Loader[88] sig 11 code 0x100000001 sub 0x0 slide 0x53540000 mh 0x10070c000
+CRASH IOMFB_FDR_Loader pc 0x1e10a7628 lr 0x1d4f7a554 sp 0x16f6f39b0 fp 0x16f6f39b0 far 0x0
+CRASH IOMFB_FDR_Loader bt 0x1d4f7a554 0x104e2c7c4 0x10071011c 0x1f7b64344 0x0
+CRASH IOMFB_FDR_Loader reason ns 2 code 0xb: (none)
+LapisGPU client: LapisMetal[backboardd 56]: loaded
+LapisGPU client: LapisMetal[backboardd 56]: not shown the device (lapismetal=1: 1 the test program, 2 all but backboardd, 3 all)
+LapisGPU client: LapisMetal[SpringBoard 26]: loaded
+LapisGPU client: LapisMetal[SpringBoard 26]: not shown the device (lapismetal=1: 1 the test program, 2 all but backboardd, 3 all)
+LapisGPU client: LapisMetal[chronod 98]: loaded
+LapisGPU client: LapisMetal[chronod 98]: not shown the device (lapismetal=1: 1 the test program, 2 all but backboardd, 3 all)
