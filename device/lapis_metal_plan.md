@@ -68,6 +68,23 @@ work that lets CoreAnimation draw on the GPU.
    Completed seen by the handler, 100 command buffers right (5.6 ms each at
    boot; every submission syncs the CPU caches over all of Mesa's maps,
    2.4 MiB).
-   Still to do: compute kernels (needs Apple's AIR -> NIR: hakios's front end).
-4. Render pass: a triangle through `MTLRenderCommandEncoder`.
-5. IOSurface textures; then backboardd (CoreAnimation) on the device.
+4. ~~Compute kernels~~ **done (2026-11-25, device/captures/sweetlog_m4_compute.txt).**
+   hakios's AIR -> NIR front end (tools/mesa/air) ported to Mesa 26.3.1's NIR
+   (`fp_math_ctrl` for `exact`, `nir_def_instr`, `mesa_shader_stage_name`,
+   the new block/shader/constant-eval signatures) and built into
+   liblapis_gallium (`lapis_gpu_metallib_*`, `lapis_gpu_compute_*`,
+   `lapis_gpu_dispatch`). LapisMetal: `newLibraryWithData:` / URL / file /
+   default library, `newFunctionWithName:`, `newComputePipelineStateWithFunction:`,
+   and a compute encoder (pipeline, buffers by Metal index, `setBytes` as a
+   small GPU buffer, `dispatchThreadgroups` / `dispatchThreads`). Three kernels
+   compiled by Apple's `metal` on CI (tools/lapis_metal/lapis_test.metal), right
+   on the first run on the G615: `lapis_madd` (device buffers and a constant)
+   4096/4096, `lapis_ids` (grid/group/thread ids) 4096/4096, `lapis_sum`
+   (sqrt, threadgroup memory, barriers, reduction) 64/64. Pipelines compile in
+   2.5-14 ms, a dispatch round trip is 0.7-0.8 ms.
+   Not yet: dynamic threadgroup memory (`setThreadgroupMemoryLength:`),
+   non-uniform threadgroups, textures/samplers in kernels. The cache sync on
+   every submission (all of Mesa's maps, ~2.6 MiB) dominates small command
+   buffers (21 ms each this boot, measured early while iOS was still starting).
+5. Render pass: a triangle through `MTLRenderCommandEncoder`.
+6. IOSurface textures; then backboardd (CoreAnimation) on the device.
