@@ -38,14 +38,26 @@ work that lets CoreAnimation draw on the GPU.
 
 ## Milestones
 
-1. **Probe** (tools/lapis_metalprobe): on the phone, what
-   `MTLCreateSystemDefaultDevice()` does today, the accelerator services in
-   the registry, and the private classes a plug-in must subclass (methods with
-   their type encodings, ivars, superclasses), all into the kernel log.
-2. Kernel: an `IOAcceleratorES` service with the two properties (boot-arg),
-   the plug-in bundle in place, `MTLCreateSystemDefaultDevice()` returning
-   our device to a test program.
-3. Buffers, a blit and a compute kernel through Metal's own objects
-   (hakios's `metal_compute_test` shape) over gallium.
+1. ~~Probe~~ done (2026-11-24, device/captures/metalprobe_m1_ios16.txt):
+   no accelerator service, backboardd keeps matching `IOAcceleratorES`,
+   `MTLIOAccelDevice < _MTLDevice`, the private classes with their methods.
+2. ~~Metal gives our device~~ **done (v50 + LapisMetal, 2026-11-24,
+   device/captures/sweetlog_m2e_metal.txt).** The kernel publishes
+   `IOAcceleratorES` (boot-arg `lapismetal=1`: the device shown to the test
+   program only); Metal loads AGXMetalA11.bundle, whose executable is now our
+   dylib over `ds.g10p`; `MTLCreateSystemDefaultDevice()` returns
+   `LapisMetalDevice "Mali-G615 MC2 (lapis, Mesa panfrost)"`, a queue, and
+   buffers (1024/1024 words read back). backboardd and SpringBoard load the
+   plug-in and are not shown the device; iOS runs as before. What it took:
+   - Metal takes the class from the bundle's `-principalClass` (iOS 16), and a
+     class made at run time is in no image: the plug-in answers
+     `-principalClass` / `-classNamed:` for that bundle itself.
+   - Queues and buffers are made with plain `init` and freed with NSObject's
+     `-dealloc`: Metal's `-initWithDevice:` / `-dealloc` need state only an
+     `MTLIOAccelDevice` has.
+   - ARC retains a C function's `id self`: every `-dealloc` IMP takes it
+     `__unsafe_unretained`, or it is released after being freed.
+3. (next) command buffers, a blit and a compute kernel through Metal's own
+   objects over gallium; buffers in GPU memory (liblapis_gallium).
 4. Render pass: a triangle through `MTLRenderCommandEncoder`.
 5. IOSurface textures; then backboardd (CoreAnimation) on the device.
