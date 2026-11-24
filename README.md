@@ -23,7 +23,7 @@ Updated 2026-11-24.
 | Audio | speaker tone from the kernel (AFE + TFA9865 amps); no iOS audio service yet | [audio](device/lapis_audio_bringup.md) |
 | Brightness | panel backlight set over DSI from the kernel; not yet wired to iOS's slider | [next session notes](device/lapis_next_session.md) |
 | **GPU** | **Mali-G615 driven from XNU and from iOS programs; Mesa's panfrost draws on it** (see below) | [GPU plan and log](device/lapis_gpu_plan.md) |
-| Metal | `MTLCreateSystemDefaultDevice()` gives our device; buffers, blits and compute kernels (Apple's compiled shaders) run on the GPU; render passes next | [Metal plan](device/lapis_metal_plan.md) |
+| Metal | `MTLCreateSystemDefaultDevice()` gives our device; buffers, blits, compute kernels and render passes (a triangle from Apple's compiled vertex and fragment shaders) run on the GPU; textures in shaders and CoreAnimation next | [Metal plan](device/lapis_metal_plan.md) |
 | Wi-Fi, Bluetooth, modem, camera, sensors | not started | |
 
 ## The GPU stack

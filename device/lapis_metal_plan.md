@@ -86,5 +86,25 @@ work that lets CoreAnimation draw on the GPU.
    non-uniform threadgroups, textures/samplers in kernels. The cache sync on
    every submission (all of Mesa's maps, ~2.6 MiB) dominates small command
    buffers (21 ms each this boot, measured early while iOS was still starting).
-5. Render pass: a triangle through `MTLRenderCommandEncoder`.
+5. ~~Render pass~~ **done (2026-11-25, device/captures/sweetlog_m5c_render.txt;
+   m5 and m5b logs beside it).** liblapis_gallium: 2D textures in Metal pixel
+   formats (`lapis_gpu_tex_*`, linear, read back through transfer maps),
+   render pipelines from a vertex and a fragment AIR function, passes
+   (`lapis_gpu_pass_begin`: clear or keep the colour attachment; Metal's
+   z in [0, 1] via clip_halfz and y up via a negative viewport y scale), draws
+   with each stage's buffers by Metal index. LapisMetal: `newTextureWithDescriptor:`,
+   `getBytes:` / `replaceRegion:`, `newRenderPipelineStateWithDescriptor:`,
+   `renderCommandEncoderWithDescriptor:` with vertex/fragment buffers and
+   bytes and `drawPrimitives:`. On the G615 through Metal's own API: the red
+   triangle ff0000ff, covering 20808 pixels (20972 by area, edges excepted),
+   apex at the top (rows 27-229); interpolated colours; constant and device
+   buffers in the fragment stage; 100 frames at 2.1 ms each.
+   What it took: panfrost's fragment shaders read gallium constant buffer 0
+   as zero (m5 drew 00000000, m5b isolated it to `constant [[buffer(0)]]` in
+   the fragment stage), so Metal's constant buffer n is gallium's n + 1 in
+   every stage (a NIR pass on load_ubo). Each render pipeline's NIR is in the
+   log (lapis_gpu_render_nir) for the next shader that goes wrong.
+   Not yet: `[[stage_in]]` vertex attributes (vertex descriptors), viewport
+   and scissor, depth/stencil, blending, textures and samplers in shaders,
+   indexed draws, several colour attachments, MSAA.
 6. IOSurface textures; then backboardd (CoreAnimation) on the device.
