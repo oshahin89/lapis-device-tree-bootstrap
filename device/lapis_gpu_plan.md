@@ -132,8 +132,18 @@ Started 2026-11-23. Nothing runs on the GPU yet; iOS draws with the CPU
   the program's blocks over /usr/bin/IOMFB_FDR_Loader, which iOS runs once
   per boot as root; tools/hfsplus_find.py found them in the image without
   mounting. `restore` puts the original back.
-- Next: the stand-in for libdrm that Mesa's panfrost (panthor backend)
-  calls, sync objects on 0x7d, then Mesa itself built for iOS.
+- Milestone 8 (in progress, 2026-11-24): Mesa. What it needed from LapisGPU,
+  proven by gputest v2..v4 on dual_v49 (device/captures/sweetlog_v49c_gputest.txt):
+  tiler heaps (TILER_HEAP_CREATE/DESTROY, 5 x 2 MiB as gallium asks) work;
+  **write-combined mappings panic this kernel** (v44 kernel-side, v49b when a
+  program asked IOConnectMapMemory64 for kIOMapWriteCombineCache; the cache
+  bits come from the program's options, not clientMemoryForType's), so
+  buffers stay cacheable and **programs clean/invalidate with dc civac at EL0**
+  (allowed: 1000/1000). Round trip program -> GPU -> program: 46 us once boot
+  has settled (1-2 ms during boot). Mesa 25.0.7 gallium panfrost + OSMesa
+  builds for iOS on CI (tools/mesa: lapis-drm libdrm stand-in after hakios's,
+  patches, build-mesa-ios.sh); libOSMesa (16 MB) goes over ICE17.Release.bbfw
+  and lapis_osmesatest over IOMFB_FDR_Loader (tools/lapis_rootslot.sh).
 
 ## tgpu v1 on the phone (dual_v29, 2026-11-23)
 
