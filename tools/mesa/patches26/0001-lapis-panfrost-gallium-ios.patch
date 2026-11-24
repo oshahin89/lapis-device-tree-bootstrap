@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1011 @@
+@@ -0,0 +1,1040 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -581,8 +581,35 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +#include "compiler/nir/nir.h"
 +#include "compiler/air/nir_air.h"
 +#include "util/ralloc.h"
++#include "compiler/nir/nir_builder.h"
 +
 +#define LAPIS_GPU_MAX_RES 64
++
++/*
++ * Metal's constant buffer n is gallium's constant buffer n + 1: panfrost's
++ * fragment shaders read slot 0 as zero (sweetlog_m5b: `constant float4 &t
++ * [[buffer(0)]]` gave 0 in a fragment shader, [[buffer(1)]] and a device
++ * buffer at 0 were right), so slot 0 is left alone in every stage.
++ */
++#define LAPIS_UBO_SHIFT 1
++
++static bool
++shift_ubo(nir_builder *b, nir_intrinsic_instr *in, void *data)
++{
++   (void)data;
++   if (in->intrinsic != nir_intrinsic_load_ubo)
++      return false;
++   b->cursor = nir_before_instr(&in->instr);
++   nir_src_rewrite(&in->src[0], nir_iadd_imm(b, in->src[0].ssa, LAPIS_UBO_SHIFT));
++   return true;
++}
++
++static void
++shift_ubos(nir_shader *nir)
++{
++   if (nir_shader_intrinsics_pass(nir, shift_ubo, nir_metadata_control_flow, NULL))
++      nir->info.num_ubos += LAPIS_UBO_SHIFT;
++}
 +
 +struct lapis_gpu_compute {
 +   void *cso;
@@ -671,6 +698,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      ralloc_free(mem);
 +      return NULL;
 +   }
++   shift_ubos(nir);
 +   struct lapis_gpu_compute *c = calloc(1, sizeof(*c));
 +   for (unsigned i = 0; i < info.num_resources && c->num_res < LAPIS_GPU_MAX_RES; i++) {
 +      c->res[c->num_res].kind = info.resources[i].kind;
@@ -751,7 +779,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +            .buffer_offset = (unsigned)off,
 +            .buffer_size = (unsigned)(bufs[idx]->size - off),
 +         };
-+         gpu->ctx->set_constant_buffer(gpu->ctx, MESA_SHADER_COMPUTE, idx, &cb);
++         gpu->ctx->set_constant_buffer(gpu->ctx, MESA_SHADER_COMPUTE, idx + LAPIS_UBO_SHIFT, &cb);
 +      }
 +   }
 +   if (num_ssbo)
@@ -932,6 +960,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   }
 +   if (num_attribs)
 +      *num_attribs = info.num_vertex_attributes;
++   shift_ubos(nir);
 +   {
 +      char *text = NULL;
 +      size_t len = 0;
@@ -1091,7 +1120,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +            .buffer_offset = (unsigned)off,
 +            .buffer_size = (unsigned)(bufs[idx]->size - off),
 +         };
-+         gpu->ctx->set_constant_buffer(gpu->ctx, stage, idx, &cb);
++         gpu->ctx->set_constant_buffer(gpu->ctx, stage, idx + LAPIS_UBO_SHIFT, &cb);
 +      }
 +   }
 +   if (num_ssbo)
