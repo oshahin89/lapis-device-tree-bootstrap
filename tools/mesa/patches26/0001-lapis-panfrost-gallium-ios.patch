@@ -63,6 +63,19 @@ diff -ruN a/meson.build b/meson.build
  subdir('include')
  subdir('bin')
  subdir('src')
+diff -ruN a/src/compiler/meson.build b/src/compiler/meson.build
+--- a/src/compiler/meson.build
++++ b/src/compiler/meson.build
+@@ -65,6 +65,9 @@
+ 
+ subdir('spirv')
+ 
++# lapis: Apple's AIR (Metal shader bitcode) to NIR, from hakios (tools/mesa/air)
++subdir('air')
++
+ if with_clc
+   subdir('clc')
+ endif
 diff -ruN a/src/gallium/drivers/panfrost/pan_bo.c b/src/gallium/drivers/panfrost/pan_bo.c
 --- a/src/gallium/drivers/panfrost/pan_bo.c
 +++ b/src/gallium/drivers/panfrost/pan_bo.c
@@ -95,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,460 @@
+@@ -0,0 +1,659 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -556,6 +569,205 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   if (f)
 +      gpu->screen->fence_reference(gpu->screen, &f, NULL);
 +}
++
++/*
++ * Compute for LapisMetal: a Metal function (AIR bitcode, from a .metallib)
++ * through hakios's AIR -> NIR front end (src/compiler/air) into a panfrost
++ * compute state; its bindings as nir_air.h makes them: a `device` buffer is
++ * the SSBO at Metal's buffer index, a `constant` buffer the UBO at that
++ * index. A dispatch binds the caller's buffers by Metal index and launches
++ * the grid on the context; it is submitted with the next lapis_gpu_flush.
++ */
++#include "compiler/air/nir_air.h"
++#include "util/ralloc.h"
++
++#define LAPIS_GPU_MAX_RES 64
++
++struct lapis_gpu_compute {
++   void *cso;
++   unsigned num_res;
++   struct { int kind; unsigned index; bool write; } res[LAPIS_GPU_MAX_RES];
++   unsigned shared;
++};
++
++PUBLIC int lapis_gpu_metallib_names(const void *data, size_t size, char *out, size_t out_size);
++PUBLIC int lapis_gpu_metallib_function(const void *data, size_t size, const char *name,
++                                       const void **bitcode, size_t *bitcode_size);
++PUBLIC struct lapis_gpu_compute *lapis_gpu_compute_new(struct lapis_gpu *gpu, const void *bitcode, size_t size,
++                                                       const char *entry, char *error, size_t error_size);
++PUBLIC unsigned lapis_gpu_compute_resources(struct lapis_gpu_compute *c, int *kinds, unsigned *indexes, unsigned max);
++PUBLIC void lapis_gpu_compute_free(struct lapis_gpu *gpu, struct lapis_gpu_compute *c);
++PUBLIC int lapis_gpu_dispatch(struct lapis_gpu *gpu, struct lapis_gpu_compute *c, struct lapis_gpu_buf *const *bufs,
++                              const uint64_t *offsets, unsigned num_bufs, const uint32_t grid[3],
++                              const uint32_t block[3]);
++
++/* the functions of a .metallib, NUL-separated into OUT; how many, or -1 */
++PUBLIC int
++lapis_gpu_metallib_names(const void *data, size_t size, char *out, size_t out_size)
++{
++   void *mem = ralloc_context(NULL);
++   struct air_metallib lib;
++   const char *error = NULL;
++   int n = -1;
++   if (air_metallib_parse(mem, data, size, &lib, &error)) {
++      size_t at = 0;
++      n = 0;
++      for (unsigned i = 0; i < lib.num_functions; i++) {
++         size_t len = strlen(lib.functions[i].name) + 1;
++         if (at + len > out_size)
++            break;
++         memcpy(out + at, lib.functions[i].name, len);
++         at += len;
++         n++;
++      }
++   }
++   ralloc_free(mem);
++   return n;
++}
++
++/* a function's bitcode inside the .metallib's own memory; 0, or -1 */
++PUBLIC int
++lapis_gpu_metallib_function(const void *data, size_t size, const char *name, const void **bitcode,
++                            size_t *bitcode_size)
++{
++   void *mem = ralloc_context(NULL);
++   struct air_metallib lib;
++   const char *error = NULL;
++   int r = -1;
++   if (air_metallib_parse(mem, data, size, &lib, &error)) {
++      for (unsigned i = 0; i < lib.num_functions; i++) {
++         if (strcmp(lib.functions[i].name, name) == 0) {
++            *bitcode = lib.functions[i].bitcode;
++            *bitcode_size = lib.functions[i].bitcode_size;
++            r = 0;
++            break;
++         }
++      }
++   }
++   ralloc_free(mem);
++   return r;
++}
++
++PUBLIC struct lapis_gpu_compute *
++lapis_gpu_compute_new(struct lapis_gpu *gpu, const void *bitcode, size_t size, const char *entry, char *error,
++                      size_t error_size)
++{
++   void *mem = ralloc_context(NULL);
++   struct air_shader_info info;
++   struct air_to_nir_options opts;
++   const char *why = NULL;
++   memset(&info, 0, sizeof(info));
++   memset(&opts, 0, sizeof(opts));
++   nir_shader *nir = air_to_nir(mem, bitcode, size, entry, &opts,
++                                gpu->screen->nir_options[MESA_SHADER_COMPUTE], &info, &why);
++   if (!nir) {
++      snprintf(error, error_size, "%s", why ? why : "air_to_nir failed");
++      ralloc_free(mem);
++      return NULL;
++   }
++   if (nir->info.stage != MESA_SHADER_COMPUTE) {
++      snprintf(error, error_size, "not a kernel (stage %d)", (int)nir->info.stage);
++      ralloc_free(mem);
++      return NULL;
++   }
++   struct lapis_gpu_compute *c = calloc(1, sizeof(*c));
++   for (unsigned i = 0; i < info.num_resources && c->num_res < LAPIS_GPU_MAX_RES; i++) {
++      c->res[c->num_res].kind = info.resources[i].kind;
++      c->res[c->num_res].index = info.resources[i].index;
++      c->res[c->num_res].write = info.resources[i].write || info.resources[i].ir_write;
++      c->num_res++;
++   }
++   c->shared = info.threadgroup_bytes;
++   ralloc_steal(NULL, nir);
++   ralloc_free(mem);
++   struct pipe_compute_state cs = {
++      .ir_type = PIPE_SHADER_IR_NIR,
++      .prog = nir,
++      .static_shared_mem = c->shared,
++   };
++   pthread_mutex_lock(&gpu->lock);
++   c->cso = gpu->ctx->create_compute_state(gpu->ctx, &cs);
++   pthread_mutex_unlock(&gpu->lock);
++   if (!c->cso) {
++      snprintf(error, error_size, "panfrost refused the shader");
++      free(c);
++      return NULL;
++   }
++   return c;
++}
++
++PUBLIC unsigned
++lapis_gpu_compute_resources(struct lapis_gpu_compute *c, int *kinds, unsigned *indexes, unsigned max)
++{
++   unsigned n = c->num_res < max ? c->num_res : max;
++   for (unsigned i = 0; i < n; i++) {
++      kinds[i] = c->res[i].kind;
++      indexes[i] = c->res[i].index;
++   }
++   return c->num_res;
++}
++
++PUBLIC void
++lapis_gpu_compute_free(struct lapis_gpu *gpu, struct lapis_gpu_compute *c)
++{
++   if (!c)
++      return;
++   pthread_mutex_lock(&gpu->lock);
++   gpu->ctx->delete_compute_state(gpu->ctx, c->cso);
++   pthread_mutex_unlock(&gpu->lock);
++   free(c);
++}
++
++/* 0, or -1 when a buffer the kernel uses is missing (nothing is launched) */
++PUBLIC int
++lapis_gpu_dispatch(struct lapis_gpu *gpu, struct lapis_gpu_compute *c, struct lapis_gpu_buf *const *bufs,
++                   const uint64_t *offsets, unsigned num_bufs, const uint32_t grid[3], const uint32_t block[3])
++{
++   struct pipe_shader_buffer ssbo[32];
++   unsigned num_ssbo = 0, writable = 0;
++   memset(ssbo, 0, sizeof(ssbo));
++   pthread_mutex_lock(&gpu->lock);
++   for (unsigned i = 0; i < c->num_res; i++) {
++      unsigned idx = c->res[i].index;
++      if (c->res[i].kind != AIR_RESOURCE_DEVICE_BUFFER && c->res[i].kind != AIR_RESOURCE_CONSTANT_BUFFER)
++         continue;
++      if (idx >= num_bufs || !bufs[idx] || idx >= 32) {
++         pthread_mutex_unlock(&gpu->lock);
++         return -1;
++      }
++      uint64_t off = offsets ? offsets[idx] : 0;
++      if (c->res[i].kind == AIR_RESOURCE_DEVICE_BUFFER) {
++         ssbo[idx].buffer = bufs[idx]->res;
++         ssbo[idx].buffer_offset = (unsigned)off;
++         ssbo[idx].buffer_size = (unsigned)(bufs[idx]->size - off);
++         if (c->res[i].write)
++            writable |= 1u << idx;
++         if (idx + 1 > num_ssbo)
++            num_ssbo = idx + 1;
++      } else {
++         struct pipe_constant_buffer cb = {
++            .buffer = bufs[idx]->res,
++            .buffer_offset = (unsigned)off,
++            .buffer_size = (unsigned)(bufs[idx]->size - off),
++         };
++         gpu->ctx->set_constant_buffer(gpu->ctx, MESA_SHADER_COMPUTE, idx, &cb);
++      }
++   }
++   if (num_ssbo)
++      gpu->ctx->set_shader_buffers(gpu->ctx, MESA_SHADER_COMPUTE, 0, num_ssbo, ssbo, writable);
++   gpu->ctx->bind_compute_state(gpu->ctx, c->cso);
++   struct pipe_grid_info g;
++   memset(&g, 0, sizeof(g));
++   g.work_dim = 3;
++   for (unsigned k = 0; k < 3; k++) {
++      g.block[k] = block[k] ? block[k] : 1;
++      g.grid[k] = grid[k] ? grid[k] : 1;
++      g.last_block[k] = 0;
++   }
++   gpu->ctx->launch_grid(gpu->ctx, &g);
++   pthread_mutex_unlock(&gpu->lock);
++   return 0;
++}
 diff -ruN a/src/gallium/targets/lapis/meson.build b/src/gallium/targets/lapis/meson.build
 --- a/src/gallium/targets/lapis/meson.build
 +++ b/src/gallium/targets/lapis/meson.build
@@ -576,7 +788,7 @@ diff -ruN a/src/gallium/targets/lapis/meson.build b/src/gallium/targets/lapis/me
 +    inc_gallium_drivers,
 +  ],
 +  link_with : [libgallium],
-+  dependencies : [driver_panfrost, idep_nir, idep_mesautil, idep_xmlconfig, dep_libdrm],
++  dependencies : [driver_panfrost, idep_nir, idep_air, idep_mesautil, idep_xmlconfig, dep_libdrm],
 +  gnu_symbol_visibility : 'hidden',
 +  install : true,
 +)

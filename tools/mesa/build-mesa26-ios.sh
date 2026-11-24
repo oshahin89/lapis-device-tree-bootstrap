@@ -24,6 +24,7 @@ for p in "$ROOT"/tools/mesa/patches26/*.patch; do
 	patch -s --no-backup-if-mismatch -d mesa-$VERSION -p1 < "$p"
 done
 cp -r "$ROOT/tools/mesa/lapis-drm" mesa-$VERSION/src/lapis-drm
+cp -r "$ROOT/tools/mesa/air" mesa-$VERSION/src/compiler/air
 
 if [ ! -x venv/bin/python3 ]; then
 	python3 -m venv venv
