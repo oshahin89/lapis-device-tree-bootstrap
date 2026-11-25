@@ -2611,12 +2611,33 @@ shownToThisProcess(void)
 	return NO;
 }
 
+/*
+ * CoreAnimation's own log (x_log: QuartzCore says why its Metal renderer
+ * gives up) to backboardd's stderr, which reaches the kernel's log: its
+ * logger opens QUARTZCORE_LOG_FILE (or X_LOG_FILE) when that is set, and
+ * x_set_log_filename sets it after the fact.
+ */
+static void
+coreAnimationLogToStderr(void)
+{
+	setenv("QUARTZCORE_LOG_FILE", "/dev/stderr", 1);
+	setenv("X_LOG_FILE", "/dev/stderr", 1);
+	void (*setName)(const char *) = (void (*)(const char *))dlsym(RTLD_DEFAULT, "x_set_log_filename");
+	if (setName) {
+		setName("/dev/stderr");
+	}
+	say([NSString stringWithFormat:@"CoreAnimation's log to stderr (x_set_log_filename %s)", setName ? "called" : "not exported: env only"]);
+}
+
 __attribute__((constructor)) static void
 registerClasses(void)
 {
 	say(@"loaded");
 	if (!shownToThisProcess()) {
 		return;
+	}
+	if (getprogname() && strcmp(getprogname(), "backboardd") == 0) {
+		coreAnimationLogToStderr();
 	}
 	gBase = objc_getClass("_MTLDevice");
 	gQueueBase = objc_getClass("_MTLCommandQueue");
