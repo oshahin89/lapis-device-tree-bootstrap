@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1675 @@
+@@ -0,0 +1,1679 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -1640,9 +1640,9 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   return s;
 +}
 +
-+/* a stage's buffers, textures and samplers by Metal index; false when a
-+ * buffer or texture it uses is missing (lock held) */
-+static bool
++/* a stage's buffers, textures and samplers by Metal index; 0, or what is
++ * missing: 1000 + a buffer's index, 2000 + a texture's (lock held) */
++static int
 +bind_stage(struct lapis_gpu *gpu, mesa_shader_stage stage, const struct lapis_gpu_stage *st,
 +           struct lapis_gpu_buf *const *bufs, const uint64_t *offsets, unsigned num_bufs,
 +           struct lapis_gpu_tex *const *texes, void *const *samplers)
@@ -1659,19 +1659,19 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      int kind = st->res[i].kind;
 +      if (kind == AIR_RESOURCE_TEXTURE) {
 +         if (idx > LAPIS_GPU_MAX_TEXTURES)
-+            return false;
++            return 2000 + (int)idx;
 +         if (st->res[i].null_texture)
 +            views[idx] = null_view(gpu);
 +         else if (texes && idx < LAPIS_GPU_MAX_TEXTURES && texes[idx])
 +            views[idx] = tex_view(gpu, texes[idx]);
 +         else
-+            return false;
++            return 2000 + (int)idx;
 +         num_views = MAX2(num_views, idx + 1);
 +         continue;
 +      }
 +      if (kind == AIR_RESOURCE_SAMPLER) {
 +         if (idx >= LAPIS_GPU_MAX_SAMPLERS)
-+            return false;
++            return 3000 + (int)idx;
 +         samp[idx] = st->inline_sampler[idx] ? st->inline_sampler[idx]
 +                     : (samplers && samplers[idx]) ? samplers[idx] : default_sampler(gpu);
 +         num_samp = MAX2(num_samp, idx + 1);
@@ -1680,7 +1680,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      if (kind != AIR_RESOURCE_DEVICE_BUFFER && kind != AIR_RESOURCE_CONSTANT_BUFFER)
 +         continue;
 +      if (idx >= num_bufs || idx >= 32 || !bufs[idx])
-+         return false;
++         return 1000 + (int)idx;
 +      uint64_t off = offsets ? offsets[idx] : 0;
 +      if (kind == AIR_RESOURCE_DEVICE_BUFFER) {
 +         ssbo[idx].buffer = bufs[idx]->res;
@@ -1716,7 +1716,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +            samp[i] = default_sampler(gpu);
 +      gpu->ctx->bind_sampler_states(gpu->ctx, stage, 0, num_samp, samp);
 +   }
-+   return true;
++   return 0;
 +}
 +
 +/* a draw: 0, or -1 when something a shader uses is not bound (nothing drawn) */
@@ -1728,10 +1728,14 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   if (!r || !lapis_cso || a->mtl_prim > 4 || !a->count)
 +      return -1;
 +   pthread_mutex_lock(&gpu->lock);
-+   if (!bind_stage(gpu, MESA_SHADER_VERTEX, &r->vs, a->vbufs, a->voffs, 31, a->vtex, a->vsamp) ||
-+       !bind_stage(gpu, MESA_SHADER_FRAGMENT, &r->fs, a->fbufs, a->foffs, 31, a->ftex, a->fsamp)) {
++   int missing = bind_stage(gpu, MESA_SHADER_VERTEX, &r->vs, a->vbufs, a->voffs, 31, a->vtex, a->vsamp);
++   if (!missing) {
++      missing = bind_stage(gpu, MESA_SHADER_FRAGMENT, &r->fs, a->fbufs, a->foffs, 31, a->ftex, a->fsamp);
++      missing = missing ? missing + 10000 : 0;   /* 1xxxx: the fragment stage's */
++   }
++   if (missing) {
 +      pthread_mutex_unlock(&gpu->lock);
-+      return -1;
++      return -missing;   /* -(1000+i) a vertex buffer, -(2000+i) a vertex texture, -(1xxxx) the fragment stage's */
 +   }
 +   struct pipe_vertex_buffer vb[PIPE_MAX_ATTRIBS];
 +   memset(vb, 0, sizeof(vb));

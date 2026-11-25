@@ -1697,6 +1697,8 @@ registerComputeClasses(Class device)
 @property (nonatomic) IOSurfaceRef surface;     /* an IOSurface texture's surface (retained), or NULL */
 @property (nonatomic) NSUInteger plane;
 @property (nonatomic) uint32_t seed;            /* the surface's seed the GPU copy matches */
+@property (nonatomic, strong) id linearSource;  /* a texture over a buffer: the buffer, copied in at each use */
+@property (nonatomic) NSUInteger linearOffset, linearStride;
 @end
 @implementation LapisTexState
 - (void)dealloc
@@ -1738,10 +1740,37 @@ unorm8(float v)
 	return v <= 0 ? 0 : v >= 1 ? 255 : (uint8_t)(v * 255.0f + 0.5f);
 }
 
+/*
+ * A surface's plane, falling back to the whole surface: topaz's IOSurfaces
+ * answer 0 for the per-plane geometry of CoreAnimation's two-plane 'b3a8'
+ * framebuffer (m7y: "0 bytes a row", so every row was copied onto the first)
+ * while the surface itself has its 4544 bytes a row.
+ */
+static void *
+surfBase(IOSurfaceRef s, NSUInteger plane)
+{
+	void *b = IOSurfaceGetPlaneCount(s) ? IOSurfaceGetBaseAddressOfPlane(s, plane) : NULL;
+	return b && IOSurfaceGetBytesPerRowOfPlane(s, plane) ? b : IOSurfaceGetBaseAddress(s);
+}
+
+static size_t
+surfStride(IOSurfaceRef s, NSUInteger plane)
+{
+	size_t r = IOSurfaceGetPlaneCount(s) ? IOSurfaceGetBytesPerRowOfPlane(s, plane) : 0;
+	return r ? r : IOSurfaceGetBytesPerRow(s);
+}
+
+static size_t
+surfBpe(IOSurfaceRef s, NSUInteger plane)
+{
+	size_t r = IOSurfaceGetPlaneCount(s) ? IOSurfaceGetBytesPerElementOfPlane(s, plane) : 0;
+	return r ? r : IOSurfaceGetBytesPerElement(s);
+}
+
 static BOOL
 xrSurfaceOut(LapisTexState *t, void *base, size_t stride)
 {
-	if (!isXR(t.pixelFormat) || IOSurfaceGetBytesPerElementOfPlane(t.surface, t.plane) != 4) {
+	if (!isXR(t.pixelFormat) || surfBpe(t.surface, t.plane) != 4) {
 		return NO;
 	}
 	size_t w = t.width, h = t.height;
@@ -1767,7 +1796,7 @@ xrSurfaceOut(LapisTexState *t, void *base, size_t stride)
 static BOOL
 xrSurfaceIn(LapisTexState *t, const void *base, size_t stride)
 {
-	if (!isXR(t.pixelFormat) || IOSurfaceGetBytesPerElementOfPlane(t.surface, t.plane) != 4) {
+	if (!isXR(t.pixelFormat) || surfBpe(t.surface, t.plane) != 4) {
 		return NO;
 	}
 	size_t w = t.width, h = t.height;
@@ -1797,13 +1826,27 @@ surfaceIn(LapisTexState *t)
 		return;
 	}
 	IOSurfaceLock(t.surface, kIOSurfaceLockReadOnly, NULL);
-	const void *base = IOSurfaceGetBaseAddressOfPlane(t.surface, t.plane);
-	size_t stride = IOSurfaceGetBytesPerRowOfPlane(t.surface, t.plane);
+	const void *base = surfBase(t.surface, t.plane);
+	size_t stride = surfStride(t.surface, t.plane);
 	if (base && !xrSurfaceIn(t, base, stride)) {
 		G.tex_write(G.gpu, t.tex, 0, 0, (unsigned)t.width, (unsigned)t.height, base, stride);
 	}
 	IOSurfaceUnlock(t.surface, kIOSurfaceLockReadOnly, NULL);
 	t.seed = IOSurfaceGetSeed(t.surface);
+}
+
+/* a texture over a buffer (newLinearTextureWithDescriptor:): the buffer's bytes in at each use */
+static void
+linearIn(LapisTexState *t)
+{
+	if (!t.linearSource) {
+		return;
+	}
+	struct lapis_buffer *b = bufferState(t.linearSource);
+	if (t.linearOffset + t.linearStride * (t.height ? t.height - 1 : 0) >= b->length) {
+		return;
+	}
+	G.tex_write(G.gpu, t.tex, 0, 0, (unsigned)t.width, (unsigned)t.height, (uint8_t *)b->memory + t.linearOffset, t.linearStride);
 }
 
 static void
@@ -1815,8 +1858,8 @@ surfaceOut(LapisTexState *t)
 	checkpoint(4, [NSString stringWithFormat:@"first copy out to a surface (%lux%lu format %lu)", (unsigned long)t.width,
 	    (unsigned long)t.height, (unsigned long)t.pixelFormat]);
 	IOSurfaceLock(t.surface, 0, NULL);
-	void *base = IOSurfaceGetBaseAddressOfPlane(t.surface, t.plane);
-	size_t stride = IOSurfaceGetBytesPerRowOfPlane(t.surface, t.plane);
+	void *base = surfBase(t.surface, t.plane);
+	size_t stride = surfStride(t.surface, t.plane);
 	if (base && !xrSurfaceOut(t, base, stride)) {
 		G.tex_read(G.gpu, t.tex, 0, 0, (unsigned)t.width, (unsigned)t.height, base, stride);
 	}
@@ -1952,7 +1995,7 @@ deviceNewTextureSurface(id self, SEL _cmd, MTLTextureDescriptor *d, IOSurfaceRef
 	if (shown++ < 16) {
 		say([NSString stringWithFormat:@"IOSurface texture %ux%u format %lu (surface id %u, %zu bytes a row)",
 		    (unsigned)d.width, (unsigned)d.height, (unsigned long)d.pixelFormat, IOSurfaceGetID(surface),
-		    IOSurfaceGetBytesPerRowOfPlane(surface, plane)]);
+		    surfStride(surface, plane)]);
 	}
 	return t;
 }
@@ -2205,6 +2248,23 @@ reSet(id self, BOOL fragment, id buffer, NSUInteger offset, NSUInteger index)
 	}
 }
 
+static void
+reBufferOffset(id self, BOOL fragment, NSUInteger offset, NSUInteger index)
+{
+	LapisRenderState *rs = stateOf(self);
+	if (index >= LAPIS_MAX_BINDINGS) {
+		return;
+	}
+	if (fragment) {
+		rs->foffs[index] = offset;
+	} else {
+		rs->voffs[index] = offset;
+	}
+}
+
+static void reVertexOffset(id self, SEL _cmd, NSUInteger o, NSUInteger i) { (void)_cmd; reBufferOffset(self, NO, o, i); }
+static void reFragmentOffset(id self, SEL _cmd, NSUInteger o, NSUInteger i) { (void)_cmd; reBufferOffset(self, YES, o, i); }
+
 static void reVertexBuffer(id self, SEL _cmd, id b, NSUInteger o, NSUInteger i) { (void)_cmd; reSet(self, NO, b, o, i); }
 static void reFragmentBuffer(id self, SEL _cmd, id b, NSUInteger o, NSUInteger i) { (void)_cmd; reSet(self, YES, b, o, i); }
 
@@ -2249,9 +2309,11 @@ reDrawFull(id self, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInte
 		a.foffs[i] = rs->foffs[i];
 		if (rs->vtex[i]) {
 			surfaceIn(texState(rs->vtex[i]));
+			linearIn(texState(rs->vtex[i]));
 		}
 		if (rs->ftex[i]) {
 			surfaceIn(texState(rs->ftex[i]));
+			linearIn(texState(rs->ftex[i]));
 		}
 		a.vtex[i] = rs->vtex[i] ? texState(rs->vtex[i]).tex : NULL;
 		a.ftex[i] = rs->ftex[i] ? texState(rs->ftex[i]).tex : NULL;
@@ -2306,7 +2368,21 @@ reDrawFull(id self, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInte
 		r = -1;
 	}
 	if (r != 0) {
-		say(@"refused: a draw with a buffer or texture a shader uses not bound (or not in GPU memory), or a primitive type past 4");
+		/* (-(1000+i): a buffer, -(2000+i): a texture, -(3000+i): a sampler; +10000: the fragment stage's) */
+		int code = -r;
+		NSString *what = code == 1 ? @"a vertex buffer of the vertex descriptor, the index buffer, or a primitive type past 4"
+		    : [NSString stringWithFormat:@"%s %s %d", code >= 10000 ? "fragment" : "vertex",
+		        (code % 10000) >= 3000 ? "sampler" : (code % 10000) >= 2000 ? "texture" : "buffer", code % 1000];
+		static NSMutableSet *said;
+		@synchronized([LapisRenderState class]) {
+			if (!said) {
+				said = [NSMutableSet new];
+			}
+			if (![said containsObject:what]) {
+				[said addObject:what];
+				say([@"refused a draw: not bound: " stringByAppendingString:what]);
+			}
+		}
 	}
 }
 
@@ -2605,9 +2681,32 @@ blitTexCopyAll(id self, SEL _cmd, id src, id dst)
 
 static BOOL queueYes(id self, SEL _cmd, NSUInteger a) { (void)self; (void)_cmd; (void)a; return YES; }
 
+/* -[MTLBuffer newLinearTextureWithDescriptor:offset:bytesPerRow:]: a texture of its own, the buffer's bytes copied in at each use */
+static id
+bufferLinearTexture(id self, SEL _cmd, MTLTextureDescriptor *d, NSUInteger offset, NSUInteger stride)
+{
+	(void)_cmd;
+	id t = deviceNewTexture(gDevice, sel_registerName("newTextureWithDescriptor:"), d);
+	LapisTexState *ts = texState(t);
+	if (!ts) {
+		return nil;
+	}
+	ts.linearSource = self;
+	ts.linearOffset = offset;
+	ts.linearStride = stride;
+	static unsigned shown;
+	if (shown++ < 8) {
+		say([NSString stringWithFormat:@"texture over a buffer: %lux%lu format %lu, %lu bytes a row at %lu", (unsigned long)d.width,
+		    (unsigned long)d.height, (unsigned long)d.pixelFormat, (unsigned long)stride, (unsigned long)offset]);
+	}
+	return t;
+}
+
 static void
 registerRenderClasses(Class device)
 {
+	class_addMethod(gBufferClass, sel_registerName("newLinearTextureWithDescriptor:offset:bytesPerRow:"), (IMP)bufferLinearTexture,
+	    "@@:@QQ");
 	if (gBlitClass) {
 		class_addMethod(gBlitClass, sel_registerName("generateMipmapsForTexture:"), (IMP)blitGenMipmaps, "v@:@");
 		class_addMethod(gBlitClass,
@@ -2667,17 +2766,18 @@ registerRenderClasses(Class device)
 		    "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:baseVertex:baseInstance:",
 		    "setVertexTexture:atIndex:", "setFragmentTexture:atIndex:", "setVertexSamplerState:atIndex:",
 		    "setFragmentSamplerState:atIndex:", "setScissorRect:", "setBlendColorRed:green:blue:alpha:",
-		    "setDepthStencilState:", "setStencilReferenceValue:" };
+		    "setDepthStencilState:", "setStencilReferenceValue:", "setVertexBufferOffset:atIndex:",
+		    "setFragmentBufferOffset:atIndex:" };
 		IMP i[] = { (IMP)reLabel, (IMP)reSetLabel, (IMP)reEnd, (IMP)rePipeline, (IMP)reVertexBuffer,
 		    (IMP)reFragmentBuffer, (IMP)reVertexBytes, (IMP)reFragmentBytes, (IMP)reDraw, (IMP)reDrawInstanced,
 		    (IMP)reViewport, (IMP)reIgnored1, (IMP)reIgnored1, (IMP)reIgnored1, (IMP)reDrawBase, (IMP)reDrawIndexed,
 		    (IMP)reDrawIndexedInst, (IMP)reDrawIndexedFull, (IMP)reVertexTexture, (IMP)reFragmentTexture,
 		    (IMP)reVertexSampler, (IMP)reFragmentSampler, (IMP)reScissor, (IMP)reBlendColor, (IMP)reNothing1,
-		    (IMP)reNothingU };
+		    (IMP)reNothingU, (IMP)reVertexOffset, (IMP)reFragmentOffset };
 		const char *t[] = { "@@:", "v@:@", "v@:", "v@:@", "v@:@QQ", "v@:@QQ", "v@:r^vQQ", "v@:r^vQQ", "v@:QQQ", "v@:QQQQ",
 		    "v@:{?=dddddd}", "v@:Q", "v@:Q", "v@:Q", "v@:QQQQQ", "v@:QQQ@Q", "v@:QQQ@QQ", "v@:QQQ@QQqQ", "v@:@Q",
-		    "v@:@Q", "v@:@Q", "v@:@Q", "v@:{?=QQQQ}", "v@:ffff", "v@:@", "v@:I" };
-		addMethods(gRenderClass, s, i, t, 26);
+		    "v@:@Q", "v@:@Q", "v@:@Q", "v@:{?=QQQQ}", "v@:ffff", "v@:@", "v@:I", "v@:QQ", "v@:QQ" };
+		addMethods(gRenderClass, s, i, t, 28);
 	}
 	objc_registerClassPair(gRenderClass);
 
