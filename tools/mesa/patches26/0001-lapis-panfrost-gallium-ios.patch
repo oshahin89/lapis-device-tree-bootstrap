@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1586 @@
+@@ -0,0 +1,1641 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -935,7 +935,44 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +{
 +   *bpp = 4;
 +   switch (f) {
++   case 1: *bpp = 1; return PIPE_FORMAT_A8_UNORM;           /* A8Unorm */
 +   case 10: *bpp = 1; return PIPE_FORMAT_R8_UNORM;          /* MTLPixelFormatR8Unorm */
++   case 12: *bpp = 1; return PIPE_FORMAT_R8_SNORM;
++   case 13: *bpp = 1; return PIPE_FORMAT_R8_UINT;
++   case 14: *bpp = 1; return PIPE_FORMAT_R8_SINT;
++   case 20: *bpp = 2; return PIPE_FORMAT_R16_UNORM;
++   case 22: *bpp = 2; return PIPE_FORMAT_R16_SNORM;
++   case 23: *bpp = 2; return PIPE_FORMAT_R16_UINT;
++   case 24: *bpp = 2; return PIPE_FORMAT_R16_SINT;
++   case 25: *bpp = 2; return PIPE_FORMAT_R16_FLOAT;
++   case 30: *bpp = 2; return PIPE_FORMAT_R8G8_UNORM;
++   case 32: *bpp = 2; return PIPE_FORMAT_R8G8_SNORM;
++   case 33: *bpp = 2; return PIPE_FORMAT_R8G8_UINT;
++   case 34: *bpp = 2; return PIPE_FORMAT_R8G8_SINT;
++   case 53: return PIPE_FORMAT_R32_UINT;
++   case 54: return PIPE_FORMAT_R32_SINT;
++   case 60: return PIPE_FORMAT_R16G16_UNORM;
++   case 62: return PIPE_FORMAT_R16G16_SNORM;
++   case 63: return PIPE_FORMAT_R16G16_UINT;
++   case 64: return PIPE_FORMAT_R16G16_SINT;
++   case 65: return PIPE_FORMAT_R16G16_FLOAT;
++   case 72: return PIPE_FORMAT_R8G8B8A8_SNORM;
++   case 73: return PIPE_FORMAT_R8G8B8A8_UINT;
++   case 74: return PIPE_FORMAT_R8G8B8A8_SINT;
++   case 90: return PIPE_FORMAT_R10G10B10A2_UNORM;
++   case 91: return PIPE_FORMAT_R10G10B10A2_UINT;
++   case 92: return PIPE_FORMAT_R11G11B10_FLOAT;
++   case 93: return PIPE_FORMAT_R9G9B9E5_FLOAT;
++   case 94: return PIPE_FORMAT_B10G10R10A2_UNORM;
++   case 103: *bpp = 8; return PIPE_FORMAT_R32G32_UINT;
++   case 104: *bpp = 8; return PIPE_FORMAT_R32G32_SINT;
++   case 105: *bpp = 8; return PIPE_FORMAT_R32G32_FLOAT;
++   case 110: *bpp = 8; return PIPE_FORMAT_R16G16B16A16_UNORM;
++   case 112: *bpp = 8; return PIPE_FORMAT_R16G16B16A16_SNORM;
++   case 113: *bpp = 8; return PIPE_FORMAT_R16G16B16A16_UINT;
++   case 114: *bpp = 8; return PIPE_FORMAT_R16G16B16A16_SINT;
++   case 123: *bpp = 16; return PIPE_FORMAT_R32G32B32A32_UINT;
++   case 124: *bpp = 16; return PIPE_FORMAT_R32G32B32A32_SINT;
 +   case 40: *bpp = 2; return PIPE_FORMAT_B5G6R5_UNORM;      /* B5G6R5Unorm */
 +   case 43: *bpp = 2; return PIPE_FORMAT_B5G5R5A1_UNORM;    /* BGR5A1Unorm (CoreAnimation, after the XR formats) */
 +   case 55: return PIPE_FORMAT_R32_FLOAT;                   /* R32Float */
@@ -964,22 +1001,40 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   return lapis_gpu_tex_new2(gpu, width, height, format, 1);
 +}
 +
++PUBLIC struct lapis_gpu_tex *lapis_gpu_tex_new3(struct lapis_gpu *gpu, unsigned width, unsigned height,
++                                                unsigned format, unsigned levels, unsigned mtl_type);
++
 +PUBLIC struct lapis_gpu_tex *
 +lapis_gpu_tex_new2(struct lapis_gpu *gpu, unsigned width, unsigned height, unsigned format, unsigned levels)
++{
++   return lapis_gpu_tex_new3(gpu, width, height, format, levels, 2);
++}
++
++/* MTLTextureType 0 (1D) or 2 (2D) */
++PUBLIC struct lapis_gpu_tex *
++lapis_gpu_tex_new3(struct lapis_gpu *gpu, unsigned width, unsigned height, unsigned format, unsigned levels,
++                   unsigned mtl_type)
 +{
 +   unsigned bpp;
 +   enum pipe_format pf = mtl_format(format, &bpp);
 +   if (!gpu || pf == PIPE_FORMAT_NONE || !width || !height || width > 16384 || height > 16384)
 +      return NULL;
++   enum pipe_texture_target target = mtl_type == 0 ? PIPE_TEXTURE_1D : PIPE_TEXTURE_2D;
++   if (mtl_type == 0)
++      height = 1;
++   /* a render target only where panfrost can render to the format */
++   unsigned bind = PIPE_BIND_SAMPLER_VIEW | PIPE_BIND_LINEAR;
++   if (gpu->screen->is_format_supported(gpu->screen, pf, target, 0, 0, PIPE_BIND_RENDER_TARGET))
++      bind |= PIPE_BIND_RENDER_TARGET;
 +   struct pipe_resource templ = {
-+      .target = PIPE_TEXTURE_2D,
++      .target = target,
 +      .format = pf,
 +      .width0 = width,
 +      .height0 = (uint16_t)height,
 +      .depth0 = 1,
 +      .array_size = 1,
 +      .last_level = (uint8_t)(levels > 1 ? levels - 1 : 0),
-+      .bind = PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW | PIPE_BIND_LINEAR,
++      .bind = bind,
 +      .usage = PIPE_USAGE_DEFAULT,
 +   };
 +   struct lapis_gpu_tex *t = calloc(1, sizeof(*t));

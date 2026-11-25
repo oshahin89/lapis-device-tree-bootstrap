@@ -451,6 +451,7 @@ static struct {
 	void *(*tex_new2)(void *, unsigned, unsigned, unsigned, unsigned);
 	void (*gen_mipmaps)(void *, void *);
 	int (*tex_copy)(void *, void *, unsigned, unsigned, unsigned, void *, unsigned, unsigned, unsigned, unsigned, unsigned);
+	void *(*tex_new3)(void *, unsigned, unsigned, unsigned, unsigned, unsigned);   /* m7g: 1D textures; optional */
 } G;
 
 static void *
@@ -503,6 +504,7 @@ gpu(void)
 		G.tex_new2 = dlsym(h, "lapis_gpu_tex_new2");
 		G.gen_mipmaps = dlsym(h, "lapis_gpu_gen_mipmaps");
 		G.tex_copy = dlsym(h, "lapis_gpu_tex_copy");
+		G.tex_new3 = dlsym(h, "lapis_gpu_tex_new3");
 		if (!G.compute_new2 || !G.tex_new2 || !G.gen_mipmaps || !G.tex_copy) {
 			say(@"the GPU library is before m7d: no function constants, mipmaps or texture copies");
 			G.tex_new2 = NULL;
@@ -1631,7 +1633,7 @@ registerComputeClasses(Class device)
  */
 @interface LapisTexState : NSObject
 @property (nonatomic) void *tex;
-@property (nonatomic) NSUInteger width, height, pixelFormat, usage, storageMode, levels;
+@property (nonatomic) NSUInteger width, height, pixelFormat, usage, storageMode, levels, type;
 @property (nonatomic, copy) NSString *label;
 @property (nonatomic) IOSurfaceRef surface;     /* an IOSurface texture's surface (retained), or NULL */
 @property (nonatomic) NSUInteger plane;
@@ -1762,12 +1764,15 @@ deviceNewTexture(id self, SEL _cmd, MTLTextureDescriptor *d)
 		    (unsigned long)d.height, (unsigned long)d.pixelFormat, (unsigned long)d.textureType, (unsigned long)levels,
 		    (unsigned long)d.usage, (unsigned long)d.storageMode]);
 	}
-	if (d.textureType != MTLTextureType2D || (levels > 1 && !G.tex_new2) || d.sampleCount > 1 || d.arrayLength > 1) {
+	BOOL oneD = d.textureType == MTLTextureType1D && G.tex_new3;
+	if ((d.textureType != MTLTextureType2D && !oneD) || (levels > 1 && !G.tex_new2) || d.sampleCount > 1 || d.arrayLength > 1) {
 		say([NSString stringWithFormat:@"newTextureWithDescriptor: only 2D textures yet (type %lu, %lu levels, %lu samples)",
 		    (unsigned long)d.textureType, (unsigned long)levels, (unsigned long)d.sampleCount]);
 		return nil;
 	}
-	void *t = G.tex_new2 ? G.tex_new2(G.gpu, (unsigned)d.width, (unsigned)d.height, (unsigned)d.pixelFormat, (unsigned)levels)
+	void *t = G.tex_new3 ? G.tex_new3(G.gpu, (unsigned)d.width, (unsigned)d.height, (unsigned)d.pixelFormat, (unsigned)levels,
+	                                  (unsigned)d.textureType)
+	        : G.tex_new2 ? G.tex_new2(G.gpu, (unsigned)d.width, (unsigned)d.height, (unsigned)d.pixelFormat, (unsigned)levels)
 	                     : G.tex_new(G.gpu, (unsigned)d.width, (unsigned)d.height, (unsigned)d.pixelFormat);
 	if (!t) {
 		say([NSString stringWithFormat:@"newTextureWithDescriptor: %lux%lu format %lu refused", (unsigned long)d.width,
@@ -1782,6 +1787,7 @@ deviceNewTexture(id self, SEL _cmd, MTLTextureDescriptor *d)
 	st.usage = d.usage;
 	st.storageMode = d.storageMode;
 	st.levels = levels;
+	st.type = d.textureType;
 	return plainNew(gTextureClass, st);
 }
 
@@ -1821,7 +1827,7 @@ static NSUInteger texLevels(id self, SEL _cmd) { (void)_cmd; return texState(sel
 static NSUInteger texOne(id self, SEL _cmd) { (void)self; (void)_cmd; return 1; }
 static NSUInteger texZero(id self, SEL _cmd) { (void)self; (void)_cmd; return 0; }
 static NSUInteger texFormat(id self, SEL _cmd) { (void)_cmd; return texState(self).pixelFormat; }
-static NSUInteger texType(id self, SEL _cmd) { (void)self; (void)_cmd; return MTLTextureType2D; }
+static NSUInteger texType(id self, SEL _cmd) { (void)_cmd; return texState(self).type; }
 static NSUInteger texUsage(id self, SEL _cmd) { (void)_cmd; return texState(self).usage; }
 static NSUInteger texStorage(id self, SEL _cmd) { (void)_cmd; return texState(self).storageMode; }
 static id texLabel(id self, SEL _cmd) { (void)_cmd; return texState(self).label; }
