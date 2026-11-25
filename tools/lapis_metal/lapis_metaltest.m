@@ -526,15 +526,12 @@ main(void)
 				}
 			}
 
-			/* m7r: big render targets came out partly drawn (m7q: 1125x2436 first pixel right, last 0):
-			 * clears of several sizes, every pixel counted, the first wrong one placed */
+			/* m7s: big render targets lose pixels from column 1024 on (m7r): counted at once, after 1 s and
+			 * after 3 s, to tell a fence that came early (or stale CPU caches) from pixels never written */
 			{
-				static const unsigned sizes[][2] = { { 512, 512 }, { 1024, 1024 }, { 2048, 1024 }, { 1024, 2048 },
-					{ 1125, 2436 } };
-				for (unsigned k = 0; k < sizeof(sizes) / sizeof(sizes[0]); k++) {
+				static const unsigned sizes[][2] = { { 2048, 1024 }, { 1125, 2436 } };
+				for (unsigned k = 0; k < 2; k++) {
 					unsigned w = sizes[k][0], h = sizes[k][1];
-					say(@"big: %ux%u BGRA8 clear", w, h);
-					sleep(2);
 					MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
 					                                                                                width:w
 					                                                                               height:h
@@ -550,31 +547,31 @@ main(void)
 					[c2 commit];
 					[c2 waitUntilCompleted];
 					uint32_t *px = malloc((size_t)w * h * 4);
-					[t getBytes:px bytesPerRow:w * 4 fromRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0];
-					unsigned long right = 0;
-					long firstBad = -1, maxRow = -1, maxCol = -1;
-					for (unsigned long i = 0; i < (unsigned long)w * h; i++) {
-						if (px[i] == 0xffff0000u) {
-							right++;
-							if ((long)(i / w) > maxRow) {
-								maxRow = (long)(i / w);
+					unsigned long right[3];
+					long minX = -1, maxX = -1, minY = -1, maxY = -1;
+					for (int r = 0; r < 3; r++) {
+						if (r) {
+							usleep(r == 1 ? 1000000 : 2000000);
+						}
+						[t getBytes:px bytesPerRow:w * 4 fromRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0];
+						right[r] = 0;
+						for (unsigned long i = 0; i < (unsigned long)w * h; i++) {
+							if (px[i] == 0xffff0000u) {
+								right[r]++;
+							} else if (r == 0) {
+								long x = (long)(i % w), y = (long)(i / w);
+								minX = minX < 0 || x < minX ? x : minX;
+								maxX = x > maxX ? x : maxX;
+								minY = minY < 0 || y < minY ? y : minY;
+								maxY = y > maxY ? y : maxY;
 							}
-							if ((long)(i % w) > maxCol) {
-								maxCol = (long)(i % w);
-							}
-						} else if (firstBad < 0) {
-							firstBad = (long)i;
 						}
 					}
-					say(@"big: %ux%u: %lu/%lu red; first wrong at (%ld,%ld) = %08x; red up to row %ld, column %ld", w, h, right,
-					    (unsigned long)w * h, firstBad < 0 ? -1 : firstBad % w, firstBad < 0 ? -1 : firstBad / w,
-					    firstBad < 0 ? 0 : px[firstBad], maxRow, maxCol);
+					say(@"big: %ux%u red: %lu at once, %lu after 1 s, %lu after 3 s (of %lu); wrong ones at once in x %ld-%ld, y %ld-%ld",
+					    w, h, right[0], right[1], right[2], (unsigned long)w * h, minX, maxX, minY, maxY);
 					free(px);
 					sleep(2);
 				}
-				say(@"big: done; still alive in 60 s?");
-				sleep(60);
-				say(@"big: alive 60 s after the big clears");
 			}
 			/* the cost of a command buffer once the boot has settled (the numbers above are taken while iOS starts) */
 			{
