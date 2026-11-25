@@ -498,12 +498,15 @@ static struct {
 	void *(*tex_new3)(void *, unsigned, unsigned, unsigned, unsigned, unsigned);   /* m7g: 1D textures; optional */
 } G;
 
+static void *gLib;      /* liblapis_gallium's handle: its symbols are local to it (RTLD_LOCAL) */
+
 static void *
 gpu(void)
 {
 	static dispatch_once_t once;
 	dispatch_once(&once, ^{
 		void *h = dlopen(LAPIS_GALLIUM_PATH, RTLD_NOW | RTLD_LOCAL);
+		gLib = h;
 		if (!h) {
 			say([NSString stringWithFormat:@"no GPU library: %s", dlerror()]);
 			return;
@@ -2136,7 +2139,7 @@ cbRenderEncoder(id self, SEL _cmd, MTLRenderPassDescriptor *pass)
 		static BOOL traced;
 		if (!traced && getprogname() && strcmp(getprogname(), "backboardd") == 0) {
 			traced = YES;
-			void (*setTrace)(int) = (void (*)(int))dlsym(RTLD_DEFAULT, "lapis_drm_set_trace");
+			void (*setTrace)(int) = gLib ? (void (*)(int))dlsym(gLib, "lapis_drm_set_trace") : NULL;
 			say([NSString stringWithFormat:@"tracing the next GPU submissions: %s", setTrace ? "on" : "no lapis_drm_set_trace"]);
 			if (setTrace) {
 				setTrace(10);
