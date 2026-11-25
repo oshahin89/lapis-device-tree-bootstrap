@@ -23,8 +23,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build for iOS arm64
         env:
-          # m7q: the plug-in that keeps backboardd off the GPU (the big-memory test)
-          LAPIS_METAL_DEFINES: -DLAPIS_BACKBOARDD_OFF
+          # -DLAPIS_BACKBOARDD_OFF keeps backboardd off the GPU (m7q's big-memory test)
+          LAPIS_METAL_DEFINES: ""
         run: |
           set -euxo pipefail
           mkdir -p out
