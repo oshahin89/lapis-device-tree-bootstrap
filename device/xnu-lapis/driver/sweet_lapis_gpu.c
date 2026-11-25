@@ -1123,23 +1123,45 @@ lapis_gpu_group_submit(int n, uint64_t stream, uint32_t size)
 	if (n >= 1 && n < 8 && lg_slots[n].active && !lg_slots[n].fatal && !(size & 7) && stream < LG_KVA) {
 		struct lg_group *gr = &lg_groups[n];
 		uint64_t a = lg_kreg(), v = a + 2;
-		uint64_t ins[8] = {
+		/*
+		 * The GPU's caches around each submission, as Linux panthor does:
+		 * FLUSH_CACHE2 (opcode 36; L2 and LSC clean+invalidate, other caches
+		 * invalidated: 0x233; the flush ID is a register, here v = 0, so the
+		 * flush is never skipped; it signals scoreboard slot 0, waited for)
+		 * before the user's stream, so the GPU does not read stale lines of
+		 * memory the CPU rewrote, and again after it, before the sequence
+		 * number is stored, so everything the job wrote is in memory when
+		 * the submission reads done. Without the second one a 2048-wide
+		 * clear read back short at once and whole a second later (m7s: the
+		 * columns from 1024 on, the top rows), and frames finished in memory
+		 * after their buffers were thought free (the phone's late resets).
+		 * 16 instructions: 128 bytes, a multiple of the 64 the ring needs.
+		 */
+		uint64_t ins[16] = {
+			(2ull << 56) | (v << 48) | 0,                                   /* MOVE32 v = 0 (flush ID) */
+			(36ull << 56) | (v << 40) | 0x233,                              /* FLUSH_CACHE2 all, signal slot 0 */
+			(3ull << 56) | (1ull << 16),                                    /* WAIT slot 0 */
 			(1ull << 56) | (a << 48) | (stream & 0xffffffffffffull),        /* MOVE48 a = stream */
 			(2ull << 56) | (v << 48) | size,                                /* MOVE32 v = size */
 			size ? (32ull << 56) | (a << 40) | (v << 32) : 0,               /* CALL a, v */
 			(3ull << 56) | (0xffffull << 16),                               /* WAIT all */
+			(2ull << 56) | (v << 48) | 0,                                   /* MOVE32 v = 0 (flush ID) */
+			(36ull << 56) | (v << 40) | 0x233,                              /* FLUSH_CACHE2 all, signal slot 0 */
+			(3ull << 56) | (1ull << 16),                                    /* WAIT slot 0 */
 			(1ull << 56) | (a << 48) | (LG_SLOT_KVA(n) + 0x80000),          /* MOVE48 a = sync */
 			(2ull << 56) | (v << 48) | (gr->seq + 1),                       /* MOVE32 v = seq */
 			(21ull << 56) | (v << 48) | (a << 40) | (1ull << 16),           /* STORE_MULTIPLE [a] = v */
 			(3ull << 56) | (0xffffull << 16),                               /* WAIT all */
+			0,                                                              /* NOP */
+			0,                                                              /* NOP */
 		};
 		uint64_t insert = gr->uin[0];
-		if (insert + 64 - gr->uout[0] <= gr->ring_size) {
-			for (int i = 0; i < 8; i++) {
+		if (insert + sizeof(ins) - gr->uout[0] <= gr->ring_size) {
+			for (unsigned i = 0; i < 16; i++) {
 				gr->ring[((insert / 8) + i) % (gr->ring_size / 8)] = ins[i];
 			}
 			__asm__ volatile("dsb osh" ::: "memory");
-			gr->uin[0] = insert + 64;
+			gr->uin[0] = insert + sizeof(ins);
 			__asm__ volatile("dsb osh" ::: "memory");
 			gw(DOORBELL(n + 1), 1);
 			seq = ++gr->seq;
