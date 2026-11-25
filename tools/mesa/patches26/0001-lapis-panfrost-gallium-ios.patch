@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1670 @@
+@@ -0,0 +1,1675 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -130,6 +130,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +
 +#include "cso_cache/cso_context.h"
 +#include "compiler/shader_enums.h"
++#include "compiler/glsl_types.h"
 +#include "pipe/p_context.h"
 +#include "pipe/p_shader_tokens.h"
 +#include "pipe/p_defines.h"
@@ -451,6 +452,10 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +
 +   pthread_mutex_lock(&once);
 +   if (!gpu) {
++      /* Mesa's GLSL type cache, as gallium's own frontends set it up: NIR
++       * passes ask it for types (nir_lower_scratch_to_var for a shader with
++       * a local array crashed in linear_zalloc_child without it, m7x) */
++      glsl_type_singleton_init_or_ref();
 +      struct pipe_screen *screen = lapis_gallium_screen();
 +      struct pipe_context *ctx = screen ? screen->context_create(screen, NULL, 0) : NULL;
 +      if (ctx) {
