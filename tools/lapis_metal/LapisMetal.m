@@ -2085,8 +2085,8 @@ deviceNewQueueMax(id self, SEL _cmd, unsigned long max)
  * backboardd (CoreAnimation's render server) is shown the device at most
  * twice a boot: each start counts itself in a file, and after two starts in
  * one boot (a crash, and the crash again) it is told there is no GPU and
- * draws on the CPU as before, so iOS still comes up. The file holds the boot
- * time and the count.
+ * draws on the CPU as before, so iOS still comes up. The file holds the
+ * boot's session UUID and the count.
  */
 #define LAPIS_BB_GUARD "/private/var/tmp/lapismetal_backboardd"
 #define LAPIS_BB_TRIES 2
@@ -2094,18 +2094,25 @@ deviceNewQueueMax(id self, SEL _cmd, unsigned long max)
 static BOOL
 backboarddGuard(void)
 {
-	struct timeval bt = { 0, 0 };
-	size_t sz = sizeof(bt);
-	(void)sysctlbyname("kern.boottime", &bt, &sz, NULL, 0);
-	long boot = 0, tries = 0;
+	/* a boot is told apart by its session UUID: kern.boottime is the same
+	 * every boot here (no RTC: the clock starts at 1969-12-31 16:00), which
+	 * made the count of one boot carry over to the next (sweetlog_m7b) */
+	char boot[64] = "", was[64] = "";
+	size_t sz = sizeof(boot) - 1;
+	if (sysctlbyname("kern.bootsessionuuid", boot, &sz, NULL, 0) != 0 || !boot[0]) {
+		say(@"backboardd: no kern.bootsessionuuid: not shown the device");
+		return NO;
+	}
+	long tries = 0;
 	FILE *f = fopen(LAPIS_BB_GUARD, "r");
 	if (f) {
-		if (fscanf(f, "%ld %ld", &boot, &tries) != 2) {
-			boot = tries = 0;
+		if (fscanf(f, "%63s %ld", was, &tries) != 2) {
+			was[0] = 0;
+			tries = 0;
 		}
 		fclose(f);
 	}
-	if (boot != (long)bt.tv_sec) {
+	if (strcmp(was, boot) != 0) {
 		tries = 0;
 	}
 	if (tries >= LAPIS_BB_TRIES) {
@@ -2117,7 +2124,7 @@ backboarddGuard(void)
 		say([NSString stringWithFormat:@"backboardd: cannot write %s (errno %d): not shown the device", LAPIS_BB_GUARD, errno]);
 		return NO;
 	}
-	fprintf(f, "%ld %ld\n", (long)bt.tv_sec, tries + 1);
+	fprintf(f, "%s %ld\n", boot, tries + 1);
 	fclose(f);
 	say([NSString stringWithFormat:@"backboardd: shown the device (try %ld of %d this boot)", tries + 1, LAPIS_BB_TRIES]);
 	return YES;
