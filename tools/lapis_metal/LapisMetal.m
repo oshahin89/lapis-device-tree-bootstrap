@@ -268,7 +268,28 @@ stubSignature(id self, SEL _cmd, SEL selector)
 	struct objc_super sup = { self, class_getSuperclass(object_getClass(self)) };
 	id (*send)(struct objc_super *, SEL, SEL) = (id (*)(struct objc_super *, SEL, SEL))objc_msgSendSuper;
 	(void)_cmd;
-	return send(&sup, sel_registerName("methodSignatureForSelector:"), selector);
+	id sig = send(&sup, sel_registerName("methodSignatureForSelector:"), selector);
+	if (sig) {
+		return sig;
+	}
+	/*
+	 * A selector no protocol and no base class knows (a private one: v51,
+	 * -[LapisMetalCommandBuffer setProtectionOptions:] threw and backboardd
+	 * aborted): typed from its shape so it is answered and logged instead of
+	 * throwing -- arguments as 64-bit words, a setter or a method taking
+	 * arguments returns nothing, one taking none returns a zero word.
+	 */
+	const char *name = sel_getName(selector);
+	unsigned args = 0;
+	for (const char *c = name; *c; c++) {
+		args += *c == ':';
+	}
+	char types[48] = "";
+	strlcpy(types, args ? "v@:" : "Q@:", sizeof(types));
+	for (unsigned i = 0; i < args && i < 12; i++) {
+		strlcat(types, "Q", sizeof(types));
+	}
+	return [NSMethodSignature signatureWithObjCTypes:types];
 }
 
 /* ... answered with zero of the right size and logged once (hakios's deviceForward) */
