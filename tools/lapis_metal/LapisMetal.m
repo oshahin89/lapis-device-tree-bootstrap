@@ -161,9 +161,79 @@ addProtocols(Class cls, const char *const *names)
 }
 
 /* a message a declared protocol has and the class does not: typed from the protocol (hakios's deviceSignature) */
+/*
+ * The tracer: a method Metal's base class implements and ours does not is
+ * routed through forwarding (its IMP on our class is _objc_msgForward), said
+ * once with what it answered, and run with the base's own IMP. Calls Metal
+ * answers silently from state our objects do not have show up this way
+ * (m7e: CoreAnimation made no surface texture and no command buffer
+ * completed, with nothing in the log about why).
+ */
+@interface NSInvocation (LapisPrivate)
+- (void)invokeUsingIMP:(IMP)imp;
+@end
+
+static NSMutableDictionary *gTraced;    /* "Class -sel" -> NSValue of the base's Method */
+
+static Method
+tracedMethod(id self, SEL sel)
+{
+	NSValue *v;
+	@synchronized([NSObject class]) {
+		v = gTraced[[NSString stringWithFormat:@"%s -%s", object_getClassName(self), sel_getName(sel)]];
+	}
+	return v ? (Method)v.pointerValue : NULL;
+}
+
+static void
+traceBaseMethods(Class ours, Class base)
+{
+	if (!ours || !base) {
+		return;
+	}
+	static const char *const skip[] = { "init", "dealloc", ".cxx", "retain", "release", "autorelease", "_tryRetain",
+		"_isDeallocating", "allowsWeakReference", "retainWeakReference", "class", "isKindOfClass:", "respondsToSelector:",
+		"methodSignatureForSelector:", "forwardInvocation:", "conformsToProtocol:", "hash", "isEqual:", "description",
+		"debugDescription", "copyWithZone:", NULL };
+	unsigned n = 0, added = 0;
+	Method *ms = class_copyMethodList(base, &n);
+	for (unsigned i = 0; i < n; i++) {
+		SEL sel = method_getName(ms[i]);
+		const char *name = sel_getName(sel), *types = method_getTypeEncoding(ms[i]);
+		BOOL skipped = !types || strchr(types, '(') || strchr(types, '[') || strchr(types, 'b');
+		for (int k = 0; skip[k] && !skipped; k++) {
+			skipped = strncmp(name, skip[k], strlen(skip[k])) == 0;
+		}
+		unsigned on = 0;
+		Method *mine = class_copyMethodList(ours, &on);
+		for (unsigned k = 0; k < on && !skipped; k++) {
+			skipped = method_getName(mine[k]) == sel;
+		}
+		free(mine);
+		if (skipped) {
+			continue;
+		}
+		if (class_addMethod(ours, sel, _objc_msgForward, types)) {
+			@synchronized([NSObject class]) {
+				if (!gTraced) {
+					gTraced = [NSMutableDictionary new];
+				}
+				gTraced[[NSString stringWithFormat:@"%s -%s", class_getName(ours), name]] = [NSValue valueWithPointer:ms[i]];
+			}
+			added++;
+		}
+	}
+	free(ms);
+	say([NSString stringWithFormat:@"tracing %u of %s's methods on %s", added, class_getName(base), class_getName(ours)]);
+}
+
 static id
 stubSignature(id self, SEL _cmd, SEL selector)
 {
+	Method traced = tracedMethod(self, selector);
+	if (traced) {
+		return [NSMethodSignature signatureWithObjCTypes:method_getTypeEncoding(traced)];
+	}
 	for (unsigned i = 0; i < gProtocolCount; i++) {
 		for (int required = 1; required >= 0; required--) {
 			struct objc_method_description d = protocol_getMethodDescription(gProtocols[i], selector, required, YES);
@@ -183,6 +253,36 @@ static void
 stubForward(id self, SEL _cmd, NSInvocation *invocation)
 {
 	static NSMutableSet *seen;
+	Method traced = tracedMethod(self, invocation.selector);
+	if (traced) {
+		[invocation invokeUsingIMP:method_getImplementation(traced)];
+		NSString *key = [NSString stringWithFormat:@"%s -%s", object_getClassName(self), sel_getName(invocation.selector)];
+		BOOL first = NO;
+		@synchronized([NSObject class]) {
+			if (!seen) {
+				seen = [NSMutableSet new];
+			}
+			first = ![seen containsObject:key];
+			[seen addObject:key];
+		}
+		if (first) {
+			const char *rt = invocation.methodSignature.methodReturnType;
+			NSString *answer = @"";
+			if (rt[0] == '@') {
+				__unsafe_unretained id o = nil;
+				[invocation getReturnValue:&o];
+				answer = o ? [NSString stringWithFormat:@" -> %s", object_getClassName(o)] : @" -> nil";
+			} else if (strchr("cCsSiIlLqQB^*", rt[0]) && invocation.methodSignature.methodReturnLength <= 8) {
+				uint64_t v = 0;
+				[invocation getReturnValue:&v];
+				answer = [NSString stringWithFormat:@" -> %#llx", v];
+			} else if (rt[0] != 'v') {
+				answer = [NSString stringWithFormat:@" -> (%s)", rt];
+			}
+			say([NSString stringWithFormat:@"base: %@%@", key, answer]);
+		}
+		return;
+	}
 	NSString *name = [NSString stringWithFormat:@"%s -%@", object_getClassName(self), NSStringFromSelector(invocation.selector)];
 	NSUInteger length = invocation.methodSignature.methodReturnLength;
 	(void)_cmd;
@@ -774,6 +874,10 @@ cbCommit(id self, SEL _cmd)
 	LapisCBState *st = stateOf(self);
 	if (st.status >= MTLCommandBufferStatusCommitted) {
 		return;
+	}
+	static unsigned commits;
+	if (commits++ < 5) {
+		say([NSString stringWithFormat:@"commit #%u (%lu surfaces drawn)", commits, (unsigned long)st.drawnSurfaces.count]);
 	}
 	st.committedNs = nowNs();
 	st.status = MTLCommandBufferStatusCommitted;
@@ -1652,6 +1756,12 @@ deviceNewTexture(id self, SEL _cmd, MTLTextureDescriptor *d)
 		return nil;
 	}
 	NSUInteger levels = d.mipmapLevelCount ? d.mipmapLevelCount : 1;
+	static unsigned told;
+	if (told++ < 40) {
+		say([NSString stringWithFormat:@"newTexture %lux%lu format %lu type %lu levels %lu usage %#lx storage %lu", (unsigned long)d.width,
+		    (unsigned long)d.height, (unsigned long)d.pixelFormat, (unsigned long)d.textureType, (unsigned long)levels,
+		    (unsigned long)d.usage, (unsigned long)d.storageMode]);
+	}
 	if (d.textureType != MTLTextureType2D || (levels > 1 && !G.tex_new2) || d.sampleCount > 1 || d.arrayLength > 1) {
 		say([NSString stringWithFormat:@"newTextureWithDescriptor: only 2D textures yet (type %lu, %lu levels, %lu samples)",
 		    (unsigned long)d.textureType, (unsigned long)levels, (unsigned long)d.sampleCount]);
@@ -1843,6 +1953,12 @@ cbRenderEncoder(id self, SEL _cmd, MTLRenderPassDescriptor *pass)
 		return nil;
 	}
 	LapisCBState *cbs = stateOf(self);
+	static unsigned passes;
+	if (passes++ < 20) {
+		say([NSString stringWithFormat:@"render pass on %lux%lu format %lu%s, load %lu", (unsigned long)ts.width,
+		    (unsigned long)ts.height, (unsigned long)ts.pixelFormat, ts.surface ? " (IOSurface)" : "",
+		    (unsigned long)ca.loadAction]);
+	}
 	if (ts.surface) {
 		if (ca.loadAction == MTLLoadActionLoad) {
 			surfaceIn(ts);
@@ -2519,5 +2635,11 @@ registerClasses(void)
 	registerCommandClasses();
 	registerComputeClasses(device);
 	registerRenderClasses(device);
+	traceBaseMethods(device, gBase);
+	traceBaseMethods(gQueueClass, gQueueBase);
+	traceBaseMethods(gCommandBufferClass, objc_getClass("_MTLCommandBuffer"));
+	traceBaseMethods(gRenderClass, objc_getClass("_MTLRenderCommandEncoder"));
+	traceBaseMethods(gBlitClass, objc_getClass("_MTLCommandEncoder"));
+	traceBaseMethods(gTextureClass, gResourceBase);
 	say(@"LapisMetalDevice registered (a subclass of _MTLDevice)");
 }
