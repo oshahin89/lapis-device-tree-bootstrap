@@ -582,9 +582,81 @@ registerBufferClass(Class device)
 @property (nonatomic, copy) NSString *label;
 @property (nonatomic) uint64_t committedNs, completedNs;
 @property (nonatomic, strong) NSMutableArray *keep;     /* what its work uses, until it completes */
+@property (nonatomic, strong) NSMutableArray *arenas;   /* its setBytes upload arenas */
+@property (nonatomic) NSUInteger arenaUsed;             /* bytes used of the last one */
 @end
 @implementation LapisCBState
 @end
+
+/*
+ * setBytes: the bytes go into a 64 KiB upload arena of the command buffer's,
+ * at a 256-byte-aligned offset, and the arena is bound there. Arenas come
+ * from a pool and go back to it when the command buffer completes, so a
+ * frame makes no new GPU buffers (p1: a buffer per setBytes, ~330 us each
+ * for the BO, its VM_BIND and its map).
+ */
+#define LAPIS_ARENA (64u << 10)
+static NSMutableArray *gArenaPool;
+
+static id
+uploadBytes(LapisCBState *cb, const void *bytes, NSUInteger length, NSUInteger *offset)
+{
+	if (length > LAPIS_ARENA / 4) {
+		id b = gpuBuffer(length, 0);
+		if (b) {
+			memcpy(bufferState(b)->memory, bytes, length);
+			[cb.keep addObject:b];
+		}
+		*offset = 0;
+		return b;
+	}
+	NSUInteger at = (cb.arenaUsed + 255) & ~(NSUInteger)255;
+	id arena = cb.arenas.lastObject;
+	if (!arena || at + length > LAPIS_ARENA) {
+		arena = nil;
+		@synchronized([LapisCBState class]) {
+			if (gArenaPool.count) {
+				arena = gArenaPool.lastObject;
+				[gArenaPool removeLastObject];
+			}
+		}
+		if (!arena) {
+			arena = gpuBuffer(LAPIS_ARENA, 0);
+		}
+		if (!arena) {
+			return nil;
+		}
+		if (!cb.arenas) {
+			cb.arenas = [NSMutableArray new];
+		}
+		[cb.arenas addObject:arena];
+		at = 0;
+	}
+	memcpy((uint8_t *)bufferState(arena)->memory + at, bytes, length);
+	cb.arenaUsed = at + length;
+	*offset = at;
+	return arena;
+}
+
+static void
+arenasBack(LapisCBState *cb)
+{
+	if (!cb.arenas.count) {
+		return;
+	}
+	@synchronized([LapisCBState class]) {
+		if (!gArenaPool) {
+			gArenaPool = [NSMutableArray new];
+		}
+		for (id a in cb.arenas) {
+			if (gArenaPool.count < 64) {
+				[gArenaPool addObject:a];
+			}
+		}
+	}
+	[cb.arenas removeAllObjects];
+	cb.arenaUsed = 0;
+}
 
 @interface LapisEncState : NSObject
 @property (nonatomic, strong) id commandBuffer;
@@ -707,6 +779,7 @@ cbCommit(id self, SEL _cmd)
 			h(me);
 		}
 		[s2.keep removeAllObjects];
+		arenasBack(s2);
 		dispatch_semaphore_signal(s2.done);
 	});
 }
@@ -1069,12 +1142,11 @@ ceSetBufferOffset(id self, SEL _cmd, NSUInteger offset, NSUInteger index)
 static void
 ceSetBytes(id self, SEL _cmd, const void *bytes, NSUInteger length, NSUInteger index)
 {
-	id b = gpuBuffer(length < 16 ? 16 : length, 0);
-	if (!b) {
-		return;
+	NSUInteger off = 0;
+	id b = uploadBytes(stateOf(((LapisComputeState *)stateOf(self)).commandBuffer), bytes, length, &off);
+	if (b) {
+		ceSetBuffer(self, _cmd, b, off, index);
 	}
-	memcpy(bufferState(b)->memory, bytes, length);
-	ceSetBuffer(self, _cmd, b, 0, index);
 }
 
 static void
@@ -1483,28 +1555,22 @@ reSet(id self, BOOL fragment, id buffer, NSUInteger offset, NSUInteger index)
 static void reVertexBuffer(id self, SEL _cmd, id b, NSUInteger o, NSUInteger i) { (void)_cmd; reSet(self, NO, b, o, i); }
 static void reFragmentBuffer(id self, SEL _cmd, id b, NSUInteger o, NSUInteger i) { (void)_cmd; reSet(self, YES, b, o, i); }
 
-static id
-bytesBuffer(const void *bytes, NSUInteger length)
-{
-	id b = gpuBuffer(length < 16 ? 16 : length, 0);
-	if (b) {
-		memcpy(bufferState(b)->memory, bytes, length);
-	}
-	return b;
-}
-
 static void
 reVertexBytes(id self, SEL _cmd, const void *bytes, NSUInteger length, NSUInteger index)
 {
 	(void)_cmd;
-	reSet(self, NO, bytesBuffer(bytes, length), 0, index);
+	NSUInteger off = 0;
+	id b = uploadBytes(stateOf(((LapisRenderState *)stateOf(self)).commandBuffer), bytes, length, &off);
+	reSet(self, NO, b, off, index);
 }
 
 static void
 reFragmentBytes(id self, SEL _cmd, const void *bytes, NSUInteger length, NSUInteger index)
 {
 	(void)_cmd;
-	reSet(self, YES, bytesBuffer(bytes, length), 0, index);
+	NSUInteger off = 0;
+	id b = uploadBytes(stateOf(((LapisRenderState *)stateOf(self)).commandBuffer), bytes, length, &off);
+	reSet(self, YES, b, off, index);
 }
 
 static void

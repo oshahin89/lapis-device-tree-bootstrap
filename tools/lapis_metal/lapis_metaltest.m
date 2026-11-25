@@ -128,7 +128,7 @@ main(void)
 			/* 100 command buffers of a 4 KiB copy each */
 			t0 = [NSDate date];
 			unsigned ok = 0;
-			for (unsigned i = 0; i < 100; i++) {
+			for (unsigned i = 0; i < 100; i++) { @autoreleasepool {
 				id<MTLCommandBuffer> c2 = [q commandBuffer];
 				id<MTLBlitCommandEncoder> e2 = [c2 blitCommandEncoder];
 				[e2 fillBuffer:B range:NSMakeRange(0, 4096) value:(uint8_t)i];
@@ -136,7 +136,7 @@ main(void)
 				[c2 commit];
 				[c2 waitUntilCompleted];
 				ok += ((uint8_t *)B.contents)[4095] == (uint8_t)i;
-			}
+			}}
 			say(@"100 command buffers: %u right, %.3f ms each", ok, -[t0 timeIntervalSinceNow] * 10);
 
 			/* milestone 4: compute kernels (Apple's AIR -> NIR -> panfrost) */
@@ -289,7 +289,7 @@ main(void)
 						clearCount += px[i] == 0xffff8000u;
 					}
 					t0 = [NSDate date];
-					for (unsigned i = 0; i < 100; i++) {
+					for (unsigned i = 0; i < 100; i++) { @autoreleasepool {
 						MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
 						rpd.colorAttachments[0].texture = tex;
 						rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
@@ -304,7 +304,7 @@ main(void)
 						[re endEncoding];
 						[c5 commit];
 						[c5 waitUntilCompleted];
-					}
+					}}
 					double each = -[t0 timeIntervalSinceNow] * 10;
 					[tex getBytes:px bytesPerRow:256 * 4 fromRegion:MTLRegionMake2D(0, 0, 256, 256) mipmapLevel:0];
 					for (unsigned i = 0; i < 256 * 256; i++) {
@@ -483,7 +483,7 @@ main(void)
 				id<MTLBuffer> fb = [dev newBufferWithLength:4096 options:0];
 				NSDate *t1 = [NSDate date];
 				unsigned good = 0;
-				for (unsigned i = 0; i < 200; i++) {
+				for (unsigned i = 0; i < 200; i++) { @autoreleasepool {
 					id<MTLCommandBuffer> c = [q commandBuffer];
 					id<MTLBlitCommandEncoder> e = [c blitCommandEncoder];
 					[e fillBuffer:fb range:NSMakeRange(0, 4096) value:(uint8_t)i];
@@ -491,7 +491,7 @@ main(void)
 					[c commit];
 					[c waitUntilCompleted];
 					good += ((uint8_t *)fb.contents)[4095] == (uint8_t)i;
-				}
+				}}
 				say(@"settled: 200 command buffers (4 KiB fill each): %u right, %.3f ms each", good,
 				    -[t1 timeIntervalSinceNow] * 1000 / 200);
 			}
