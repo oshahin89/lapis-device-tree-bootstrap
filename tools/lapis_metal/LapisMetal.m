@@ -1766,6 +1766,18 @@ deviceNewTexture(id self, SEL _cmd, MTLTextureDescriptor *d)
 		say(@"newTextureWithDescriptor: no render interface");
 		return nil;
 	}
+	/* no extended-range (XR) formats: CoreAnimation's warm-up found them
+	 * renderable, chose a two-plane RGB10A8_2P_XR10 framebuffer ('b3a8') and
+	 * then drew nothing into it ("Unexpected framebuffer format b3a8", m7j);
+	 * without them it takes BGRA8Unorm, the display's own format */
+	if (d.pixelFormat == 550 || (d.pixelFormat >= 552 && d.pixelFormat <= 555)) {
+		static BOOL said;
+		if (!said) {
+			said = YES;
+			say([NSString stringWithFormat:@"newTexture: extended-range format %lu refused (BGRA8 instead)", (unsigned long)d.pixelFormat]);
+		}
+		return nil;
+	}
 	NSUInteger levels = d.mipmapLevelCount ? d.mipmapLevelCount : 1;
 	static unsigned told;
 	if (told++ < 40) {
