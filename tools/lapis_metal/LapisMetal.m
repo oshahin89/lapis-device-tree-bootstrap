@@ -75,6 +75,28 @@ say(NSString *text)
 	}
 }
 
+/*
+ * A checkpoint: said once, then two seconds for the kernel's log to reach the
+ * disk, in backboardd only. The phone stops dead somewhere in CoreAnimation's
+ * first real frame (m7d, m7m) and the log's last seconds are lost with it;
+ * the last checkpoint in the log says where it was.
+ */
+static void
+checkpoint(int which, NSString *what)
+{
+	static uint32_t done;
+	static int inBackboardd = -1;
+	if (inBackboardd < 0) {
+		inBackboardd = getprogname() && strcmp(getprogname(), "backboardd") == 0;
+	}
+	if (!inBackboardd || (done & (1u << which))) {
+		return;
+	}
+	done |= 1u << which;
+	say([@"checkpoint: " stringByAppendingString:what]);
+	sleep(2);
+}
+
 static Class gBase;                     /* Metal's private _MTLDevice */
 static Class gQueueBase;                /* Metal's private _MTLCommandQueue */
 static Class gQueueClass;
@@ -886,6 +908,7 @@ cbCommit(id self, SEL _cmd)
 	if (st.status >= MTLCommandBufferStatusCommitted) {
 		return;
 	}
+	checkpoint(2, [NSString stringWithFormat:@"first commit (%lu surfaces drawn)", (unsigned long)st.drawnSurfaces.count]);
 	static unsigned commits;
 	if (commits++ < 5) {
 		say([NSString stringWithFormat:@"commit #%u (%lu surfaces drawn)", commits, (unsigned long)st.drawnSurfaces.count]);
@@ -911,6 +934,7 @@ cbCommit(id self, SEL _cmd)
 			}
 		}
 		LapisCBState *s2 = stateOf(me);
+		checkpoint(3, @"first command buffer completed (fence waited)");
 		uint64_t t1 = nowNs();
 		NSUInteger nsurf = s2.drawnSurfaces.count;
 		surfacesOutAll(s2);     /* (before the handlers: CoreAnimation swaps the surface in one) */
@@ -1762,6 +1786,8 @@ surfaceOut(LapisTexState *t)
 	if (!t.surface) {
 		return;
 	}
+	checkpoint(4, [NSString stringWithFormat:@"first copy out to a surface (%lux%lu format %lu)", (unsigned long)t.width,
+	    (unsigned long)t.height, (unsigned long)t.pixelFormat]);
 	IOSurfaceLock(t.surface, 0, NULL);
 	void *base = IOSurfaceGetBaseAddressOfPlane(t.surface, t.plane);
 	size_t stride = IOSurfaceGetBytesPerRowOfPlane(t.surface, t.plane);
@@ -1859,6 +1885,10 @@ deviceNewTexture(id self, SEL _cmd, MTLTextureDescriptor *d)
 		    (unsigned long)d.height, (unsigned long)d.pixelFormat]);
 		return nil;
 	}
+	if ((uint64_t)d.width * d.height * 8 >= (4u << 20)) {
+		checkpoint(0, [NSString stringWithFormat:@"first big texture %lux%lu format %lu made", (unsigned long)d.width,
+		    (unsigned long)d.height, (unsigned long)d.pixelFormat]);
+	}
 	LapisTexState *st = [LapisTexState new];
 	st.tex = t;
 	st.width = d.width;
@@ -1885,6 +1915,9 @@ deviceNewTextureSurface(id self, SEL _cmd, MTLTextureDescriptor *d, IOSurfaceRef
 		    (const char *)&(uint32_t){ IOSurfaceGetPixelFormat(surface) }, (unsigned long)plane]);
 		return nil;
 	}
+	checkpoint(1, [NSString stringWithFormat:@"first IOSurface texture %ux%u format %lu surface '%.4s'",
+	    (unsigned)d.width, (unsigned)d.height, (unsigned long)d.pixelFormat,
+	    (const char *)&(uint32_t){ OSSwapInt32(IOSurfaceGetPixelFormat(surface)) }]);
 	CFRetain(surface);
 	ts.surface = surface;
 	ts.plane = plane;
