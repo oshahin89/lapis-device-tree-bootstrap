@@ -358,6 +358,166 @@ main(void)
 					}
 				}
 			}
+
+			/* m6: textures and samplers in shaders, a vertex descriptor, blending, viewport, scissor, indexed draws */
+			{
+				MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+				                                                                                width:256
+				                                                                               height:256
+				                                                                            mipmapped:NO];
+				td.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+				id<MTLTexture> rt = [dev newTextureWithDescriptor:td];
+				MTLTextureDescriptor *sd = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+				                                                                                width:4
+				                                                                               height:4
+				                                                                            mipmapped:NO];
+				id<MTLTexture> checker = [dev newTextureWithDescriptor:sd];
+				uint32_t texels[16];
+				for (unsigned j = 0; j < 4; j++) {
+					for (unsigned i = 0; i < 4; i++) {
+						texels[j * 4 + i] = 0xff800000u | ((j * 64) << 8) | (i * 64);   /* R = i*64, G = j*64, B = 0x80 */
+					}
+				}
+				[checker replaceRegion:MTLRegionMake2D(0, 0, 4, 4) mipmapLevel:0 withBytes:texels bytesPerRow:16];
+				sd.width = 2;
+				sd.height = 1;
+				id<MTLTexture> ramp = [dev newTextureWithDescriptor:sd];
+				static const uint32_t bw[2] = { 0xff000000u, 0xffffffffu };
+				[ramp replaceRegion:MTLRegionMake2D(0, 0, 2, 1) mipmapLevel:0 withBytes:bw bytesPerRow:8];
+				MTLSamplerDescriptor *smd = [MTLSamplerDescriptor new];
+				smd.minFilter = smd.magFilter = MTLSamplerMinMagFilterNearest;
+				id<MTLSamplerState> nearest = [dev newSamplerStateWithDescriptor:smd];
+				say(@"m6: target %s, textures %s %s, sampler %s", rt ? "yes" : "nil", checker ? "yes" : "nil", ramp ? "yes" : "nil",
+				    nearest ? object_getClassName(nearest) : "nil");
+
+				MTLVertexDescriptor *vd = [MTLVertexDescriptor vertexDescriptor];
+				vd.attributes[0].format = MTLVertexFormatFloat2;
+				vd.attributes[0].offset = 0;
+				vd.attributes[0].bufferIndex = 1;
+				vd.attributes[1].format = MTLVertexFormatFloat2;
+				vd.attributes[1].offset = 8;
+				vd.attributes[1].bufferIndex = 1;
+				vd.layouts[1].stride = 16;
+				/* a full-target quad: x, y, u, v (uv 0,0 at the top left) */
+				static const float quad[4][4] = { { -1, -1, 0, 1 }, { 1, -1, 1, 1 }, { -1, 1, 0, 0 }, { 1, 1, 1, 0 } };
+				id<MTLBuffer> qb = [dev newBufferWithBytes:quad length:sizeof(quad) options:0];
+				static const uint16_t idx[6] = { 0, 1, 2, 2, 1, 3 };
+				id<MTLBuffer> ib = [dev newBufferWithBytes:idx length:sizeof(idx) options:0];
+
+				id<MTLRenderPipelineState> (^pipe)(NSString *, BOOL) = ^id<MTLRenderPipelineState>(NSString *fs, BOOL blend) {
+					MTLRenderPipelineDescriptor *pd = [MTLRenderPipelineDescriptor new];
+					pd.vertexFunction = [lib newFunctionWithName:@"lapis_quad_vs"];
+					pd.fragmentFunction = [lib newFunctionWithName:fs];
+					pd.vertexDescriptor = vd;
+					pd.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm;
+					if (blend) {
+						pd.colorAttachments[0].blendingEnabled = YES;
+						pd.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+						pd.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+						pd.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+						pd.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+					}
+					NSError *e = nil;
+					id<MTLRenderPipelineState> p = [dev newRenderPipelineStateWithDescriptor:pd error:&e];
+					if (!p) {
+						say(@"m6: pipeline %@%s: %@", fs, blend ? " (blended)" : "", e.localizedDescription);
+					}
+					return p;
+				};
+				static uint32_t px[256 * 256];
+				/* one pass: clear to blue, the quad with FS, then read back */
+				BOOL (^pass)(id<MTLRenderPipelineState>, id<MTLTexture>, id<MTLSamplerState>, const float *, int, BOOL) =
+				    ^BOOL(id<MTLRenderPipelineState> p, id<MTLTexture> t, id<MTLSamplerState> smp, const float *color, int mode,
+				        BOOL indexed) {
+					MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
+					rpd.colorAttachments[0].texture = rt;
+					rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
+					rpd.colorAttachments[0].storeAction = MTLStoreActionStore;
+					rpd.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 1, 1);
+					id<MTLCommandBuffer> c = [q commandBuffer];
+					id<MTLRenderCommandEncoder> re = [c renderCommandEncoderWithDescriptor:rpd];
+					[re setRenderPipelineState:p];
+					[re setVertexBuffer:qb offset:0 atIndex:1];
+					if (t) {
+						[re setFragmentTexture:t atIndex:0];
+					}
+					if (smp) {
+						[re setFragmentSamplerState:smp atIndex:0];
+					}
+					if (color) {
+						[re setFragmentBytes:color length:16 atIndex:0];
+					}
+					if (mode == 1) {
+						[re setViewport:(MTLViewport){ 0, 0, 128, 128, 0, 1 }];
+					} else if (mode == 2) {
+						[re setScissorRect:(MTLScissorRect){ 64, 64, 64, 64 }];
+					}
+					if (indexed) {
+						[re drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:6 indexType:MTLIndexTypeUInt16
+						               indexBuffer:ib indexBufferOffset:0];
+					} else {
+						[re drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
+					}
+					[re endEncoding];
+					[c commit];
+					[c waitUntilCompleted];
+					[rt getBytes:px bytesPerRow:1024 fromRegion:MTLRegionMake2D(0, 0, 256, 256) mipmapLevel:0];
+					return c.status == MTLCommandBufferStatusCompleted;
+				};
+				if (rt && checker && ramp && nearest) {
+					id<MTLRenderPipelineState> ptex = pipe(@"lapis_tex_fs", NO);
+					if (ptex && pass(ptex, checker, nearest, NULL, 0, NO)) {
+						unsigned ok = 0;
+						for (unsigned y = 0; y < 256; y++) {
+							for (unsigned x = 0; x < 256; x++) {
+								ok += px[y * 256 + x] == texels[(y / 64) * 4 + x / 64];
+							}
+						}
+						say(@"m6 texture (API sampler, nearest, vertex descriptor): %u/65536 pixels are their texel; "
+						    @"(10,10) %08x want %08x, (200,100) %08x want %08x", ok, px[10 * 256 + 10], texels[0],
+						    px[100 * 256 + 200], texels[1 * 4 + 3]);
+					}
+					id<MTLRenderPipelineState> plin = pipe(@"lapis_lin_fs", NO);
+					if (plin && pass(plin, ramp, nil, NULL, 0, NO)) {
+						say(@"m6 constexpr linear sampler over black|white: x=0 %08x (black), x=127 %08x x=128 %08x (grey ~80), "
+						    @"x=255 %08x (white)", px[128 * 256], px[128 * 256 + 127], px[128 * 256 + 128], px[128 * 256 + 255]);
+					}
+					id<MTLRenderPipelineState> psolid = pipe(@"lapis_solid_fs", NO), pblend = pipe(@"lapis_solid_fs", YES);
+					static const float red[4] = { 1, 0, 0, 1 }, halfred[4] = { 1, 0, 0, 0.5f };
+					if (psolid && pass(psolid, nil, nil, red, 0, YES)) {
+						unsigned n = 0;
+						for (unsigned i = 0; i < 65536; i++) {
+							n += px[i] == 0xff0000ffu;
+						}
+						say(@"m6 indexed draw (6 uint16 indices): %u/65536 red", n);
+					}
+					if (psolid && pass(psolid, nil, nil, red, 1, NO)) {
+						unsigned n = 0, tl = 0;
+						for (unsigned y = 0; y < 256; y++) {
+							for (unsigned x = 0; x < 256; x++) {
+								BOOL r = px[y * 256 + x] == 0xff0000ffu;
+								n += r;
+								tl += r && x < 128 && y < 128;
+							}
+						}
+						say(@"m6 viewport {0,0,128,128}: %u red, %u of them in the top-left quarter (want 16384, 16384)", n, tl);
+					}
+					if (psolid && pass(psolid, nil, nil, red, 2, NO)) {
+						unsigned n = 0, in = 0;
+						for (unsigned y = 0; y < 256; y++) {
+							for (unsigned x = 0; x < 256; x++) {
+								BOOL r = px[y * 256 + x] == 0xff0000ffu;
+								n += r;
+								in += r && x >= 64 && x < 128 && y >= 64 && y < 128;
+							}
+						}
+						say(@"m6 scissor {64,64,64,64}: %u red, %u inside it (want 4096, 4096)", n, in);
+					}
+					if (pblend && pass(pblend, nil, nil, halfred, 0, NO)) {
+						say(@"m6 blending (src alpha 0.5 red over blue): centre %08x (want ~ff7f007f or ff800080)", px[128 * 256 + 128]);
+					}
+				}
+			}
 		}
 		say(@"done");
 	}

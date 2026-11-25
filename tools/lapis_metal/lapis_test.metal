@@ -67,3 +67,40 @@ fragment float4 lapis_fs_tint0(lapis_vout in [[stage_in]], constant float4 &tint
 fragment float4 lapis_fs_tint1(lapis_vout in [[stage_in]], constant float4 &tint [[buffer(1)]]) { return tint; }
 fragment float4 lapis_fs_dtint(lapis_vout in [[stage_in]], device const float4 *tint [[buffer(0)]]) { return tint[0]; }
 fragment float4 lapis_fs_pos(lapis_vout in [[stage_in]]) { return float4(in.position.x / 256.0, in.position.y / 256.0, 0.0, 1.0); }
+
+/* m6: a full-target quad through a vertex descriptor ([[stage_in]]), and
+ * fragment shaders that sample a texture (an API sampler and a constexpr
+ * one) or give a colour for the blending, viewport and scissor checks */
+struct lapis_qin {
+	float2 pos [[attribute(0)]];
+	float2 uv [[attribute(1)]];
+};
+
+struct lapis_qout {
+	float4 position [[position]];
+	float2 uv;
+};
+
+vertex lapis_qout lapis_quad_vs(lapis_qin in [[stage_in]])
+{
+	lapis_qout o;
+	o.position = float4(in.pos, 0.0, 1.0);
+	o.uv = in.uv;
+	return o;
+}
+
+fragment float4 lapis_tex_fs(lapis_qout in [[stage_in]], texture2d<float> t [[texture(0)]], sampler s [[sampler(0)]])
+{
+	return t.sample(s, in.uv);
+}
+
+fragment float4 lapis_lin_fs(lapis_qout in [[stage_in]], texture2d<float> t [[texture(0)]])
+{
+	constexpr sampler s(filter::linear, address::clamp_to_edge);
+	return t.sample(s, in.uv);
+}
+
+fragment float4 lapis_solid_fs(lapis_qout in [[stage_in]], constant float4 &c [[buffer(0)]])
+{
+	return c;
+}

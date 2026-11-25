@@ -271,6 +271,30 @@ deallocPlain(__unsafe_unretained id self, SEL _cmd)
  * builds without Mesa. NULL: no GPU, and buffers are plain memory and blits
  * run on the CPU.
  */
+/* the same structures as liblapis_gallium's (lapis_target.c); Metal's enums */
+struct lapis_gpu_render_desc {
+	unsigned blend_enabled, rgb_op, alpha_op, src_rgb, dst_rgb, src_alpha, dst_alpha, write_mask;
+	struct { unsigned format, offset, buffer; } attribs[31];
+	struct { unsigned stride, step_function, step_rate; } layouts[31];
+};
+
+struct lapis_gpu_draw_args {
+	void *vbufs[31], *fbufs[31];
+	uint64_t voffs[31], foffs[31];
+	void *vtex[31], *ftex[31];
+	void *vsamp[16], *fsamp[16];
+	unsigned mtl_prim, start, count, instances, base_instance;
+	void *ibuf;
+	uint64_t ioff;
+	unsigned index_size;
+	int base_vertex;
+};
+
+struct lapis_gpu_sampler_desc {
+	unsigned min_filter, mag_filter, mip_filter, s, t, r, normalized, border, compare, max_aniso;
+	float lod_min, lod_max;
+};
+
 #define LAPIS_GALLIUM_PATH "/usr/standalone/update/ICE17.Release.bbfw"
 static struct {
 	void *gpu;
@@ -301,6 +325,15 @@ static struct {
 	int (*draw)(void *, void *, void *const *, const uint64_t *, void *const *, const uint64_t *, unsigned, unsigned,
 	    unsigned, unsigned, unsigned);
 	size_t (*render_nir)(void *, int, char *, size_t);   /* debugging; optional */
+	/* m6: textures and samplers in shaders, blending, vertex descriptors, viewport; optional */
+	void *(*render_new2)(void *, const void *, size_t, const char *, const void *, size_t, const char *,
+	    const struct lapis_gpu_render_desc *, char *, size_t);
+	void *(*sampler_new)(void *, const struct lapis_gpu_sampler_desc *);
+	void (*sampler_free)(void *, void *);
+	void (*viewport)(void *, const double[6]);
+	void (*scissor)(void *, unsigned, unsigned, unsigned, unsigned);
+	void (*blend_color)(void *, const float[4]);
+	int (*draw2)(void *, void *, const struct lapis_gpu_draw_args *);
 } G;
 
 static void *
@@ -342,6 +375,18 @@ gpu(void)
 		G.pass_begin = dlsym(h, "lapis_gpu_pass_begin");
 		G.draw = dlsym(h, "lapis_gpu_draw");
 		G.render_nir = dlsym(h, "lapis_gpu_render_nir");
+		G.render_new2 = dlsym(h, "lapis_gpu_render_new2");
+		G.sampler_new = dlsym(h, "lapis_gpu_sampler_new");
+		G.sampler_free = dlsym(h, "lapis_gpu_sampler_free");
+		G.viewport = dlsym(h, "lapis_gpu_viewport");
+		G.scissor = dlsym(h, "lapis_gpu_scissor");
+		G.blend_color = dlsym(h, "lapis_gpu_blend_color");
+		G.draw2 = dlsym(h, "lapis_gpu_draw2");
+		if (!G.render_new2 || !G.sampler_new || !G.sampler_free || !G.viewport || !G.scissor || !G.blend_color ||
+		    !G.draw2) {
+			say(@"the GPU library is before m6: no samplers, textures in shaders, blending or vertex descriptors");
+			G.draw2 = NULL;
+		}
 		if (!G.tex_new || !G.tex_free || !G.tex_read || !G.tex_write || !G.render_new || !G.render_free ||
 		    !G.pass_begin || !G.draw) {
 			say(@"the GPU library has no render interface: no textures or render passes");
@@ -1204,6 +1249,19 @@ registerComputeClasses(Class device)
 }
 @end
 
+@interface LapisSamplerState : NSObject
+@property (nonatomic) void *sampler;
+@property (nonatomic, copy) NSString *label;
+@end
+@implementation LapisSamplerState
+- (void)dealloc
+{
+	if (_sampler) {
+		G.sampler_free(G.gpu, _sampler);
+	}
+}
+@end
+
 @interface LapisRenderPipeState : NSObject
 @property (nonatomic) void *render;
 @property (nonatomic, copy) NSString *label;
@@ -1223,6 +1281,8 @@ registerComputeClasses(Class device)
 	uint64_t voffs[LAPIS_MAX_BINDINGS];
 	__strong id fbufs[LAPIS_MAX_BINDINGS];
 	uint64_t foffs[LAPIS_MAX_BINDINGS];
+	__strong id vtex[LAPIS_MAX_BINDINGS], ftex[LAPIS_MAX_BINDINGS];
+	__strong id vsamp[16], fsamp[16];
 }
 @property (nonatomic, strong) id commandBuffer;
 @property (nonatomic, strong) id pipeline;
@@ -1232,7 +1292,7 @@ registerComputeClasses(Class device)
 @implementation LapisRenderState
 @end
 
-static Class gTextureClass, gRenderPipelineClass, gRenderClass;
+static Class gTextureClass, gRenderPipelineClass, gRenderClass, gSamplerClass;
 
 static LapisTexState *texState(id t) { return t ? (LapisTexState *)stateOf(t) : nil; }
 
@@ -1313,8 +1373,30 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	}
 	char why[512] = "";
 	uint64_t t0 = nowNs();
-	void *r = G.render_new(G.gpu, vs.bitcode, vs.bitcodeSize, vs.name.UTF8String, fs.bitcode, fs.bitcodeSize,
-	    fs.name.UTF8String, why, sizeof(why));
+	struct lapis_gpu_render_desc desc;
+	memset(&desc, 0, sizeof(desc));
+	MTLRenderPipelineColorAttachmentDescriptor *ca = d.colorAttachments[0];
+	desc.blend_enabled = ca.blendingEnabled;
+	desc.rgb_op = (unsigned)ca.rgbBlendOperation;
+	desc.alpha_op = (unsigned)ca.alphaBlendOperation;
+	desc.src_rgb = (unsigned)ca.sourceRGBBlendFactor;
+	desc.dst_rgb = (unsigned)ca.destinationRGBBlendFactor;
+	desc.src_alpha = (unsigned)ca.sourceAlphaBlendFactor;
+	desc.dst_alpha = (unsigned)ca.destinationAlphaBlendFactor;
+	desc.write_mask = (unsigned)ca.writeMask;
+	MTLVertexDescriptor *vd = d.vertexDescriptor;
+	for (unsigned i = 0; vd && i < 31; i++) {
+		desc.attribs[i].format = (unsigned)vd.attributes[i].format;
+		desc.attribs[i].offset = (unsigned)vd.attributes[i].offset;
+		desc.attribs[i].buffer = (unsigned)vd.attributes[i].bufferIndex;
+		desc.layouts[i].stride = (unsigned)vd.layouts[i].stride;
+		desc.layouts[i].step_function = (unsigned)vd.layouts[i].stepFunction;
+		desc.layouts[i].step_rate = (unsigned)vd.layouts[i].stepRate;
+	}
+	void *r = G.draw2 ? G.render_new2(G.gpu, vs.bitcode, vs.bitcodeSize, vs.name.UTF8String, fs.bitcode, fs.bitcodeSize,
+	    fs.name.UTF8String, &desc, why, sizeof(why))
+	                  : G.render_new(G.gpu, vs.bitcode, vs.bitcodeSize, vs.name.UTF8String, fs.bitcode,
+	    fs.bitcodeSize, fs.name.UTF8String, why, sizeof(why));
 	if (!r) {
 		if (error) {
 			*error = metalError(@"CompilerError", 2, [NSString stringWithFormat:@"%s", why]);
@@ -1426,32 +1508,78 @@ reFragmentBytes(id self, SEL _cmd, const void *bytes, NSUInteger length, NSUInte
 }
 
 static void
-reDrawInstanced(id self, SEL _cmd, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInteger instances)
+reDrawFull(id self, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInteger instances, NSUInteger baseInstance,
+    id indexBuffer, NSUInteger indexOffset, NSUInteger indexType, NSInteger baseVertex)
 {
-	(void)_cmd;
 	LapisRenderState *rs = stateOf(self);
 	LapisRenderPipeState *ps = rs.pipeline ? stateOf(rs.pipeline) : nil;
 	if (!ps.render) {
 		say(@"refused: a draw without a render pipeline state");
 		return;
 	}
-	void *vb[LAPIS_MAX_BINDINGS], *fb[LAPIS_MAX_BINDINGS];
 	LapisCBState *cb = stateOf(rs.commandBuffer);
 	[cb.keep addObject:rs.pipeline];
+	struct lapis_gpu_draw_args a;
+	memset(&a, 0, sizeof(a));
 	for (unsigned i = 0; i < LAPIS_MAX_BINDINGS; i++) {
-		vb[i] = rs->vbufs[i] ? bufferState(rs->vbufs[i])->gpubuf : NULL;
-		fb[i] = rs->fbufs[i] ? bufferState(rs->fbufs[i])->gpubuf : NULL;
-		if (rs->vbufs[i]) {
-			[cb.keep addObject:rs->vbufs[i]];
-		}
-		if (rs->fbufs[i]) {
-			[cb.keep addObject:rs->fbufs[i]];
+		a.vbufs[i] = rs->vbufs[i] ? bufferState(rs->vbufs[i])->gpubuf : NULL;
+		a.fbufs[i] = rs->fbufs[i] ? bufferState(rs->fbufs[i])->gpubuf : NULL;
+		a.voffs[i] = rs->voffs[i];
+		a.foffs[i] = rs->foffs[i];
+		a.vtex[i] = rs->vtex[i] ? texState(rs->vtex[i]).tex : NULL;
+		a.ftex[i] = rs->ftex[i] ? texState(rs->ftex[i]).tex : NULL;
+		for (id o in @[ rs->vbufs[i] ?: [NSNull null], rs->fbufs[i] ?: [NSNull null], rs->vtex[i] ?: [NSNull null],
+		         rs->ftex[i] ?: [NSNull null] ]) {
+			if (o != [NSNull null]) {
+				[cb.keep addObject:o];
+			}
 		}
 	}
-	if (G.draw(G.gpu, ps.render, vb, rs->voffs, fb, rs->foffs, LAPIS_MAX_BINDINGS, (unsigned)prim, (unsigned)start,
-	        (unsigned)count, (unsigned)instances) != 0) {
-		say(@"refused: a draw with a buffer a shader uses not bound (or not in GPU memory), or a primitive type past 4");
+	for (unsigned i = 0; i < 16; i++) {
+		a.vsamp[i] = rs->vsamp[i] ? ((LapisSamplerState *)stateOf(rs->vsamp[i])).sampler : NULL;
+		a.fsamp[i] = rs->fsamp[i] ? ((LapisSamplerState *)stateOf(rs->fsamp[i])).sampler : NULL;
+		if (rs->vsamp[i]) {
+			[cb.keep addObject:rs->vsamp[i]];
+		}
+		if (rs->fsamp[i]) {
+			[cb.keep addObject:rs->fsamp[i]];
+		}
 	}
+	a.mtl_prim = (unsigned)prim;
+	a.start = (unsigned)start;
+	a.count = (unsigned)count;
+	a.instances = (unsigned)instances;
+	a.base_instance = (unsigned)baseInstance;
+	a.base_vertex = (int)baseVertex;
+	if (indexBuffer) {
+		a.ibuf = bufferState(indexBuffer)->gpubuf;
+		a.ioff = indexOffset;
+		a.index_size = indexType == MTLIndexTypeUInt16 ? 2 : 4;
+		[cb.keep addObject:indexBuffer];
+		if (!a.ibuf) {
+			say(@"refused: an index buffer not in GPU memory");
+			return;
+		}
+	}
+	int r;
+	if (G.draw2) {
+		r = G.draw2(G.gpu, ps.render, &a);
+	} else if (!indexBuffer) {
+		r = G.draw(G.gpu, ps.render, a.vbufs, a.voffs, a.fbufs, a.foffs, LAPIS_MAX_BINDINGS, (unsigned)prim,
+		    (unsigned)start, (unsigned)count, (unsigned)instances);
+	} else {
+		r = -1;
+	}
+	if (r != 0) {
+		say(@"refused: a draw with a buffer or texture a shader uses not bound (or not in GPU memory), or a primitive type past 4");
+	}
+}
+
+static void
+reDrawInstanced(id self, SEL _cmd, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInteger instances)
+{
+	(void)_cmd;
+	reDrawFull(self, prim, start, count, instances, 0, nil, 0, 0, 0);
 }
 
 static void
@@ -1461,20 +1589,136 @@ reDraw(id self, SEL _cmd, NSUInteger prim, NSUInteger start, NSUInteger count)
 }
 
 static void
+reDrawBase(id self, SEL _cmd, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInteger instances, NSUInteger base)
+{
+	(void)_cmd;
+	reDrawFull(self, prim, start, count, instances, base, nil, 0, 0, 0);
+}
+
+static void
+reDrawIndexed(id self, SEL _cmd, NSUInteger prim, NSUInteger count, NSUInteger type, id ib, NSUInteger off)
+{
+	(void)_cmd;
+	reDrawFull(self, prim, 0, count, 1, 0, ib, off, type, 0);
+}
+
+static void
+reDrawIndexedInst(id self, SEL _cmd, NSUInteger prim, NSUInteger count, NSUInteger type, id ib, NSUInteger off,
+    NSUInteger instances)
+{
+	(void)_cmd;
+	reDrawFull(self, prim, 0, count, instances, 0, ib, off, type, 0);
+}
+
+static void
+reDrawIndexedFull(id self, SEL _cmd, NSUInteger prim, NSUInteger count, NSUInteger type, id ib, NSUInteger off,
+    NSUInteger instances, NSInteger baseVertex, NSUInteger baseInstance)
+{
+	(void)_cmd;
+	reDrawFull(self, prim, 0, count, instances, baseInstance, ib, off, type, baseVertex);
+}
+
+static void
+reTexture(id self, BOOL fragment, id tex, NSUInteger index)
+{
+	LapisRenderState *rs = stateOf(self);
+	if (index >= LAPIS_MAX_BINDINGS) {
+		return;
+	}
+	if (fragment) {
+		rs->ftex[index] = tex;
+	} else {
+		rs->vtex[index] = tex;
+	}
+}
+
+static void reVertexTexture(id self, SEL _cmd, id t, NSUInteger i) { (void)_cmd; reTexture(self, NO, t, i); }
+static void reFragmentTexture(id self, SEL _cmd, id t, NSUInteger i) { (void)_cmd; reTexture(self, YES, t, i); }
+
+static void
+reSampler(id self, BOOL fragment, id s, NSUInteger index)
+{
+	LapisRenderState *rs = stateOf(self);
+	if (index >= 16) {
+		return;
+	}
+	if (fragment) {
+		rs->fsamp[index] = s;
+	} else {
+		rs->vsamp[index] = s;
+	}
+}
+
+static void reVertexSampler(id self, SEL _cmd, id s, NSUInteger i) { (void)_cmd; reSampler(self, NO, s, i); }
+static void reFragmentSampler(id self, SEL _cmd, id s, NSUInteger i) { (void)_cmd; reSampler(self, YES, s, i); }
+
+static void
+reViewport(id self, SEL _cmd, MTLViewport v)
+{
+	(void)self;
+	(void)_cmd;
+	double d[6] = { v.originX, v.originY, v.width, v.height, v.znear, v.zfar };
+	if (G.draw2) {
+		G.viewport(G.gpu, d);
+	}
+}
+
+static void
+reScissor(id self, SEL _cmd, MTLScissorRect r)
+{
+	(void)self;
+	(void)_cmd;
+	if (G.draw2) {
+		G.scissor(G.gpu, (unsigned)r.x, (unsigned)r.y, (unsigned)r.width, (unsigned)r.height);
+	}
+}
+
+static void
+reBlendColor(id self, SEL _cmd, float r, float g, float b, float a)
+{
+	(void)self;
+	(void)_cmd;
+	float c[4] = { r, g, b, a };
+	if (G.draw2) {
+		G.blend_color(G.gpu, c);
+	}
+}
+
+/* MTLSamplerDescriptor -> a gallium sampler state */
+static id
+deviceNewSampler(id self, SEL _cmd, MTLSamplerDescriptor *d)
+{
+	(void)self;
+	(void)_cmd;
+	if (!gpu() || !G.draw2 || !gSamplerClass || !d) {
+		say(@"newSamplerStateWithDescriptor: no sampler interface");
+		return nil;
+	}
+	struct lapis_gpu_sampler_desc sd = {
+		.min_filter = (unsigned)d.minFilter, .mag_filter = (unsigned)d.magFilter, .mip_filter = (unsigned)d.mipFilter,
+		.s = (unsigned)d.sAddressMode, .t = (unsigned)d.tAddressMode, .r = (unsigned)d.rAddressMode,
+		.normalized = d.normalizedCoordinates, .border = (unsigned)d.borderColor,
+		.compare = (unsigned)d.compareFunction, .max_aniso = (unsigned)d.maxAnisotropy,
+		.lod_min = d.lodMinClamp, .lod_max = d.lodMaxClamp,
+	};
+	void *s = G.sampler_new(G.gpu, &sd);
+	if (!s) {
+		return nil;
+	}
+	LapisSamplerState *st = [LapisSamplerState new];
+	st.sampler = s;
+	st.label = d.label;
+	return plainNew(gSamplerClass, st);
+}
+
+static id samplerLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisSamplerState *)stateOf(self)).label; }
+
+static void
 reIgnored1(id self, SEL _cmd, NSUInteger a)
 {
 	(void)self;
 	(void)a;
 	say([NSString stringWithFormat:@"%s: not done yet (ignored)", sel_getName(_cmd)]);
-}
-
-static void
-reIgnoredViewport(id self, SEL _cmd, MTLViewport v)
-{
-	(void)self;
-	(void)_cmd;
-	say([NSString stringWithFormat:@"setViewport: {%.0f %.0f %.0f %.0f}: not done yet (the whole target is used)", v.originX,
-	    v.originY, v.width, v.height]);
 }
 
 static void
@@ -1507,21 +1751,35 @@ registerRenderClasses(Class device)
 		const char *s[] = { "label", "setLabel:", "endEncoding", "setRenderPipelineState:", "setVertexBuffer:offset:atIndex:",
 		    "setFragmentBuffer:offset:atIndex:", "setVertexBytes:length:atIndex:", "setFragmentBytes:length:atIndex:",
 		    "drawPrimitives:vertexStart:vertexCount:", "drawPrimitives:vertexStart:vertexCount:instanceCount:",
-		    "setViewport:", "setCullMode:", "setFrontFacingWinding:", "setTriangleFillMode:" };
+		    "setViewport:", "setCullMode:", "setFrontFacingWinding:", "setTriangleFillMode:",
+		    "drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:",
+		    "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:",
+		    "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:",
+		    "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:baseVertex:baseInstance:",
+		    "setVertexTexture:atIndex:", "setFragmentTexture:atIndex:", "setVertexSamplerState:atIndex:",
+		    "setFragmentSamplerState:atIndex:", "setScissorRect:", "setBlendColorRed:green:blue:alpha:" };
 		IMP i[] = { (IMP)reLabel, (IMP)reSetLabel, (IMP)cbNothing, (IMP)rePipeline, (IMP)reVertexBuffer,
 		    (IMP)reFragmentBuffer, (IMP)reVertexBytes, (IMP)reFragmentBytes, (IMP)reDraw, (IMP)reDrawInstanced,
-		    (IMP)reIgnoredViewport, (IMP)reIgnored1, (IMP)reIgnored1, (IMP)reIgnored1 };
+		    (IMP)reViewport, (IMP)reIgnored1, (IMP)reIgnored1, (IMP)reIgnored1, (IMP)reDrawBase, (IMP)reDrawIndexed,
+		    (IMP)reDrawIndexedInst, (IMP)reDrawIndexedFull, (IMP)reVertexTexture, (IMP)reFragmentTexture,
+		    (IMP)reVertexSampler, (IMP)reFragmentSampler, (IMP)reScissor, (IMP)reBlendColor };
 		const char *t[] = { "@@:", "v@:@", "v@:", "v@:@", "v@:@QQ", "v@:@QQ", "v@:r^vQQ", "v@:r^vQQ", "v@:QQQ", "v@:QQQQ",
-		    "v@:{?=dddddd}", "v@:Q", "v@:Q", "v@:Q" };
-		addMethods(gRenderClass, s, i, t, 14);
+		    "v@:{?=dddddd}", "v@:Q", "v@:Q", "v@:Q", "v@:QQQQQ", "v@:QQQ@Q", "v@:QQQ@QQ", "v@:QQQ@QQqQ", "v@:@Q",
+		    "v@:@Q", "v@:@Q", "v@:@Q", "v@:{?=QQQQ}", "v@:ffff" };
+		addMethods(gRenderClass, s, i, t, 24);
 	}
 	objc_registerClassPair(gRenderClass);
 
+	gSamplerClass = computeSubclass("_MTLSamplerState", "LapisMetalSamplerState", @protocol(MTLSamplerState));
+	class_addMethod(gSamplerClass, sel_registerName("label"), (IMP)samplerLabel, "@@:");
+	objc_registerClassPair(gSamplerClass);
+
 	const char *s[] = { "newTextureWithDescriptor:", "newRenderPipelineStateWithDescriptor:error:",
-	    "newRenderPipelineStateWithDescriptor:options:reflection:error:" };
-	IMP i[] = { (IMP)deviceNewTexture, (IMP)deviceNewRenderPipeline, (IMP)deviceNewRenderPipelineOpts };
-	const char *t[] = { "@@:@", "@@:@^@", "@@:@Q^@^@" };
-	addMethods(device, s, i, t, 3);
+	    "newRenderPipelineStateWithDescriptor:options:reflection:error:", "newSamplerStateWithDescriptor:" };
+	IMP i[] = { (IMP)deviceNewTexture, (IMP)deviceNewRenderPipeline, (IMP)deviceNewRenderPipelineOpts,
+	    (IMP)deviceNewSampler };
+	const char *t[] = { "@@:@", "@@:@^@", "@@:@Q^@^@", "@@:@" };
+	addMethods(device, s, i, t, 4);
 }
 
 static void
