@@ -140,4 +140,12 @@ work that lets CoreAnimation draw on the GPU.
    whole test ~1300 -> ~100; every check still right. All 1600 instant probes
    found their buffer done. Still slow: a render frame (3.7 ms), which makes
    a new BO and VM_BIND each (139 of each per 500 requests, maps growing).
+   **p2/p3 (device/captures/sweetlog_p2_speed.txt, sweetlog_p3_speed.txt):**
+   the rest of a frame's cost was LapisMetal itself: every setBytes made a GPU
+   buffer (BO, VM_BIND, map, ~330 us). setBytes now copies into 64 KiB upload
+   arenas a command buffer takes from a pool and gives back on completion;
+   Mesa's maps stay at 32-37 instead of growing. Settled (after 20 s, iOS
+   idle): a command buffer 0.149 ms, **a frame (pass clear + quad +
+   setFragmentBytes, 256x256) 0.509 ms**, colours right. Numbers taken during
+   iOS's boot swing widely (1-200 ms) from CPU contention on the 4 A55s.
 7. IOSurface textures; then backboardd (CoreAnimation) on the device.
