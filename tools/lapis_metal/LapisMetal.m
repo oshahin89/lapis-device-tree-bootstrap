@@ -1669,6 +1669,77 @@ registerComputeClasses(Class device)
  * the surface's own memory mapped into the GPU's VM, needs LapisGPU to import
  * IOSurfaces.
  */
+/*
+ * The XR formats (550 RGB10A8_2P_XR10, 552/553 BGRA10_XR, 554/555 BGR10_XR)
+ * live on the GPU as RGBA16Float. A surface of 4 bytes a pixel under one of
+ * them is CoreAnimation's wide-colour framebuffer ('b3a8'), which the
+ * display (SWEET FB) reads as BGRA8: it gets BGRA8, clamped from the half
+ * floats, and the other way when it is read.
+ */
+static BOOL
+isXR(NSUInteger f)
+{
+	return f == 550 || (f >= 552 && f <= 555);
+}
+
+static uint8_t
+unorm8(float v)
+{
+	return v <= 0 ? 0 : v >= 1 ? 255 : (uint8_t)(v * 255.0f + 0.5f);
+}
+
+static BOOL
+xrSurfaceOut(LapisTexState *t, void *base, size_t stride)
+{
+	if (!isXR(t.pixelFormat) || IOSurfaceGetBytesPerElementOfPlane(t.surface, t.plane) != 4) {
+		return NO;
+	}
+	size_t w = t.width, h = t.height;
+	__fp16 *tmp = malloc(w * h * 8);
+	if (!tmp) {
+		return YES;
+	}
+	G.tex_read(G.gpu, t.tex, 0, 0, (unsigned)w, (unsigned)h, tmp, w * 8);
+	for (size_t y = 0; y < h; y++) {
+		const __fp16 *src = tmp + y * w * 4;
+		uint8_t *dst = (uint8_t *)base + y * stride;
+		for (size_t x = 0; x < w; x++, src += 4, dst += 4) {
+			dst[0] = unorm8(src[2]);   /* B */
+			dst[1] = unorm8(src[1]);   /* G */
+			dst[2] = unorm8(src[0]);   /* R */
+			dst[3] = 255;
+		}
+	}
+	free(tmp);
+	return YES;
+}
+
+static BOOL
+xrSurfaceIn(LapisTexState *t, const void *base, size_t stride)
+{
+	if (!isXR(t.pixelFormat) || IOSurfaceGetBytesPerElementOfPlane(t.surface, t.plane) != 4) {
+		return NO;
+	}
+	size_t w = t.width, h = t.height;
+	__fp16 *tmp = malloc(w * h * 8);
+	if (!tmp) {
+		return YES;
+	}
+	for (size_t y = 0; y < h; y++) {
+		const uint8_t *src = (const uint8_t *)base + y * stride;
+		__fp16 *dst = tmp + y * w * 4;
+		for (size_t x = 0; x < w; x++, src += 4, dst += 4) {
+			dst[0] = (__fp16)(src[2] / 255.0f);
+			dst[1] = (__fp16)(src[1] / 255.0f);
+			dst[2] = (__fp16)(src[0] / 255.0f);
+			dst[3] = (__fp16)1.0f;
+		}
+	}
+	G.tex_write(G.gpu, t.tex, 0, 0, (unsigned)w, (unsigned)h, tmp, w * 8);
+	free(tmp);
+	return YES;
+}
+
 static void
 surfaceIn(LapisTexState *t)
 {
@@ -1678,7 +1749,7 @@ surfaceIn(LapisTexState *t)
 	IOSurfaceLock(t.surface, kIOSurfaceLockReadOnly, NULL);
 	const void *base = IOSurfaceGetBaseAddressOfPlane(t.surface, t.plane);
 	size_t stride = IOSurfaceGetBytesPerRowOfPlane(t.surface, t.plane);
-	if (base) {
+	if (base && !xrSurfaceIn(t, base, stride)) {
 		G.tex_write(G.gpu, t.tex, 0, 0, (unsigned)t.width, (unsigned)t.height, base, stride);
 	}
 	IOSurfaceUnlock(t.surface, kIOSurfaceLockReadOnly, NULL);
@@ -1694,7 +1765,7 @@ surfaceOut(LapisTexState *t)
 	IOSurfaceLock(t.surface, 0, NULL);
 	void *base = IOSurfaceGetBaseAddressOfPlane(t.surface, t.plane);
 	size_t stride = IOSurfaceGetBytesPerRowOfPlane(t.surface, t.plane);
-	if (base) {
+	if (base && !xrSurfaceOut(t, base, stride)) {
 		G.tex_read(G.gpu, t.tex, 0, 0, (unsigned)t.width, (unsigned)t.height, base, stride);
 	}
 	IOSurfaceUnlock(t.surface, 0, NULL);
@@ -1764,18 +1835,6 @@ deviceNewTexture(id self, SEL _cmd, MTLTextureDescriptor *d)
 	(void)_cmd;
 	if (!gpu() || !G.tex_new || !gTextureClass || !d) {
 		say(@"newTextureWithDescriptor: no render interface");
-		return nil;
-	}
-	/* no extended-range (XR) formats: CoreAnimation's warm-up found them
-	 * renderable, chose a two-plane RGB10A8_2P_XR10 framebuffer ('b3a8') and
-	 * then drew nothing into it ("Unexpected framebuffer format b3a8", m7j);
-	 * without them it takes BGRA8Unorm, the display's own format */
-	if (d.pixelFormat == 550 || (d.pixelFormat >= 552 && d.pixelFormat <= 555)) {
-		static BOOL said;
-		if (!said) {
-			said = YES;
-			say([NSString stringWithFormat:@"newTexture: extended-range format %lu refused (BGRA8 instead)", (unsigned long)d.pixelFormat]);
-		}
 		return nil;
 	}
 	NSUInteger levels = d.mipmapLevelCount ? d.mipmapLevelCount : 1;
@@ -2291,6 +2350,8 @@ reIgnored1(id self, SEL _cmd, NSUInteger a)
  * CoreAnimation made its Metal context (sweetlog_m7: backboardd SIGSEGV at
  * 0x10; AGX's own returns a pointer into its device).
  */
+static BOOL deviceYes(id self, SEL _cmd) { (void)self; (void)_cmd; return YES; }
+
 static BOOL
 deviceResponds(id self, SEL _cmd, SEL sel)
 {
@@ -2417,6 +2478,10 @@ registerRenderClasses(Class device)
 		class_addMethod(gQueueClass, sel_registerName("setGPUPriority:"), (IMP)queueYes, "B@:Q");
 	}
 	class_addMethod(device, sel_registerName("respondsToSelector:"), (IMP)deviceResponds, "B@::");
+	/* XR formats: CoreAnimation's display framebuffer is 'b3a8' (RGB10A8_2P_XR10) and
+	 * without these it draws nothing into it ("Unexpected framebuffer format b3a8", m7k) */
+	class_addMethod(device, sel_registerName("supportsExtendedXR10Formats"), (IMP)deviceYes, "B@:");
+	class_addMethod(device, sel_registerName("supportsPublicXR10Formats"), (IMP)deviceYes, "B@:");
 	gDSClass = computeSubclass("_MTLDepthStencilState", "LapisMetalDepthStencilState", @protocol(MTLDepthStencilState));
 	class_addMethod(gDSClass, sel_registerName("label"), (IMP)dsLabel, "@@:");
 	objc_registerClassPair(gDSClass);
