@@ -1,0 +1,2198 @@
+# version 1, ring 4194304, total 159557 bytes, flush #1
+Darwin Kernel Version 22.6.0: Mon Aug 14 05:06:07 UTC 2023; runner:xnu-8796.141.3
+pmap_startup() init/release time: 21198 microsec
+pmap_startup() delayed init/release of 0 pages
+vm_page_bootstrap: 258736 free pages, 3408 wired pages, (up to 0 of which are delayed free)
+VM boostrap: 97 maps, 204 entries and 512 holes available
+Maximum number of VM swap files: 100
+ipc_kernel_copy_map     : 0xfffffe100066c000 - 0xfffffe1000e6c000 (8M)
+ipc_kernel_map          : 0xfffffe1000e6c000 - 0xfffffe1004e6c000 (64M)
+zones                   : 0xfffffe1004e6c000 - 0xfffffe3004e6c000 (128G)
+compressor              : 0xfffffe3004e6c000 - 0xfffffe40054d4000 (64G)
+zone_meta               : 0xfffffe40054d4000 - 0xfffffe400e0dc000 (140M)
+kmem_ptr_range          : 0xfffffe400e0dc000 - 0xfffffe540151c000 (79G)
+io_submap               : 0xfffffe540151c000 - 0xfffffe5401d1c000 (8M)
+kmem_sprayqtn_range     : 0xfffffe5401d1c000 - 0xfffffe5480a78000 (2029M)
+mb                      : 0xfffffe5480a78000 - 0xfffffe5486a78000 (96M)
+gIOKitPageableFixed1    : 0xfffffe5486a78000 - 0xfffffe548ca78000 (96M)
+bufferhdr               : 0xfffffe548ca78000 - 0xfffffe548cd40000 (2848K)
+bsd_pageable            : 0xfffffe548cd40000 - 0xfffffe5491048000 (67M)
+gIOKitPageableFixed3    : 0xfffffe5491048000 - 0xfffffe5497048000 (96M)
+kmem_ptr_range_meta     : 0xfffffe5497048000 - 0xfffffe54977c4000 (7M)
+gIOKitPageableFixed2    : 0xfffffe54977c4000 - 0xfffffe549d7c4000 (96M)
+gIOKitPageableFixed0    : 0xfffffe549d7c4000 - 0xfffffe54a37c4000 (96M)
+kmem_data_range         : 0xfffffe54a37c4000 - 0xfffffe8fffdfc000 (237G)
+kmem_large_ranges[1]    : 0 - 0 (0B)
+kmem_large_ranges[2]    : 0 - 0 (0B)
+kmem_large_ranges[3]    : 0 - 0 (0B)
+kmem_large_ranges[4]    : 0xfffffe5411ac7800 - 0xfffffe5480a78000 (1775M)
+kmem_large_ranges[5]    : 0xfffffe5c0f08b000 - 0xfffffe8fffdfc000 (207G)
+"vm_compressor_mode" is 4
+zone_init: pgzalloc  0xfffffe1004e6c000:0xfffffe1006e20000 (31M) [1014 slots]
+zone_init: map VM    0xfffffe1006e20000:0xfffffe14d3628000 (19G)
+zone_init: map RO    0xfffffe14d3628000:0xfffffe166ce2c000 (6G)
+zone_init: map GEN0  0xfffffe166ce2c000:0xfffffe1b39638000 (19G)
+zone_init: map GEN1  0xfffffe1b39638000:0xfffffe2005e44000 (19G)
+zone_init: map GEN2  0xfffffe2005e44000:0xfffffe24d2650000 (19G)
+zone_init: map GEN3  0xfffffe24d2650000:0xfffffe299ee5c000 (19G)
+zone_init: map DATA  0xfffffe299ee5c000:0xfffffe3004e6c000 (25G)
+zone_init: metadata  0xfffffe40054e4000:0xfffffe400d4e4000 (128M)
+zone_init: metabits  0xfffffe400d4e4000:0xfffffe400e0cc000 (11M)
+zone_init: extra     0:0 (0B)
+VM bootstrap done: 85 maps, 165 entries and 501 holes left
+Long logs support configured: size: 16384
+OSLog stream configured: stream: 8192 bytes, cache: 2112 bytes
+OSLog stream verification: 0
+Log queues configured: slot count: 32, per-slot size: 32768, total size: 1048576
+Firehose configured: 16 chunks, 8 io pages
+standard timeslicing quantum is 10000 us
+standard background quantum is 2500 us
+mig_table_max_displ = 54 mach_kobj_count = 374
+debug_log_init: Error!! gPanicBase is still not initialized
+debug_log_init: Error!! gPanicBase is still not initialized
+kdp_core zlib memory 0x8000
+Serial requested, consistent debug disabled or debug boot arg not present, configuring debugging over serial
+iBoot version: lapis-shim
+"name" not a kext
+"AAPL,phandle" not a kext
+SWEET AMFI: built-in interface registered (XML entitlements)
+calling mpo_policy_init for vnguard
+Security policy loaded: Guarded vnode policy (vnguard)
+SWEET: trust caches unavailable (Image4/AMFI not installed)
+keepsyms boot arg specified; keeping linkedit segment for symbols.
+No POST boot-arg set.
+SWEET: starting device-tree platform expert
+SWEET: platform expert registered
+SWEET AKS: AppleKeyStore registered (no passcode, unlocked)
+SWEET WDT: IOWatchdog registered (accepts check-ins, never fires)
+SWEET SURF: IOCoreSurfaceRoot registered
+SWEET HID: buttons registered (test every 0 s)
+SWEET HID: touch registered
+SWEET FB: AppleCLCD 1280x2772 stride 5120 at 0xfd72f000, default surface 1, presented as 1125x2436 (scaled to the panel)
+SWEET CPU: requested=4 selected=4 (limit=8)
+SWEET CPU: cpu=0 mpidr=0x0 came alive; SGI1 OK
+SWEET CPU: cpu=1 CPU_ON target=0x100 entry_pa=0x1414c6000 context=1
+SWEET CPU: cpu=1 PSCI CPU_ON rc=0
+LAPIS BATTERY: bq28z610 on I2C0, 38%; MT6375 vid=72 charger=managed
+SWEET CPU: cpu=1 mpidr=0x100 came alive; SGI1 OK
+SWEET CPU: cpu=2 CPU_ON target=0x200 entry_pa=0x1414c6000 context=2
+SWEET CPU: cpu=2 PSCI CPU_ON rc=0
+SWEET CPU: cpu=2 mpidr=0x200 came alive; SGI1 OK
+SWEET CPU: cpu=3 CPU_ON target=0x300 entry_pa=0x1414c6000 context=3
+SWEET CPU: cpu=3 PSCI CPU_ON rc=0
+SWEET CPU: cpu=3 mpidr=0x300 came alive; SGI1 OK
+SWEET CPU: 4/4 CPUs initialized, SGI1 verified
+Copyright (c) 1982, 1986, 1989, 1991, 1993
+	The Regents of the University of California. All rights reserved.
+
+MAC Framework successfully initialized
+LAPIS CHARGER: input limit 0x122 12 -> 3a
+LAPIS CHARGER: charge current 0x126 0a -> 1e
+SWEET BATTERY: lapis bq28z610 gauge, 38% 3847mV external=1 charging=1
+SWEET BATTERY: lapis 38% 3847mV 117mA 32.30C status=0 external=1 charging=1 full=0
+LAPIS BACKLIGHT: service off (lapisbacklight=0)
+using 5195 buffer headers and 4645 cluster IO buffer headers
+SWEET BATTERY: lapis 38% 3890mV 1128mA 32.40C status=0 external=1 charging=1 full=0
+ktriage_register_subsystem_strings: set subsystem 8 strings
+calling mpo_policy_init for SWEET AMFI
+Security policy loaded: SWEET built-in Mobile File Integrity (SWEET AMFI)
+SWEET AMFI: platform binary policy registered (0)
+calling mpo_policy_init for Sandbox
+Security policy loaded: SWEET permissive sandbox stand-in (Sandbox)
+SWEET Sandbox: permissive policy registered (0)
+SWEET HFS: hfs-627.100.6 registered
+mcache: 4 CPU(s), 64 bytes CPU cache line size
+mbinit: done [96 MB total pool size, (64/32) split]
+dlil_init: Waiting for all the create dlil kernel threads to get scheduled at least once.
+dlil_init: All the created dlil kernel threads have been scheduled at least once. Proceeding.
+ifnet_attach: All kernel threads created for interface lo0 have been scheduled at least once. Proceeding.
+ifnet_attach: All kernel threads created for interface gif0 have been scheduled at least once. Proceeding.
+skip attaching fsw to lo0 using legacy TX modelifnet_attach: All kernel threads created for interface stf0 have been scheduled at least once. Proceeding.
+SWEET UFS: command 0x00 failed: ocs 0x0 upiu 0x21 response 0x1 status 0x2
+SWEET UFS: "iosroot" on LUN 2: first block 0x3794ff8, 16384 MiB, read-write, DMA at 0x144540000
+SWEET LOG: console log to the last 4100 KiB of the partition (block 0x3b94bf7)
+SWEET UFS: keys/touch/USB skipped (ruby, sweethw=0)
+LAPIS KEYS: pmic id=63 top=1e use pmic=1 gpio54=1 kp=1
+LAPIS NVT: SPI3 controller up (cfg4=01010101 mode 22021111->22221111)
+LAPIS NVT: chip=718703 fwinfo-before=78de
+LAPIS HAPTIC: AW86927 ready, 8 read-only/differing regs, i2c errors 0
+BSD root: ufsroot0, major 1, minor 0
+LAPIS GPU: GPUEB power-on 5 x100us, GPU_ID 0xb8a31030, MMU_FEATURES 0x2830
+jnl: b(1, 0): replay_journal: from: 729600 to: 3588608 (joffset 0x82000)
+jnl: b(1, 0): journal replay done.
+hfs: Removed 1 orphaned / unlinked files and 14 directories 
+hfs: mounted iOSRoot on device b(1, 0)
+SWEET: root volume is not authenticated (error 25); continuing unsealed
+LAPIS GPU: reset 0, L2 4 (x10us); firmware 0, 7 sections, pool 0xb9000 used
+LAPIS GPU: MCU boot 4 x10us, status 1, interface 0x2050000, 8 groups
+LAPIS GPU: GLB config 3 ping 1, CSG start 3, CS start 2 (x10us)
+No POST boot-arg set.
+load_init_program: attempting to load /usr/appleinternal/sbin/launchd.development
+VM Swap Subsystem is ON
+load_init_program: attempting to load /sbin/launchd
+LAPIS GPU: 300 streams: 300 ran, avg 21 us, worst 75 us, first miss -1, insert 0x4b00 extract 0x4ac0
+exec launchd
+LapisGPU: self-test: 1 buffers
+LapisGPU: self-test: cmd pa 0x144aa0000 kva 0xfffffe54a3a74000, tgt pa 0x144a84000 kva 0xfffffe54a3a84000
+LapisGPU: self-test: 2 VM
+LapisGPU: self-test: 3 bind
+LapisGPU: self-test: 4 group
+LapisGPU: self-test: 5 first stream
+LapisGPU: self-test: VM 1 group 1, 200 streams CALLed from kernel memory: 200 ran, avg 27 us, worst 62 us, first miss -1
+LapisGPU: self-test: 6 fault
+LAPIS GPU: AS2 fault 0x7cc003c2 at 030000000
+LapisGPU: self-test: store to an unbound address: wait -2, group fatal 1
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] check_np(0x16dd73bc0) vm_shared_region_start_address() failed
+LapisGPU: self-test: 7 new group
+LapisGPU: self-test: new group 1 after the fault: 10/10 ran
+LapisGPU: self-test: 8 clean up
+LapisGPU: self-test: done
+LapisGPU: creating the service
+LapisGPU: the GPU is there for programs (panthor requests)
+LapisGPU: IOAcceleratorES published (lapismetal=1): MetalPluginName AGXMetalA11, class LapisMetalDevice
+SWEET Sandbox: launchd op 2
+Darwin Ignition Sequence Version 1.0.0: Tue Jul  2 20:41:23 PDT 2024; root:libignition-51~1974/libignition_core/RELEASE_ARM64
+libignition: 1: arguments           :
+libignition: 1:   ignition level    : 0x1
+libignition: 1:   force dylib root  : 0x0
+libignition: 1:   halt after stage  : n/a
+libignition: 1: ignition blob not available
+libignition: 1: configuration         :
+libignition: 1:   program             : launchd
+libignition: 1:   os environment      : n/a
+libignition: 1:   rd                  : ufsroot0
+libignition: 1:   arp0                : n/a
+libignition: 1:   rp                  : n/a
+libignition: 1:   pivot src           : n/a
+libignition: 1:   root ramdisk        : 0x0
+libignition: 1:   restore             : 0x0
+libignition: 1:   root device info    : 0x0
+libignition: 1:   can haz debugger    : 0x1
+libignition: 1:   rootfs mount flags  : 0x480d000
+libignition: 1:   ecid                : 0x0
+libignition: 1:   hardware target     : d22ap
+libignition: 1:   initproc            : 0x1
+libignition: 1:   single user         : 0x0
+libignition: 1:   userspace reboot    : 0x0
+libignition: 1:   secure boot level   : 0x0
+libignition: 1:   os version          : n/a
+libignition: 1: parameters          :
+libignition: 1:   version           : 0x1
+libignition: 1:   argc              : 0x1
+libignition: 1:   log fd            : 0xffffffffffffffff
+libignition: 1:   platform          : 0x2
+libignition: 1: boot spec           :
+libignition: 1:   name              : local
+libignition: 1:   stage count       : 0x7
+libignition: 1:        hello: commence primary ignition
+libignition: 1:        hello: hello from launchd.1
+libignition: 1:      preboot: ignition level insufficient: actual = 1, required >= 2
+libignition: 1: cryptex1 sniff: ignition level insufficient: actual = 1, required >= 2
+libignition: 1:        graft: ignition level insufficient: actual = 1, required >= 3
+libignition: 1: select os cryptex path: ignition level insufficient: actual = 1, required >= 3
+libignition: 1:  dylib_cache: discovering shared library cache
+libignition: 1:  dylib_cache: finding shared cache on system volume: ignition level = 1, search root fd = 4, subpath = System/Library/Caches/com.apple.dyld/
+libignition: 1:  dylib_cache: opened shared cache directory: /System/Library/Caches/com.apple.dyld
+libignition: 1:      goodbye: ignition sequence complete
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] check_np(0x16dd73150) vm_shared_region_start_address() failed
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccf373:'dyld_shared_cache_arm64'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccf263:'dyld_shared_cache_arm64.01'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccc3a3:'dyld_shared_cache_arm64.02'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccc293:'dyld_shared_cache_arm64.03'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccc183:'dyld_shared_cache_arm64.04'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccd5b3:'dyld_shared_cache_arm64.05'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccd9f3:'dyld_shared_cache_arm64.06'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccd7d3:'dyld_shared_cache_arm64.07'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccd6c3:'dyld_shared_cache_arm64.08'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccc073:'dyld_shared_cache_arm64.09'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccff23:'dyld_shared_cache_arm64.10'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccfe13:'dyld_shared_cache_arm64.11'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccfd03:'dyld_shared_cache_arm64.12'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccfae3:'dyld_shared_cache_arm64.13'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccd4a3:'dyld_shared_cache_arm64.14'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccd393:'dyld_shared_cache_arm64.15'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccd283:'dyld_shared_cache_arm64.16'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccd173:'dyld_shared_cache_arm64.17'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccce383:'dyld_shared_cache_arm64.18'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccccf53:'dyld_shared_cache_arm64.19'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccce43:'dyld_shared_cache_arm64.20'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccccd33:'dyld_shared_cache_arm64.21'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccced13:'dyld_shared_cache_arm64.22'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccec03:'dyld_shared_cache_arm64.23'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccce273:'dyld_shared_cache_arm64.24'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccceaf3:'dyld_shared_cache_arm64.25'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccce9e3:'dyld_shared_cache_arm64.26'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccce7c3:'dyld_shared_cache_arm64.27.dylddata'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccce6b3:'dyld_shared_cache_arm64.28.dyldlinkedit'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccce5a3:'dyld_shared_cache_arm64.29'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85ccce493:'dyld_shared_cache_arm64.30'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccf043:'dyld_shared_cache_arm64.31'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccef33:'dyld_shared_cache_arm64.32'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccee23:'dyld_shared_cache_arm64.33'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccb153:'dyld_shared_cache_arm64.34'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccb9d3:'dyld_shared_cache_arm64.35'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccb8c3:'dyld_shared_cache_arm64.36'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccb7b3:'dyld_shared_cache_arm64.37'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccb6a3:'dyld_shared_cache_arm64.38'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccb593:'dyld_shared_cache_arm64.39'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccb483:'dyld_shared_cache_arm64.40'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccb373:'dyld_shared_cache_arm64.41.dylddata'): not in trust cache
+shared_region: 0x9e9de7b85ce5c463 [1(launchd)] map(0x9e9de7b85cccb263:'dyld_shared_cache_arm64.42.dyldlinkedit'): not in trust cache
+LAPIS AUDIO: chime played, DL0 0x110602b0 -> 0x11060800, amp 0x12 0xbc9, i2c errors 0
+SWEET Sandbox: launchd op 4
+com.apple.xpc.launchd|1969-12-31 16:00:37.436930 <Notice>: hello
+com.apple.xpc.launchd|1969-12-31 16:00:37.441228 <Error>: Could not opt into 50 MB Jetsam high watermark: 22: Invalid argument
+com.apple.xpc.launchd|1969-12-31 16:00:37.441546 <Notice>: Darwin Bootstrapper Version 7.0.0: Thu Feb  1 20:33:09 PST 2024; root:libxpc_executables-2462.140.4.702.1~1/launchd/RELEASE_ARM64
+com.apple.xpc.launchd|1969-12-31 16:00:37.441632 <Notice>: boot-args = debug=0xc serial=3 cpus=4 keepsyms=1 -noprogress sweethw=0 wdt=-1 rd=ufsroot0 ufsroot=iosroot ufslun=2 ufsrw=1 rootrw=1 launchd_unsecure_cache=1 unentitled_ios_sim_launch=1 ignition_level=1 lapisnt=1 sweetfb_noconsole=1 lapisbacklight=0 lapismetal=1
+com.apple.xpc.launchd|1969-12-31 16:00:37.446912 (system) <Notice>: entering ondemand mode
+com.apple.xpc.launchd|1969-12-31 16:00:37.448353 (system) <Notice>: created
+skip attaching fsw to lo0 using legacy TX modelcom.apple.xpc.launchd|1969-12-31 16:00:37.449355 (mount-phase-1) <Notice>: Doing boot task
+exec mount
+failed to get filesystem info
+failed to get filesystem info
+mount: data volume missing, but not required in env: 0
+vnode_create_internal: alias vnode 0xfffffe299eb9cae0 is in state of change (start)
+vnode_create_internal: alias vnode 0xfffffe299eb9cae0 is in state of change (end)
+exec mount_hfs
+GetMasterBlock: Error 16 opening /dev/ufsroot0
+/dev/ufsroot0 on / (hfs, local, journaled, noatime)
+ERROR: BindFS bindfs_mount: lookup of /private/preboot/A90FC68E8997E3D34C8D044B311FFD6788441FEB3849B682346DF2C821D6177ACE2A6EEDECF75BD1BF8F23BCF86E0BED/usr/standalone/firmware failed error: 2
+com.apple.xpc.launchd|1969-12-31 16:00:37.570510 (data-protection) <Notice>: Doing boot task
+exec seputil
+init_data_protection: No SEP present on this device
+com.apple.xpc.launchd|1969-12-31 16:00:37.672035 (finish-obliteration) <Notice>: Doing boot task
+exec mobile_obliterator
+Obliterator: In INIT check
+Wed Dec 31 16:00:37 1969: checkOblitNVRAMkey: IORegistryEntryFromPath failed [gF: 0x0000000000000000]
+Obliterator: No obliteration needed, continue booting, returning 0
+com.apple.xpc.launchd|1969-12-31 16:00:37.724836 (detect-installed-roots) <Notice>: Doing boot task
+com.apple.xpc.launchd|1969-12-31 16:00:37.725410 <Notice>: No cookie from system volume
+com.apple.xpc.launchd|1969-12-31 16:00:37.725552 <Notice>: No cookie: /private/preboot/A90FC68E8997E3D34C8D044B311FFD6788441FEB3849B682346DF2C821D6177ACE2A6EEDECF75BD1BF8F23BCF86E0BED/.roots-installed
+com.apple.xpc.launchd|1969-12-31 16:00:37.725590 (commit-boot-mode) <Notice>: Doing boot task
+com.apple.xpc.launchd|1969-12-31 16:00:37.725621 <Notice>: boot-mode committed: (null)
+com.apple.xpc.launchd|1969-12-31 16:00:37.725652 (restore-datapartition) <Notice>: Doing boot task
+com.apple.xpc.launchd|1969-12-31 16:00:37.727060 (restore-datapartition) <Notice>: optional boot task not present
+com.apple.xpc.launchd|1969-12-31 16:00:37.727122 (mount-phase-2) <Notice>: Doing boot task
+exec mount
+failed to get filesystem info
+failed to get filesystem info
+mount: data volume missing, but not required in env: 0
+ERROR: BindFS bindfs_mount: lookup of /private/var/hardware/Pearl/System/Library/Pearl/ReferenceFrames failed error: 2
+ERROR: BindFS bindfs_mount: lookup of /private/var/hardware/FactoryData/System/Library/Caches/com.apple.factorydata failed error: 2
+com.apple.xpc.launchd|1969-12-31 16:00:37.742896 (init-with-data-volume) <Notice>: Doing boot task
+com.apple.xpc.launchd|1969-12-31 16:00:37.759706 (MSUEarlyBootTask) <Notice>: Doing boot task
+exec MSUEarlyBootTask
+LAPIS NVT: firmware table accepted (15 partitions)
+LAPIS NVT: bootloader reset (plain, as Android)
+LAPIS NVT: ILM/DLM CRC banks programmed
+LAPIS GPU: at 1s: stream ran 32 us, ping 2 x10us, MCU 1, events 2 faults 1
+LAPIS NVT: firmware partitions transferred (15)
+LAPIS NVT: BOOT_RDY sent; waiting for reset state 0xa0
+LAPIS NVT: firmware loaded (version=2bd4 state=a0)
+LAPIS NVT: touch polling started (1125x2436 viewport)
+MSUEarlyBootTask: MSUEarlyBootTask running
+main: Content from the ramdisk will be present at /private/var/MobileSoftwareUpdate//a90fc68e8997e3d34c8d044b311ffd6788441feb3849b682346df2c821d6177ace2a6eedecf75bd1bf8f23bcf86e0bed-MSUData if it exists
+MSUEarlyBootTask: I have nothing to do. Goodbye!!
+com.apple.xpc.launchd|1969-12-31 16:00:38.520248 (fips) <Notice>: Doing boot task
+exec cc_fips_test
+About to call the FIPS_POST function in the corecrypto.dylib
+Tracing: disabled
+FIPSPOST_USER [500909836] fipspost_post:152: [FIPSPOST][Module-ID] Apple corecrypto Module v13.0 [Apple ARM, User, Software, SL1]
+FIPSPOST_USER [500927084] fipspost_post:160: PASSED: (1 ms) - fipspost_post_hmac
+FIPSPOST_USER [500958556] fipspost_post:164: PASSED: (2 ms) - fipspost_post_integrity
+FIPSPOST_USER [500963799] fipspost_post:168: PASSED: (0 ms) - fipspost_post_indicator
+FIPSPOST_USER [500966888] fipspost_post:169: PASSED: (0 ms) - fipspost_post_aes_ecb
+FIPSPOST_USER [500969936] fipspost_post:170: PASSED: (0 ms) - fipspost_post_aes_cbc
+FIPSPOST_USER [501129984] fipspost_post:171: PASSED: (12 ms) - fipspost_post_rsa_sig
+FIPSPOST_USER [501412664] fipspost_post:172: PASSED: (21 ms) - fipspost_post_ecdsa
+FIPSPOST_USER [501426116] fipspost_post:173: PASSED: (0 ms) - fipspost_post_ecdh
+FIPSPOST_USER [501428243] fipspost_post:174: PASSED: (0 ms) - fipspost_post_aes_ccm
+FIPSPOST_USER [501431419] fipspost_post:175: PASSED: (0 ms) - fipspost_post_aes_cmac
+FIPSPOST_USER [501435552] fipspost_post:176: PASSED: (0 ms) - fipspost_post_hkdf
+FIPSPOST_USER [501821464] fipspost_post:177: PASSED: (29 ms) - fipspost_post_pbkdf
+FIPSPOST_USER [501825272] fipspost_post:178: PASSED: (0 ms) - fipspost_post_drbg_hmac
+FIPSPOST_USER [501828899] fipspost_post:180: PASSED: (0 ms) - fipspost_post_kdf_ctr
+FIPSPOST_USER [501831984] fipspost_post:181: PASSED: (0 ms) - fipspost_post_aes_gcm
+FIPSPOST_USER [501835039] fipspost_post:182: PASSED: (0 ms) - fipspost_post_aes_xts
+FIPSPOST_USER [501838752] fipspost_post:183: PASSED: (0 ms) - fipspost_post_tdes_ecb
+FIPSPOST_USER [501841940] fipspost_post:184: PASSED: (0 ms) - fipspost_post_drbg_ctr
+FIPSPOST_USER [502411191] fipspost_post:186: PASSED: (43 ms) - fipspost_post_ffdh
+FIPSPOST_USER [502731848] fipspost_post:187: PASSED: (24 ms) - fipspost_post_rsa_enc_dec
+FIPSPOST_USER [502734975] fipspost_post:206: all tests PASSED (140 ms)
+Returned from calling the FIPS_POST function in the corecrypto.dylib: result = true
+com.apple.xpc.launchd|1969-12-31 16:00:38.672905 (keybag) <Notice>: Doing boot task
+exec keybagd
+****** IN MKB_INIT ****
+SWEET AKS: keybagd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: keybagd sel 14 arg0 0 in 0/0 out 1/0 -> 0x0
+SWEET AKS: keybagd sel 14 arg0 0 in 0/0 out 1/0 -> 0x0
+MKB_INIT: mount is with NO CPROTECT:0x1480d000 on  (/private/var/)
+MKB_INIT: mount point (/private/var/) does not support Data Protection
+MKB_INIT: System Keybag loaded
+MKB_INIT: Could not get options entry from the device tree
+Unable to set /private/var//tmp to class D!****** DONE MKB_INIT ****
+com.apple.xpc.launchd|1969-12-31 16:00:38.722001 (usermanagerd) <Notice>: Doing boot task
+exec usermanagerd
+****** IN UMD_INIT ****
+****** STARTING EARLYBOOT SETUP ****
+UMD_INIT: STARTING EARLYBOOT SETUP
+UMD_INIT: LOADING USER SESSIONS
+UMD_INIT: Device Configuration Type:0
+UMD_INIT: BOOTEDUSER is:501
+UMD_INIT: diskLoadUserSessions, APNSID:, set to 18446744073709551615
+UMD_INIT: Reloaded _gUserSessionTable (
+        {
+        MKBUserSessionCreateTimeStamp = "1970-01-01 00:01:07 +0000";
+        MKBUserSessionDirty = 0;
+        MKBUserSessionDisplayName = mobile;
+        MKBUserSessionFirstName = mobile;
+        MKBUserSessionForeground = 1;
+        MKBUserSessionGroupID = 501;
+        MKBUserSessionID = 501;
+        MKBUserSessionLanguage = "en_US";
+        MKBUserSessionLastName = mobile;
+        MKBUserSessionLibinfoHomeDir = "/var/mobile";
+        MKBUserSessionLoginTimeStamp = "1970-01-01 00:01:07 +0000";
+        MKBUserSessionLoginUser = 0;
+        MKBUserSessionName = mobile;
+        MKBUserSessionNeedsMount = 1;
+        MKBUserSessionShortName = mobile;
+        MKBUserSessionType = UserSessionOther;
+        MKBUserSessionUUID = "8B5E3A52-945F-4E7C-A2C7-C38377A19B77";
+        MKBUserSessionVolumeFSType = UserVolumeAPFSNative;
+        MKBUserSessionisAdminKey = 1;
+        MKBUserSessionisPrimary = 1;
+    }
+)
+UMD_INIT: FOUND NO SYNC BUBBLE UIDS:0
+UMD_INIT: FOUND NO LRU TABLE UIDS:0
+UMD_INIT: FOUND NO VOLUMETYPE, setting up volume type
+UMD_INIT: Set the new volume type to APFSNativeDevice
+UMD_INIT: SAVING SESSION TODISK
+UMD_INIT: SESSION TABLE TO BLOB
+UMD_INIT: NOTHING TO SAVE IN LRU UID LIST
+UMD_INIT: diskSaveUserSessions Success
+UMD_INIT: Read user sessions in _gUserSessionTable (
+        {
+        MKBUserSessionCreateTimeStamp = "1970-01-01 00:01:07 +0000";
+        MKBUserSessionDirty = 0;
+        MKBUserSessionDisplayName = mobile;
+        MKBUserSessionFirstName = mobile;
+        MKBUserSessionForeground = 1;
+        MKBUserSessionGroupID = 501;
+        MKBUserSessionID = 501;
+        MKBUserSessionLanguage = "en_US";
+        MKBUserSessionLastName = mobile;
+        MKBUserSessionLibinfoHomeDir = "/var/mobile";
+        MKBUserSessionLoginTimeStamp = "1970-01-01 00:01:07 +0000";
+        MKBUserSessionLoginUser = 0;
+        MKBUserSessionName = mobile;
+        MKBUserSessionNeedsMount = 1;
+        MKBUserSessionShortName = mobile;
+        MKBUserSessionType = UserSessionOther;
+        MKBUserSessionUUID = "8B5E3A52-945F-4E7C-A2C7-C38377A19B77";
+        MKBUserSessionVolumeFSType = UserVolumeAPFSNative;
+        MKBUserSessionisAdminKey = 1;
+        MKBUserSessionisPrimary = 1;
+    }
+)
+UMD_INIT: LOADED USER SESSIONS
+UMD_INIT: failed to read nextsession dict
+UMD_INIT: Unable to Obtained foreground, curFG:502, nextID:-1
+UMD_INIT: Failed to get next session, booting with default id to be Loginwindow UID
+UMD_INIT: BootedUser is:501
+UMD_INIT: Regular mode Setup for user:501: Num Sessions:1, CurrentsessionID:-1
+UMD_INIT: FAILED to Set Foreground ID + multiuser in commpage successfully
+UMD_INIT: LOADING PERSONA..
+UMD_INIT: Manifest version: 1
+UMD_INIT: Loaded Persona Generation ID from manifest:1
+UMD_INIT: Adding 99 entry to persona Table for user:FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF
+UMD_INIT: Adding 199 entry to persona Table for user:FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF
+UMD_INIT: Adding 100 entry to persona Table for user:8B5E3A52-945F-4E7C-A2C7-C38377A19B77
+UMD_INIT: Adding 0 entry to persona Table for user:8B5E3A52-945F-4E7C-A2C7-C38377A19B77
+UMD_INIT: Adding 1000 entry to persona Table for user:8B5E3A52-945F-4E7C-A2C7-C38377A19B77
+UMD_INIT: Adding 200 entry to persona Table for user:8B5E3A52-945F-4E7C-A2C7-C38377A19B77
+UMD_INIT: Loaded persona manifest
+UMD_INIT: Failed to retrieve info for kernel persona 99: No such process
+UMD_INIT: PersonaID:99 not loaded, loading..
+UMD_INIT: Allocated kernel persona with ID: 99, Type: 4, UID: 4294967295
+UMD_INIT: Failed to retrieve info for kernel persona 199: No such process
+UMD_INIT: PersonaID:199 not loaded, loading..
+UMD_INIT: Allocated kernel persona with ID: 199, Type: 6, UID: 4294967295
+UMD_INIT: Failed to retrieve info for kernel persona 100: No such process
+UMD_INIT: PersonaID:100 not loaded, loading..
+UMD_INIT: Allocated kernel persona with ID: 100, Type: 4, UID: 501
+UMD_INIT: Failed to retrieve info for kernel persona 1000: No such process
+UMD_INIT: PersonaID:1000 not loaded, loading..
+UMD_INIT: Allocated kernel persona with ID: 1000, Type: 5, UID: 501
+UMD_INIT: Failed to retrieve info for kernel persona 200: No such process
+UMD_INIT: PersonaID:200 not loaded, loading..
+UMD_INIT: Allocated kernel persona with ID: 200, Type: 6, UID: 501
+UMD_INIT: setup kernel personas
+UMD_INIT: Failed to notify_register_check com.apple.mobile.usermanagerd.personageneration_changed: 8
+UMD_INIT: Failed to notify generation changed: Failed to register for darwin notification token
+UMD_INIT: DONE EARLYBOOT SETUP
+****** DONE EARLYBOOT SETUP ****
+****** DONE UMD_INIT ****
+com.apple.xpc.launchd|1969-12-31 16:00:38.876515 (dirs_cleaner) <Notice>: Doing boot task
+exec dirs_cleaner
+dc_reset: /tmp: Invalid argument
+dc_reset: /var/run: Invalid argument
+exec xpcroleaccountd
+exec init_featureflags
+[System Event] [506585659] [INFO] [Subsystem: launchd] [Event: mount-phase-1] Doing boot task
+[System Event] [506589783] [INFO] [Subsystem: launchd] [Event: data-protection] Doing boot task
+[System Event] [506593584] [INFO] [Subsystem: launchd] [Event: finish-obliteration] Doing boot task
+[System Event] [506597412] [INFO] [Subsystem: launchd] [Event: detect-installed-roots] Doing boot task
+[System Event] [506602396] [INFO] [Subsystem: launchd] [Event: commit-boot-mode] Doing boot task
+[System Event] [506606767] [INFO] [Subsystem: launchd] [Event: restore-datapartition] Doing boot task
+[System Event] [506610556] [INFO] [Subsystem: launchd] [Event: restore-datapartition] optional boot task not present
+[System Event] [506614480] [INFO] [Subsystem: launchd] [Event: mount-phase-2] Doing boot task
+[System Event] [506618188] [INFO] [Subsystem: launchd] [Event: init-with-data-volume] Doing boot task
+[System Event] [506622015] [INFO] [Subsystem: launchd] [Event: MSUEarlyBootTask] Doing boot task
+[System Event] [506625764] [INFO] [Subsystem: launchd] [Event: fips] Doing boot task
+[System Event] [506629559] [INFO] [Subsystem: launchd] [Event: keybag] Doing boot task
+[System Event] [506633207] [INFO] [Subsystem: launchd] [Event: usermanagerd] Doing boot task
+[System Event] [506636915] [INFO] [Subsystem: launchd] [Event: dirs_cleaner] Doing boot task
+com.apple.xpc.launchd|1969-12-31 16:00:38.886327 <Notice>: launchd logging initialized. name: com.apple.xpc.launchd pid: 1
+com.apple.xpc.launchd|1969-12-31 16:00:38.886336 (xpcroleaccountd) <Notice>: Doing boot task
+[System Event] [506647971] [INFO] [Subsystem: launchd] [Event: xpcroleaccountd] Doing boot task
+com.apple.xpc.launchd|1969-12-31 16:00:38.899642 (init_featureflags) <Notice>: Doing boot task
+[System Event] [506656640] [INFO] [Subsystem: launchd] [Event: init_featureflags] Doing boot task
+com.apple.xpc.launchd|1969-12-31 16:00:39.119687 (auearlyboot) <Notice>: Doing boot task
+[System Event] [508562296] [INFO] [Subsystem: launchd] [Event: auearlyboot] Doing boot task
+exec auearlyboot
+auearlyboot: -[FudEarlyBoot doFUDEarlyBoot:](): Starting Early Boot
+auearlyboot: -[AppleFirmwareUpdateController getEarlyBootListInternal:]: Pending critical earlyBoot entries (
+)
+auearlyboot: No Early Boot Accessories
+auearlyboot: -[FudEarlyBoot calculateTimeTakenForEarlyBootEntries] Time Taken to wait for critical earlyBoot entries: 0.000000 sec
+auearlyboot: -[FudEarlyBoot doFUDEarlyBoot:](): End Early Boot
+auearlyboot: Exitng Early Boot
+com.apple.xpc.launchd|1969-12-31 16:00:39.153168 (tzinit) <Notice>: Doing boot task
+[System Event] [508997084] [INFO] [Subsystem: launchd] [Event: tzinit] Doing boot task
+exec tzinit
+com.apple.xpc.launchd|1969-12-31 16:00:39.163264 (finish-restore) <Notice>: Doing boot task
+[System Event] [509127691] [INFO] [Subsystem: launchd] [Event: finish-restore] Doing boot task
+exec FinishRestoreFromBackup
+com.apple.xpc.launchd|1969-12-31 16:00:39.171074 (finish-demo-restore) <Notice>: Doing boot task
+[System Event] [509229492] [INFO] [Subsystem: launchd] [Event: finish-demo-restore] Doing boot task
+exec finish_demo_restore
+com.apple.xpc.launchd|1969-12-31 16:00:39.186597 (sysstatuscheck) <Notice>: Doing boot task
+[System Event] [509431539] [INFO] [Subsystem: launchd] [Event: sysstatuscheck] Doing boot task
+exec sysstatuscheck
+com.apple.xpc.launchd|1969-12-31 16:00:39.195463 (prng_seedctl) <Notice>: Doing boot task
+[System Event] [509547043] [INFO] [Subsystem: launchd] [Event: prng_seedctl] Doing boot task
+exec prng_seedctl
+kern.prng.user_reseed_count: (-1) (2) No such file or directory
+failed to load virtual random: (-147) (-536870212)
+com.apple.xpc.launchd|1969-12-31 16:00:39.205272 (launchd_cache_loader) <Notice>: Doing boot task
+[System Event] [509674048] [INFO] [Subsystem: launchd] [Event: launchd_cache_loader] Doing boot task
+exec launchd_cache_loader
+0 Found valid port: 2563 Valid: 1
+1 Found valid port: 0 Valid: 0
+2 Found valid port: 0 Valid: 0
+Using default cache paths
+Code: /System/Library/xpc/launchd.plist Sig: /System/Library/xpc/launchd.plist.sig
+Using unsecure cache: /System/Library/xpc/launchd.plist
+Trying to send bytes to launchd: 2563 16384
+Sending validated cache to launchd
+Cache sent to launchd successfully
+com.apple.xpc.launchd|1969-12-31 16:00:39.462746 <Notice>: launchd UUID: 5C15DB07-B3BC-3DF3-B62F-3E498B993B8E
+com.apple.xpc.launchd|1969-12-31 16:00:39.462814 (boot) <Notice>: Early boot complete. Continuing system boot.
+[System Event] [513026679] [INFO] [Subsystem: launchd] [Event: boot] Early boot complete. Continuing system boot.
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec SpringBoard
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec UserEventAgent
+exec logd
+exec keybagd
+exec mediaserverd
+exec configd
+exec remoted
+exec lockdownd
+exec rapportd
+exec amfid
+exec watchdogd
+exec mtmergeprops
+exec mobiletimerd
+exec DumpPanic
+exec usermanagerd
+exec nfcd
+SWEET AKS: keybagd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+exec fseventsd
+exec distnoted
+exec containermanagerd
+exec notifyd
+exec driverkitd
+exec timed
+exec ptpd
+exec IOMFB_FDR_Loader
+exec identityservicesd
+exec sleepd
+exec backboardd
+exec locationd
+exec sharingd
+exec imagent
+exec AppleCredentialManagerDaemon
+exec thermalmonitord
+exec bluetoothd
+exec fairplayd.H2
+exec runningboardd
+exec remindd
+exec atc
+exec seld
+exec WirelessRadioManagerd
+exec peakpowermanagerd
+exec bluetoothuserd
+exec wcd
+exec accessoryupdaterd
+exec misd
+exec safetyalertsd
+exec dasd
+exec cloudpaird
+exec routined
+exec OTACrashCopier
+LapisGPU: a client opened the GPU
+LapisGPU client: metaltest: start (pid 88); IOAcceleratorES present
+SWEET Sandbox: logd privilege 1002 denied
+exec xpcproxy
+exec cfprefsd
+exec powerd
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+SWEET AKS: powerd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: powerd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET Sandbox: distnoted op 28
+SWEET WDT: watchdogd sel 0 in 0/0 out 1/0 -> ok
+CRASH driverkitd[66] sig 9 code 0x0 sub 0x0 slide 0x1bd48000 mh 0x104d14000
+CRASH driverkitd pc 0x1de359d98 lr 0x19ceec3a4 sp 0x16b0e91f0 fp 0x16b0e9260 far 0x105cd0000
+CRASH driverkitd bt 0x19cee112c 0x19ced2514 0x104db26b4 0x104dfd37c 0x104dfe81c 0x104d3c31c 0x104d8d00c 0x104da497c 0x104dbacf8 0x104db64a8
+CRASH driverkitd reason ns 1 code 0x7: (none)
+exec xpcproxy
+exec apfs_iosd
+IOK backboardd: path IODeviceTree:/arm-io/pearl-sep -> none
+exec com.apple.datamigrator
+exec PowerUIAgent
+exec xpcproxy
+exec MobileGestaltHelper
+exec passd
+exec xpcproxy
+exec ReportCrash
+exec contextstored
+exec xpcproxy
+exec lsd
+exec biomed
+SWEET AKS: powerd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: powerd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+IOK backboardd: matching1 <dict ID="0"><key>IOProviderClass</key><string ID="1">ApplePearlSEPDriver</string><key>IOServiceNotificationUser</key><true/></dict> -> none
+IOK backboardd: path IOService:/IOResources/AppleKeyStore -> AppleKeyStore
+IOK backboardd: open AppleKeyStore type 0 -> 0x0
+SWEET AKS: backboardd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: backboardd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+hfs: set hardlink bit on vol=iOSRoot cnid=321331 inoid=446378111
+hfs: set hardlink bit on vol=iOSRoot cnid=321331 inoid=446378111
+hfs: set hardlink bit on vol=iOSRoot cnid=321331 inoid=446378111
+hfs: set hardlink bit on vol=iOSRoot cnid=321331 inoid=446378111
+hfs: set hardlink bit on vol=iOSRoot cnid=321331 inoid=446378111
+hfs: set hardlink bit on vol=iOSRoot cnid=321331 inoid=446378111
+SWEET AKS: powerd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: powerd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET Sandbox: containermanager op 16
+SWEET Sandbox: containermanager op 15
+IOK backboardd: IOServiceFirstMatch <dict ID="0"><key>IOProviderClass</key><string ID="1">IOHIDDevice</string><key>DeviceUsagePairs</key><array ID="2"><dict ID="3"><key>DeviceUsage</key><integer size="32" ID="4">0x2</integer><key>DeviceUsagePage</key><intIOK backboardd: IOServiceFirstMatch <dict ID="0"><key>IOProviderClass</key><string ID="1">IOService</string><key>IOPropertyMatch</key><dict ID="2"><key>HIDServiceSupport</key><true/></dict><key>IOServiceNotificationUser</key><true/></dict> -> notify
+SWEET AKS: containermanagerd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: containermanagerd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+|backboardd| objc[56]: Class _GCHapticEvent is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee20) and /System/Library/HIDPlugins/ServicePlugins/DualShock4HIDServicePlugin.|backboardd| ck4HIDServicePlugin (0x103862bc0). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class GCHapticMotor is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee70) and /System/Library/HIDPlugins/ServicePlugins/DualShock4HIDServicePlugin.p|backboardd| k4HIDServicePlugin (0x103862c10). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class GCGamepadHIDServicePlugin is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383eec0) and /System/Library/HIDPlugins/ServicePlugins/DualShock4HIDSer|backboardd| gin/DualShock4HIDServicePlugin (0x103862cb0). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class GCGamepadHIDServicePlugin is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383eec0) and /System/Library/HIDPlugins/ServicePlugins/GenericGamepadHI|backboardd| .plugin/GenericGamepadHIDServicePlugin (0x103886a88). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class GCHapticMotor is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee70) and /System/Library/HIDPlugins/ServicePlugins/GenericGamepadHIDServicePlug|backboardd| ricGamepadHIDServicePlugin (0x103886ad8). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class _GCHapticEvent is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee20) and /System/Library/HIDPlugins/ServicePlugins/GenericGamepadHIDServicePlu|backboardd| ericGamepadHIDServicePlugin (0x103886b78). One of the two will be used. Which one is undefined.
+IOK backboardd: matching <dict ID="0"><key>IOProviderClass</key><string ID="1">IOAccessoryManager</string><key>IOServiceNotificationUser</key><true/></dict> -> 0 found
+|backboardd| objc[56]: Class GCGamepadHIDServicePlugin is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383eec0) and /System/Library/HIDPlugins/ServicePlugins/JoyConHIDService|backboardd| JoyConHIDServicePlugin (0x1038e6ba0). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class GCHapticMotor is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee70) and /System/Library/HIDPlugins/ServicePlugins/JoyConHIDServicePlugin.plugi|backboardd| vicePlugin (0x1038e6bf0). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class _GCHapticEvent is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee20) and /System/Library/HIDPlugins/ServicePlugins/JoyConHIDServicePlugin.plug|backboardd| rvicePlugin (0x1038e6c40). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class _GCHapticEvent is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee20) and /System/Library/HIDPlugins/ServicePlugins/LunaHIDServicePlugin.plugin|backboardd| ePlugin (0x1038a2628). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class GCHapticMotor is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee70) and /System/Library/HIDPlugins/ServicePlugins/LunaHIDServicePlugin.plugin/|backboardd| Plugin (0x1038a2678). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class GCGamepadHIDServicePlugin is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383eec0) and /System/Library/HIDPlugins/ServicePlugins/LunaHIDServicePl|backboardd| naHIDServicePlugin (0x1038a2718). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class _GCHapticEvent is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee20) and /System/Library/HIDPlugins/ServicePlugins/XboxOneHIDServicePlugin.plu|backboardd| ServicePlugin (0x103906780). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class GCHapticMotor is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383ee70) and /System/Library/HIDPlugins/ServicePlugins/XboxOneHIDServicePlugin.plug|backboardd| ervicePlugin (0x1039067d0). One of the two will be used. Which one is undefined.
+|backboardd| objc[56]: Class GCGamepadHIDServicePlugin is implemented in both /System/Library/HIDPlugins/ServicePlugins/DualSenseHIDServicePlugin.plugin/DualSenseHIDServicePlugin (0x10383eec0) and /System/Library/HIDPlugins/ServicePlugins/XboxOneHIDServic|backboardd| /XboxOneHIDServicePlugin (0x103906870). One of the two will be used. Which one is undefined.
+IOK backboardd: open SweetHIDTouch type 1702065507 -> 0x0
+SWEET HID: SweetHIDTouch open by IOHIDEventServiceUserClient -> 1
+exec ACCHWComponentAuthService
+SWEET Sandbox: cfprefsd op 12
+LAPIS NVT: polls=300 rdfail=0 badsum=8 ok=292 emits=0 frame=f7 011e 027a 00 | ba sum@64=ec
+IOK backboardd: open SweetHIDButtons type 1702065507 -> 0x0
+SWEET HID: SweetHIDButtons open by IOHIDEventServiceUserClient -> 1
+exec xpcproxy
+hfs: set hardlink bit on vol=iOSRoot cnid=321331 inoid=446378111
+hfs: set hardlink bit on vol=iOSRoot cnid=321331 inoid=446378111
+exec chronod
+exec xpcproxy
+exec aggregated
+exec mobileassetd
+exec xpcproxy
+exec audioclocksyncd
+exec xpcproxy
+exec analyticsd
+LapisGPU: a client opened the GPU
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: loaded
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: no protocol MTLCommandQueueSPI in this system's Metal
+exec xpcproxy
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: LapisMetalDevice registered (a subclass of _MTLDevice)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: -[NSBundle principalClass] -> LapisMetalDevice
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: +[LapisMetalDevice allocWithZone:]
+exec awdd
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: a device for the accelerator port 5123 (made)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: asked and not implemented: LapisMetalDevice -featureProfile (returns Q, answered with 
+LapisGPU client: zero)
+LapisGPU client: metaltest: MTLCreateSystemDefaultDevice: LapisMetalDevice "Mali-G615 MC2 (lapis, Mesa panfrost)"
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newCommandQueue: a queue that queues nothing (yet)
+LapisGPU client: metaltest: newCommandQueue: LapisMetalCommandQueue
+LapisGPU: a client opened the GPU
+LapisGPU: request 0x40, 16 bytes
+LapisGPU: request 0x40, 16 bytes
+LapisGPU: request 0x41, 16 bytes
+LapisGPU: request 0x45, 24 bytes
+LapisGPU: request 0x43, 24 bytes
+LapisGPU: request 0x45, 24 bytes
+LapisGPU: request 0x43, 24 bytes
+LapisGPU: request 0x45, 24 bytes
+LapisGPU: tiler heap 0 on VM 1: 5 x 0x200000, context 0xff0040000000, first chunk 0xff0041800000
+LapisGPU client: lapis-drm: cache sync #1: 9 maps, 144 KiB, avg 45 us
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: GPU: Mesa panfrost over LapisGPU
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:4096 options:0 -> GPU memory
+exec xpcproxy
+LapisGPU client: metaltest: newBufferWithLength: LapisMetalBuffer length 4096 contents 0x1019a8000
+LapisGPU client: metaltest: buffer: 1024/1024 words written and read back; storage mode 0
+LapisGPU client: metaltest: newBufferWithBytes: LapisMetalBuffer [1 2 3 4]
+LapisGPU client: metaltest: commandBuffer: LapisMetalCommandBuffer
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:1048576 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:1048576 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:65536 options:0 -> GPU memory
+LapisGPU client: metaltest: blitCommandEncoder: LapisMetalBlitCommandEncoder
+LapisGPU client: lapis-drm: cache sync #2: 17 maps, 2448 KiB, avg 99 us
+LapisGPU client: metaltest: blit: 0.37 ms, status 4, handler saw 4; copy 262144/262144 words, fill 65536/65536 bytes
+exec apsd
+exec xpcproxy
+exec nehelper
+exec xpcproxy
+SWEET AKS: mobileassetd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: mobileassetd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec securityd
+exec xpcproxy
+exec nsurlsessiond
+SWEET AKS: securityd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: securityd sel 14 arg0 0 in 0/0 out 1/0 -> 0x0
+SWEET AKS: securityd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: securityd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec xpcproxy
+exec CloudKeychainProxy
+SWEET AKS: ReportCrash sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: ReportCrash sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: ReportCrash sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec xpcproxy
+exec nanoregistryd
+exec xpcproxy
+SWEET AKS: sleepd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: sleepd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: sleepd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: sleepd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec donotdisturbd
+exec xpcproxy
+exec syncdefaultsd
+SWEET AKS: CloudKeychainProxy sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: CloudKeychainProxy sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+ifnet_attach: Waiting for all kernel threads created for interface utun0 to get scheduled at least once.
+ifnet_attach: All kernel threads created for interface utun0 have been scheduled at least once. Proceeding.
+_dlil_attach_flowswitch_nexus: not attaching flowswitch to utun0
+SWEET Sandbox: rapportd privilege 12000 denied
+exec xpcproxy
+exec accountsd
+exec xpcproxy
+exec mobileactivationd
+SWEET AKS: donotdisturbd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: donotdisturbd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: contextstored sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: contextstored sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec tccd
+exec xpcproxy
+SWEET AKS: securityd sel 10 arg0 0 in 2/32 out 1/40 -> 0xe00002c7
+exec coreduetd
+LapisGPU client: lapis-drm: 200 instant probes: 200 done, 0 busy, 0 not submitted
+LapisGPU client: lapis-drm: 400 instant probes: 400 done, 0 busy, 0 not submitted
+LapisGPU client: metaltest: 100 command buffers: 100 right, 9.222 ms each
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: library of 37228 bytes: lapis_madd, lapis_ids, lapis_sum, lapis_tri_vs, lapis_quad_vs,
+LapisGPU client:  lapis_tri_fs, lapis_tex_fs, lapis_lin_fs, lapis_solid_fs
+LapisGPU client: metaltest: newLibraryWithData: LapisMetalLibrary (
+    "lapis_madd",
+    "lapis_ids",
+    "lapis_sum",
+    "lapis_tri_v
+LapisGPU client: s",
+    "lapis_quad_vs",
+    "lapis_tri_fs",
+    "lapis_tex_fs",
+    "lapis_lin_fs",
+    "lapis_solid_fs"
+) 
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: pipeline lapis_madd: compiled in 13.39 ms, resources (kind@index): 1@0 1@1 1@2 0@3
+LapisGPU client: metaltest: lapis_madd: function LapisMetalFunction, pipeline LapisMetalComputePipelineState in 13.8 ms 
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:16384 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:16384 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:16384 options:0 -> GPU memory
+LapisGPU client: lapis-drm: cache sync #3: 21 maps, 2560 KiB, avg 104 us
+LapisGPU client: metaltest: lapis_madd: 0.20 ms, status 4; 4096/4096 right
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: pipeline lapis_ids: compiled in 2.37 ms, resources (kind@index): 1@0
+LapisGPU client: metaltest: lapis_ids: function LapisMetalFunction, pipeline LapisMetalComputePipelineState in 2.7 ms 
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:16384 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:16384 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:16384 options:0 -> GPU memory
+LapisGPU client: lapis-drm: cache sync #4: 24 maps, 2608 KiB, avg 107 us
+LapisGPU client: metaltest: lapis_ids: 0.24 ms, status 4; 4096/4096 right
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: pipeline lapis_sum: compiled in 13.71 ms, resources (kind@index): 1@0 1@1
+LapisGPU client: metaltest: lapis_sum: function LapisMetalFunction, pipeline LapisMetalComputePipelineState in 14.2 ms 
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:16384 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:16384 options:0 -> GPU memory
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: newBufferWithLength:16384 options:0 -> GPU memory
+LapisGPU client: metaltest: lapis_sum: 0.12 ms, status 4; 64/64 right
+LapisGPU client: metaltest: newTextureWithDescriptor: LapisMetalTexture 256x256
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: render pipeline lapis_tri_vs + lapis_tri_fs: compiled in 11.72 ms (colour format 70)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: NIR of lapis_tri_vs (1508 bytes):
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   shader: MESA_SHADER_VERTEX
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   name: lapis_tri_vs
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   num_ubos: 2
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   outputs: 2
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_out INTERP_MODE_SMOOTH none vec4 position (VARYING_SLOT_POS.xyzw, 0,
+LapisGPU client:  0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_out INTERP_MODE_SMOOTH none vec4 color (VARYING_SLOT_VAR0.xyzw, 1, 0
+LapisGPU client: )
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   impl main {
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b0:   // preds:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %0 = load_const (0x00000001)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %1 = @load_vertex_id
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %2 = ishl %1, %0 (0x1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       64     %3 = u2u64 %2
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %4 = u2u32 %3
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %5 = load_const (0x00000004)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %6 = ishl %4, %5 (0x4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %7 = load_const (0x00000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %8 = load_const (0x00000001)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %9 = iadd %7 (0x0), %8 (0x1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %10 = @load_ubo (%9, %6) (access=none, align_mul=16, align_offset=0, range
+LapisGPU client: _base=0, range=-1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %11 = ior %2, %0 (0x1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       64    %12 = u2u64 %11
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %13 = u2u32 %12
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %14 = load_const (0x00000004)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %15 = ishl %13, %14 (0x4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %16 = load_const (0x00000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %17 = load_const (0x00000001)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %18 = iadd %16 (0x0), %17 (0x1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %19 = @load_ubo (%18, %15) (access=none, align_mul=16, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                   @nop
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %20 = deref_var &position (shader_out vec4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                   @store_deref (%20, %10) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %21 = deref_var &color (shader_out vec4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                   @store_deref (%21, %19) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                   // succs: b1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b1:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   }
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: NIR of lapis_tri_fs (965 bytes):
+SWEET Sandbox: tccd op 22
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   shader: MESA_SHADER_FRAGMENT
+SWEET Sandbox: tccd op 1
+exec xpcproxy
+exec symptomsd
+SWEET Sandbox: tccd op 5
+SWEET AKS: coreduetd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec xpcproxy
+exec amsaccountsd
+exec findmydeviced
+SWEET AKS: lockdownd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: lockdownd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec xpcproxy
+SWEET AKS: passd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: passd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: passd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: passd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec coreidvd
+exec healthd
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec xpcproxy
+exec appleaccountd
+exec xpcproxy
+exec CallHistorySyncHelper
+SWEET AKS: biomed sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: biomed sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec xpcproxy
+exec symptomsd-diag
+exec xpcproxy
+exec StatusKitAgent
+exec nanoprefsyncd
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec xpcproxy
+exec amsengagementd
+exec xpcproxy
+exec siriknowledged
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: StatusKitAgent sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: StatusKitAgent sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec xpcproxy
+exec SafariBookmarksSyncAgent
+exec xpcproxy
+exec akd
+exec xpcproxy
+exec FamilyControlsAgent
+exec xpcproxy
+exec transparencyd
+exec ManagedSettingsAgent
+exec xpcproxy
+exec xpcproxy
+exec sociallayerd
+exec suggestd
+exec xpcproxy
+exec adprivacyd
+SWEET AKS: imagent sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: imagent sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: imagent sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: imagent sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: adprivacyd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: adprivacyd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: suggestd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: suggestd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec xpcproxy
+exec IMDPersistenceAgent
+SWEET AKS: suggestd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   name: lapis_tri_fs
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   num_ubos: 2
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   inputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   outputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_in INTERP_MODE_SMOOTH none vec4 color (VARYING_SLOT_VAR0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_out INTERP_MODE_NONE none vec4 io (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   impl main {
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b0:   // preds:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4   %0 = undefined
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %1 = deref_var &color (shader_in vec4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4   %2 = @load_deref (%1) (access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %3 = load_const (0x00000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %4 = load_const (0x00000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %5 = load_const (0x00000001)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %6 = iadd %4 (0x0), %5 (0x1)
+exec xpcproxy
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4   %7 = @load_ubo (%6, %3 (0x0)) (access=none, align_mul=16, align_offset=0,
+SWEET AKS: suggestd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+LapisGPU client:  range_base=0, range=-1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4   %8 = fmul %7, %2
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                   @nop
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32     %9 = deref_var &io (shader_out vec4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                   @store_deref (%9, %8) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                   // succs: b1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b1:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   }
+SWEET AKS: IMDPersistenceAgent sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: IMDPersistenceAgent sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: IMDPersistenceAgent sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: IMDPersistenceAgent sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: suggestd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: suggestd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: suggestd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: nanoregistryd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: nanoregistryd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: coreidvd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: coreidvd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+LapisGPU client: metaltest: render pipeline: LapisMetalRenderPipelineState in 1327.5 ms 
+exec xpcproxy
+exec xpcproxy
+exec cloudd
+exec fmfd
+LapisGPU client: metaltest: renderCommandEncoderWithDescriptor: LapisMetalRenderCommandEncoder
+exec kbd
+exec xpcproxy
+SWEET AKS: kbd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: kbd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec ScreenTimeAgent
+SWEET AKS: fmfd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: fmfd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: cloudpaird sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: cloudpaird sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: ScreenTimeAgent sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: ScreenTimeAgent sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec askpermissiond
+exec xpcproxy
+exec xpcproxy
+LAPIS NVT: polls=600 rdfail=0 badsum=8 ok=592 emits=0 frame=f7 011e 027a 00 | ba sum@64=ec
+exec mDNSResponder
+exec liveactivitiesd
+exec assistantd
+exec xpcproxy
+exec familycircled
+SWEET AKS: aggregated sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: aggregated sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: aggregated sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec xpcproxy
+exec fmflocatord
+exec xpcproxy
+exec deleted
+SWEET AKS: CallHistorySyncHelper sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: CallHistorySyncHelper sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: bluetoothuserd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: bluetoothuserd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: liveactivitiesd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: liveactivitiesd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: familycircled sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: familycircled sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec xpcproxy
+exec com.apple.siri.embeddedspeech
+exec xpcproxy
+exec ContextService
+SWEET AKS: ContextService sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: ContextService sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: ContextService sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: ContextService sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: ContextService sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: ContextService sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec xpcproxy
+exec duetexpertd
+SWEET AKS: duetexpertd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: duetexpertd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec xpcproxy
+exec adid
+SWEET AKS: akd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: akd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: coreidvd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreidvd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: duetexpertd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: duetexpertd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec mediaremoted
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: UserEventAgent sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: UserEventAgent sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: UserEventAgent sel 103 arg0 0 in 0/0 out 1/0 -> 0x0
+SWEET AKS: UserEventAgent sel 102 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: healthd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: healthd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: healthd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: donotdisturbd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: donotdisturbd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: ReportCrash sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+LapisGPU client: metaltest: triangle red: 660.07 ms, status 4; centre ff0000ff, (30,230) ffff8000 (inside: the base is at the bottom), (
+LapisGPU client: 30,25) ffff8000 (outside), (4,4) ffff8000 (the clear)
+LapisGPU client: metaltest: triangle rgb: 1.53 ms, status 4; centre ff7f413f, (30,230) ffff8000 (inside: the base is at the bottom), (30
+LapisGPU client: ,25) ffff8000 (outside), (4,4) ffff8000 (the clear)
+LapisGPU client: lapis-drm: 600 instant probes: 600 done, 0 busy, 0 not submitted
+LapisGPU client: lapis-drm: cache sync #50: 31 maps, 3040 KiB, avg 3896 us
+LapisGPU client: lapis-drm: cache sync #100: 31 maps, 3040 KiB, avg 2012 us
+LapisGPU client: lapis-drm: 800 instant probes: 800 done, 0 busy, 0 not submitted
+LapisGPU client: metaltest: 100 frames: 0.540 ms each; the red triangle covers 20808 pixels (want ~20972); the rgb frame left 44728 clea
+LapisGPU client: r
+LapisGPU client: metaltest: m6: target yes, textures yes yes, sampler LapisMetalSamplerState
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: render pipeline lapis_quad_vs + lapis_tex_fs: compiled in 7.12 ms (colour format 70)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: NIR of lapis_tex_fs (935 bytes):
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   shader: MESA_SHADER_FRAGMENT
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   name: lapis_tex_fs
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   num_textures: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   textures_used: 0x00000000'00000000'00000000'00000001
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   inputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   outputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_in INTERP_MODE_SMOOTH none vec2 uv (VARYING_SLOT_VAR0.xy, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_out INTERP_MODE_NONE none vec4 io (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   impl main {
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b0:  // preds:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x2  %0 = load_const (0x00000000, 0x00000000) = (0.000000, 0.000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %1 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %2 = undefined
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %3 = deref_var &uv (shader_in vec2)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x2  %4 = @load_deref (%3) (access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %5 = (float32)tex %4 (coord), 0 (texture), 0 (sampler), 2D
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       8     %6 = load_const (0x00)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  @nop
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %7 = deref_var &io (shader_out vec4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  @store_deref (%7, %5) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  // succs: b1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b1:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   }
+LapisGPU client: metaltest: m6 texture (API sampler, nearest, vertex descriptor): 65536/65536 pixels are their texel; (10,10) ff800000 w
+LapisGPU client: ant ff800000, (200,100) ff8040c0 want ff8040c0
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: render pipeline lapis_quad_vs + lapis_lin_fs: compiled in 5.45 ms (colour format 70)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: NIR of lapis_lin_fs (935 bytes):
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   shader: MESA_SHADER_FRAGMENT
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   name: lapis_lin_fs
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   num_textures: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   textures_used: 0x00000000'00000000'00000000'00000001
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   inputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   outputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_in INTERP_MODE_SMOOTH none vec2 uv (VARYING_SLOT_VAR0.xy, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_out INTERP_MODE_NONE none vec4 io (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   impl main {
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b0:  // preds:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x2  %0 = load_const (0x00000000, 0x00000000) = (0.000000, 0.000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %1 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %2 = undefined
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %3 = deref_var &uv (shader_in vec2)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x2  %4 = @load_deref (%3) (access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %5 = (float32)tex %4 (coord), 0 (texture), 0 (sampler), 2D
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       8     %6 = load_const (0x00)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  @nop
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %7 = deref_var &io (shader_out vec4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  @store_deref (%7, %5) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  // succs: b1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b1:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   }
+LapisGPU client: metaltest: m6 constexpr linear sampler over black|white: x=0 ff000000 (black), x=127 ff7f7f7f x=128 ff808080 (grey ~80)
+LapisGPU client: , x=255 ffffffff (white)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: render pipeline lapis_quad_vs + lapis_solid_fs: compiled in 6.08 ms (colour format 70)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: NIR of lapis_solid_fs (918 bytes):
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   shader: MESA_SHADER_FRAGMENT
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   name: lapis_solid_fs
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   num_ubos: 2
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   inputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   outputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_in INTERP_MODE_SMOOTH none vec2 uv (VARYING_SLOT_VAR0.xy, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_out INTERP_MODE_NONE none vec4 io (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   impl main {
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b0:  // preds:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %0 = undefined
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %1 = deref_var &uv (shader_in vec2)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x2  %2 = @load_deref (%1) (access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %3 = load_const (0x00000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %4 = load_const (0x00000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %5 = load_const (0x00000001)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %6 = iadd %4 (0x0), %5 (0x1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %7 = @load_ubo (%6, %3 (0x0)) (access=none, align_mul=16, align_offset=0, 
+LapisGPU client: range_base=0, range=-1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  @nop
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %8 = deref_var &io (shader_out vec4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  @store_deref (%8, %7) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  // succs: b1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b1:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   }
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: render pipeline lapis_quad_vs + lapis_solid_fs: compiled in 6.52 ms (colour format 70)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: NIR of lapis_solid_fs (918 bytes):
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   shader: MESA_SHADER_FRAGMENT
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   name: lapis_solid_fs
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   num_ubos: 2
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   inputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   outputs: 1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_in INTERP_MODE_SMOOTH none vec2 uv (VARYING_SLOT_VAR0.xy, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_var shader_out INTERP_MODE_NONE none vec4 io (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   impl main {
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b0:  // preds:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %0 = undefined
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %1 = deref_var &uv (shader_in vec2)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x2  %2 = @load_deref (%1) (access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %3 = load_const (0x00000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %4 = load_const (0x00000000)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %5 = load_const (0x00000001)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %6 = iadd %4 (0x0), %5 (0x1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32x4  %7 = @load_ubo (%6, %3 (0x0)) (access=none, align_mul=16, align_offset=0, 
+LapisGPU client: range_base=0, range=-1)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  @nop
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       32    %8 = deref_var &io (shader_out vec4)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  @store_deref (%8, %7) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:                  // succs: b1
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:       block b1:
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]:   }
+LapisGPU client: metaltest: m6 indexed draw (6 uint16 indices): 65536/65536 red
+LapisGPU client: metaltest: m6 viewport {0,0,128,128}: 16384 red, 16384 of them in the top-left quarter (want 16384, 16384)
+LapisGPU client: metaltest: m6 scissor {64,64,64,64}: 4096 red, 4096 inside it (want 4096, 4096)
+LapisGPU client: metaltest: m6 blending (src alpha 0.5 red over blue): centre ff7f007f (want ~ff7f007f or ff800080)
+SWEET SURF: IOMFB_FDR_Loader sel 13
+SWEET SURF: IOMFB_FDR_Loader create id 2 64x64 fmt 0x42475241 bpe 4 bpr 256 planes 0 size 16384 keys 5 -> 0x0
+LapisGPU client: LapisMetal[IOMFB_FDR_Loader 88]: IOSurface texture 64x64 format 80 (surface id 2, 256 bytes a row)
+SWEET SURF: IOMFB_FDR_Loader trap 2
+SWEET SURF: IOMFB_FDR_Loader trap 3
+LapisGPU client: metaltest: m7 IOSurface texture (64x64 BGRA, id 2): LapisMetalTexture, 4096/4096 pixels red in the surface, (0,0) ffff0
+LapisGPU client: 000
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreidvd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreidvd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: suggestd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec xpcproxy
+exec triald
+exec xpcproxy
+exec contactsd
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec navd
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec siriactionsd
+exec xpcproxy
+exec xpcproxy
+exec xpcproxy
+exec seserviced
+exec xpcproxy
+IOK backboardd: IOServiceFirstPublish <dict ID="0"><key>IONameMatch</key><string ID="1">usb-drd,t8027</string><key>IOServiceNotificationUser</key><true/></dict> -> notify
+SWEET AKS: securityd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET AKS: backboardd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: securityd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+exec xpcproxy
+exec CircleJoinRequested
+IOK backboardd: path IODeviceTree:/product -> IOPlatformDevice
+IOK backboardd: path IODeviceTree:/product -> IOPlatformDevice
+SWEET AKS: mediaserverd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: mediaserverd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+SWEET FB: MobileGestaltHelper sel 8 in 0/0 out 2/0 -> 0x0
+SWEET FB: MobileGestaltHelper sel 28 in 0/0 out 1/0 -> 0x0
+IOK backboardd: path IODeviceTree:/arm-io -> IOPlatformDevice
+IOK backboardd: children of arm-io in IODeviceTree
+IOK backboardd: IOServiceFirstMatch <dict ID="0"><key>IOProviderClass</key><string ID="1">IOMobileFramebuffer</string><key>IOServiceNotificationUser</key><true/></dict> -> notify
+IOK backboardd: open AppleCLCD type 0 -> 0x0
+SWEET FB: backboardd sel 57 in 0/0 out 1/0 -> 0x0
+IOK backboardd: path IODeviceTree:/product -> IOPlatformDevice
+SWEET FB: backboardd sel 15 in 2/0 out 1/0 -> 0x0
+SWEET FB: backboardd sel 22 in 1/0 out 0/0 -> 0x0
+SWEET FB: backboardd sel 29 in 0/0 out 0/8 -> 0x0
+SWEET FB: backboardd sel 33 in 1/0 out 0/0 -> 0x0
+SWEET FB: backboardd sel 79 in 2/0 out 0/1580 -> 0x0
+IOK backboardd: path IODeviceTree:/chosen -> IOService
+IOK backboardd: matching1 <dict ID="0"><key>IOProviderClass</key><string ID="1">AppleM2ScalerCSCDriver</string><key>IOServiceNotificationUser</key><true/></dict> -> none
+IOK backboardd: matching1 <dict ID="0"><key>IOPropertyMatch</key><dict ID="1"><key>backlight-control</key><true/></dict><key>IOServiceNotificationUser</key><true/></dict> -> none
+IOK backboardd: path IODeviceTree:/arm-io/disp0 -> IOPlatformDevice
+IOK backboardd: matching1 <dict ID="0"><key>IOProviderClass</key><string ID="1">AppleCLCD</string><key>IOServiceNotificationUser</key><true/></dict> -> AppleCLCD
+SWEET FB: backboardd sel 74 in 1/0 out 1/64 -> 0x0
+IOK backboardd: path IODeviceTree:/backlight -> none
+IOK backboardd: matching <dict ID="0"><key>IOProviderClass</key><string ID="1">IOAcceleratorES</string><key>IOServiceNotificationUser</key><true/></dict> -> 1 found
+IOK backboardd: matching <dict ID="0"><key>IOProviderClass</key><string ID="1">IOAcceleratorES</string><key>IOServiceNotificationUser</key><true/></dict> -> 1 found
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: coreduetd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+IOK backboardd: matching1 <dict ID="0"><key>IOProviderClass</key><string ID="1">LapisGPU</string><key>IOServiceNotificationUser</key><true/></dict> -> LapisGPU
+LapisGPU: a client opened the GPU
+IOK backboardd: open LapisGPU type 0 -> 0x0
+LapisGPU client: LapisMetal[backboardd 56]: loaded
+LapisGPU client: LapisMetal[backboardd 56]: backboardd: shown the device (try 1 of 2 this boot)
+LapisGPU client: LapisMetal[backboardd 56]: LapisMetalDevice registered (a subclass of _MTLDevice)
+LapisGPU client: LapisMetal[backboardd 56]: -[NSBundle principalClass] -> LapisMetalDevice
+LapisGPU client: LapisMetal[backboardd 56]: +[LapisMetalDevice allocWithZone:]
+LapisGPU client: LapisMetal[backboardd 56]: a device for the accelerator port 34563 (made)
+LapisGPU client: LapisMetal[backboardd 56]: asked and not implemented: LapisMetalDevice -featureProfile (returns Q, answered with zero)
+LapisGPU client: LapisMetal[backboardd 56]: newCommandQueue: a queue that queues nothing (yet)
+LapisGPU client: LapisMetal[backboardd 56]: asked and not implemented: LapisMetalCommandQueue -setCompletionQueue: (returns v, answered 
+LapisGPU client: with zero)
+exec xpcproxy
+IOK backboardd: matching1 <dict ID="0"><key>IOProviderClass</key><string ID="1">LapisGPU</string><key>IOServiceNotificationUser</key><true/></dict> -> LapisGPU
+LapisGPU: a client opened the GPU
+IOK backboardd: open LapisGPU type 0 -> 0x0
+LapisGPU: request 0x40, 16 bytes
+LapisGPU: request 0x40, 16 bytes
+LapisGPU: request 0x41, 16 bytes
+LapisGPU: request 0x45, 24 bytes
+LapisGPU: request 0x43, 24 bytes
+LapisGPU: request 0x45, 24 bytes
+LapisGPU: request 0x43, 24 bytes
+LapisGPU: request 0x45, 24 bytes
+LapisGPU: tiler heap 1 on VM 2: 5 x 0x200000, context 0xff0080000000, first chunk 0xff0081800000
+LapisGPU client: lapis-drm: cache sync #1: 9 maps, 144 KiB, avg 40 us
+LapisGPU client: LapisMetal[backboardd 56]: GPU: Mesa panfrost over LapisGPU
+LapisGPU client: LapisMetal[backboardd 56]: library of 1014944 bytes: std_vert0_lpf, std_vert1_lpf, upsample_vert_lpf, downsample_blur_v
+LapisGPU client: ert_lpf, asg_vert_lpf, variable_blur_vert_lpf, path_cubic_vert_0_lpf, path_cubic_vert_1_lpf, path_rect_vert_lpf, path_s
+LapisGPU client: troke_line_vert_lpf, path_stroke_curve_vert_0_lpf, path_stroke_curve_vert_1_lpf, path_stroke_miter_join_vert_lpf, path_
+LapisGPU client: stroke_round_join_vert_lpf, path_blit_vert_lpf, buffer_image_blit_vert_lpf, stroke_line_vert_lpf, upsample_frag_lpf, do
+LapisGPU client: wnsample_4_frag_lpf, downsample_8_frag_lpf, downsample_6_frag_lpf, asg_frag_lpf, asg_75_frag_lpf, asg_50_frag_lpf, down
+LapisGPU client: sample_blur_2_frag_lpf, downsample_blur_4_frag_lpf, narrow_blur_7_frag_lpf, narrow_blur_11_frag_lpf, narrow_blur_15_fra
+LapisGPU client: g_lpf, narrow_blur_19_frag_lpf, narrow_blur_23_frag_lpf, narrow_blur_27_frag_lpf, single_pass_blur_3_lpf, variable_blur
+LapisGPU client: _downsample_frag_lpf, variable_blur_frag_lpf, axial_shading_frag_lpf, radial_shading_frag_lpf, radial_complex_shading_f
+LapisGPU client: rag_lpf, conic_shading_frag_lpf, alpha_threshold_lpf, p3_clamp_lpf, alpha_linear_premultiply_lpf, home_affordance_base_
+LapisGPU client: lpf, edr_scale_lpf, harmony_lpf, display_overdrive_lut_gen_lpf, display_overdrive_linearize_lpf, display_overdrive_srgb
+LapisGPU client: _sampler_lpf, luma_boost_lpf, path_cubic_frag_lpf, path_rect_frag_lpf, path_stroke_line_frag_lpf, path_stroke_curve_fra
+LapisGPU client: g_lpf, path_stroke_miter_join_frag_lpf, path_stroke_round_join_frag_lpf, path_clear_frag_lpf, path_blit_frag_lpf, path_
+LapisGPU client: blit_frag_eo_lpf, buffer_image_blit_frag_lpf, attachment_clear_frag_lpf, inplace_copy_lpf, stroke_line_frag_lpf, apply_
+LapisGPU client: apl_dimming_lpf, fixed_vert_lph_spc, fixed_vert_lph_gen, fixed_vert_lpf_spc, fixed_vert_lpf_gen, fixed_frag_lph_cph, fi
+LapisGPU client: xed_frag_lph_cpf, compute_apl, compute_apl_fast, sum_apl_and_compute_dimming_factor, tile_downsample_1, tile_downsample
+LapisGPU client: _2, tile_downsample_4, tile_downsample_8, std_vert0_lph, std_vert1_lph, upsample_vert_lph, downsample_blur_vert_lph, as
+LapisGPU client: g_vert_lph, variable_blur_vert_lph, path_cubic_vert_0_lph, path_cubic_vert_1_lph, path_rect_vert_lph, path_stroke_line_
+LapisGPU client: vert_lph, path_stroke_curve_vert_0_lph, path_stroke_curve_vert_1_lph, path_stroke_miter_join_vert_lph, path_stroke_roun
+LapisGPU client: d_join_vert_lph, path_blit_vert_lph, buffer_image_blit_vert_lph, stroke_line_vert_lph, read_surf_vert, upsample_frag_lp
+LapisGPU client: h, downsample_4_frag_lph, downsample_8_frag_lph, downsample_6_frag_lph, asg_frag_lph, asg_75_frag_lph, asg_50_frag_lph,
+LapisGPU client:  downsample_blur_2_frag_lph, downsample_blur_4_frag_lph, narrow_blur_7_frag_lph, narrow_blur_11_frag_lph, narrow_blur_1
+LapisGPU client: 5_frag_lph, narrow_blur_19_frag_lph, narrow_blur_23_frag_lph, narrow_blur_27_frag_lph, single_pass_blur_3_lph, variable
+LapisGPU client: _blur_downsample_frag_lph, variable_blur_frag_lph, axial_shading_frag_lph, radial_shading_frag_lph, radial_complex_shad
+LapisGPU client: ing_frag_lph, conic_shading_frag_lph, alpha_threshold_lph, p3_clamp_lph, alpha_linear_premultiply_lph, home_affordance_
+LapisGPU client: base_lph, edr_scale_lph, harmony_lph, display_overdrive_lut_gen_lph, display_overdrive_linearize_lph, display_overdrive
+LapisGPU client: _srgb_sampler_lph, luma_boost_lph, path_cubic_frag_lph, path_rect_frag_lph, path_stroke_line_frag_lph, path_stroke_curv
+LapisGPU client: e_frag_lph, path_stroke_miter_join_frag_lph, path_stroke_round_join_frag_lph, path_clear_frag_lph, path_blit_frag_lph, 
+LapisGPU client: path_blit_frag_eo_lph, buffer_image_blit_frag_lph, attachment_clear_frag_lph, inplace_copy_lph, stroke_line_frag_lph, a
+LapisGPU client: pply_apl_dimming_lph, read_surf_frag
+IOK backboardd: matching1 <dict ID="0"><key>IONameMatch</key><string ID="1">IOCoreSurfaceRoot</string><key>IOServiceNotificationUser</key><true/></dict> -> IOCoreSurfaceRoot
+IOK backboardd: open IOCoreSurfaceRoot type 0 -> 0x0
+exec announced
+IOK backboardd: matching1 <dict ID="0"><key>IOProviderClass</key><string ID="1">AGXAccelerator</string><key>IOServiceNotificationUser</key><true/></dict> -> none
+LapisGPU client: LapisMetal[backboardd 56]: newCommandQueue: a queue that queues nothing (yet)
+LapisGPU client: lapis-drm: cache sync #2: 12 maps, 304 KiB, avg 53 us
+LapisGPU client: lapis-drm: cache sync #3: 12 maps, 304 KiB, avg 46 us
+LapisGPU client: lapis-drm: cache sync #4: 12 maps, 304 KiB, avg 42 us
+SWEET AKS: containermanagerd sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+exec installcoordinationd
+LapisGPU client: LapisMetal[backboardd 56]: newTextureWithDescriptor: 776x24 format 43 refused
+LapisGPU client: LapisMetal[backboardd 56]: newTextureWithDescriptor: 776x24 format 43 refused
+LapisGPU client: LapisMetal[backboardd 56]: renderCommandEncoderWithDescriptor: no colour attachment 0 of LapisMetal's (depth-only passe
+LapisGPU client: s are not done yet)
+LapisGPU client: LapisMetal[backboardd 56]: renderCommandEncoderWithDescriptor: no colour attachment 0 of LapisMetal's (depth-only passe
+LapisGPU client: s are not done yet)
+LapisGPU client: LapisMetal[backboardd 56]: renderCommandEncoderWithDescriptor: no colour attachment 0 of LapisMetal's (depth-only passe
+LapisGPU client: s are not done yet)
+LapisGPU client: LapisMetal[backboardd 56]: refused: a texture copy (no texture, an array slice, or no copy interface)
+LapisGPU client: LapisMetal[backboardd 56]: refused: a texture copy (no texture, an array slice, or no copy interface)
+LapisGPU client: LapisMetal[backboardd 56]: refused: a texture copy (no texture, an array slice, or no copy interface)
+LapisGPU client: LapisMetal[backboardd 56]: refused: a texture copy (no texture, an array slice, or no copy interface)
+exec calaccessd
+exec mapspushd
+LapisGPU client: LapisMetal[backboardd 56]: render pipeline downsample_blur_vert_lph + downsample_4_frag_lph: compiled in 10.79 ms (colo
+LapisGPU client: ur format 80)
+LapisGPU client: LapisMetal[backboardd 56]: NIR of downsample_blur_vert_lph (5039 bytes):
+LapisGPU client: LapisMetal[backboardd 56]:   shader: MESA_SHADER_VERTEX
+LapisGPU client: LapisMetal[backboardd 56]:   name: downsample_blur_vert_lph
+LapisGPU client: LapisMetal[backboardd 56]:   num_ubos: 5
+LapisGPU client: LapisMetal[backboardd 56]:   inputs_read: 15-16
+LapisGPU client: LapisMetal[backboardd 56]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[backboardd 56]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[backboardd 56]:   inputs: 2
+LapisGPU client: LapisMetal[backboardd 56]:   outputs: 2
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_in INTERP_MODE_NONE none vec4 position (VERT_ATTRIB_GENERIC0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_in INTERP_MODE_NONE none vec2 texcoord0 (VERT_ATTRIB_GENERIC1.xy, 1, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_out INTERP_MODE_SMOOTH none vec4 position#0 (VARYING_SLOT_POS.xyzw, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_out INTERP_MODE_SMOOTH none vec2 texcoord0#1 (VARYING_SLOT_VAR0.xy, 1, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[backboardd 56]:   impl main {
+LapisGPU client: LapisMetal[backboardd 56]:       block b0:   // preds:
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %0 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32     %1 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %2 = load_const (0x0000000000000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %3 = load_const (0x00000000, 0x00000000, 0x00000000, 0x00000000) = (0.000000, 0
+LapisGPU client: .000000, 0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %4 = load_const (0x0000000000000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %5 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %6 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %7 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %8 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %9 = vec4 %5 (0x1), %6 (0x1), %7 (0x1), %8 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       64    %10 = load_const (0x0000000000000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %11 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %12 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %13 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %14 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %15 = vec4 %11 (0x2), %12 (0x2), %13 (0x2), %14 (0x2)
+LapisGPU client: LapisMetal[backboardd 56]:       64    %16 = load_const (0x0000000000000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %17 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %18 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %19 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %20 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %21 = vec4 %17 (0x3), %18 (0x3), %19 (0x3), %20 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %22 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %23 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %24 = vec2 %22 (0x0), %23 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %25 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %26 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %27 = vec2 %25 (0x2), %26 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %28 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32    %29 = deref_var &position (shader_in vec4)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %30 = @load_deref (%29) (access=none)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %31 = deref_var &texcoord0 (shader_in vec2)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %32 = @load_deref (%31) (access=none)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %33 = load_const (0x00000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %34 = load_const (0x00000002)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %35 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %36 = iadd %34 (0x2), %35 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %37 = @load_ubo (%36, %33 (0x0)) (access=none, align_mul=16, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %38 = mov %30.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %39 = mov %30.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %40 = mov %30.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %41 = mov %30.x
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %42 = vec4 %38, %39, %40, %41
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %43 = fmul %37, %42
+LapisGPU client: LapisMetal[backboardd 56]:       32    %44 = load_const (0x00000010 = 16)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %45 = load_const (0x00000002)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %46 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %47 = iadd %45 (0x2), %46 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %48 = @load_ubo (%47, %44 (0x10)) (access=none, align_mul=16, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %49 = mov %30.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %50 = mov %30.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %51 = mov %30.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %52 = mov %30.y
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %53 = vec4 %49, %50, %51, %52
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %54 = fmul %48, %53
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %55 = fadd %54, %43
+LapisGPU client: LapisMetal[backboardd 56]:       32    %56 = load_const (0x00000020 = 32)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %57 = load_const (0x00000002)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %58 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %59 = iadd %57 (0x2), %58 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %60 = @load_ubo (%59, %56 (0x20)) (access=none, align_mul=16, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %61 = mov %30.z
+LapisGPU client: LapisMetal[backboardd 56]:       32    %62 = mov %30.z
+LapisGPU client: LapisMetal[backboardd 56]:       32    %63 = mov %30.z
+LapisGPU client: LapisMetal[backboardd 56]:       32    %64 = mov %30.z
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %65 = vec4 %61, %62, %63, %64
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %66 = fmul %60, %65
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %67 = fadd %55, %66
+LapisGPU client: LapisMetal[backboardd 56]:       32    %68 = load_const (0x00000030 = 48)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %69 = load_const (0x00000002)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %70 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %71 = iadd %69 (0x2), %70 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %72 = @load_ubo (%71, %68 (0x30)) (access=none, align_mul=16, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %73 = mov %30.w
+LapisGPU client: LapisMetal[backboardd 56]:       32    %74 = mov %30.w
+LapisGPU client: LapisMetal[backboardd 56]:       32    %75 = mov %30.w
+LapisGPU client: LapisMetal[backboardd 56]:       32    %76 = mov %30.w
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %77 = vec4 %73, %74, %75, %76
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %78 = fmul %72, %77
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %79 = fadd %67, %78
+LapisGPU client: LapisMetal[backboardd 56]:       32    %80 = load_const (0x00000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %81 = load_const (0x00000003)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %82 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %83 = iadd %81 (0x3), %82 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4  %84 = @load_ubo (%83, %80 (0x0)) (access=none, align_mul=16, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %85 = mov %84.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %86 = mov %84.y
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %87 = vec2 %85, %86
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %88 = fmul %87, %32
+LapisGPU client: LapisMetal[backboardd 56]:       32    %89 = mov %84.z
+LapisGPU client: LapisMetal[backboardd 56]:       32    %90 = mov %84.w
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %91 = vec2 %89, %90
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %92 = fadd %88, %91
+LapisGPU client: LapisMetal[backboardd 56]:                   @nop
+LapisGPU client: LapisMetal[backboardd 56]:       32    %93 = deref_var &position#0 (shader_out vec4)
+LapisGPU client: LapisMetal[backboardd 56]:                   @store_deref (%93, %79) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %94 = deref_var &texcoord0#1 (shader_out vec2)
+LapisGPU client: LapisMetal[backboardd 56]:                   @store_deref (%94, %92) (wrmask=xy, access=none)
+LapisGPU client: LapisMetal[backboardd 56]:                   // succs: b1
+LapisGPU client: LapisMetal[backboardd 56]:       block b1:
+LapisGPU client: LapisMetal[backboardd 56]:   }
+LapisGPU client: LapisMetal[backboardd 56]: NIR of downsample_4_frag_lph (6790 bytes):
+SWEET AKS: securityd sel 26 arg0 0 in 3/0 out 0/0 -> 0x0
+LapisGPU client: LapisMetal[backboardd 56]:   shader: MESA_SHADER_FRAGMENT
+LapisGPU client: LapisMetal[backboardd 56]:   name: downsample_4_frag_lph
+LapisGPU client: LapisMetal[backboardd 56]:   num_textures: 4
+LapisGPU client: LapisMetal[backboardd 56]:   num_ubos: 8
+LapisGPU client: LapisMetal[backboardd 56]:   textures_used: 0x00000000'00000000'00000000'00000008
+LapisGPU client: LapisMetal[backboardd 56]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[backboardd 56]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[backboardd 56]:   inputs: 1
+LapisGPU client: LapisMetal[backboardd 56]:   outputs: 1
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_in INTERP_MODE_SMOOTH none vec2 texcoord0 (VARYING_SLOT_VAR0.xy, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_out INTERP_MODE_NONE none f16vec4 io (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[backboardd 56]:   impl main {
+LapisGPU client: LapisMetal[backboardd 56]:       block b0:    // preds:
+LapisGPU client: LapisMetal[backboardd 56]:       16      %0 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32      %1 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       16x3    %2 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       16x4    %3 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32      %4 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64      %5 = load_const (0x0000000000000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2    %6 = load_const (0x00000000, 0x00000000) = (0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32      %7 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32      %8 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4    %9 = load_const (0x00000000, 0x00000000, 0x00000000, 0x00000000) = (0.000000, 
+LapisGPU client: 0.000000, 0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %10 = load_const (0x0000, 0x0000, 0x0000, 0x0000) = (0.000000, 0.000000, 0.0000
+LapisGPU client: 00, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %11 = load_const (0x0000000000000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %12 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %13 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %14 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %15 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %16 = vec4 %12 (0x1), %13 (0x1), %14 (0x1), %15 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %17 = load_const (0x0000000000000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %18 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %19 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %20 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %21 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %22 = vec4 %18 (0x2), %19 (0x2), %20 (0x2), %21 (0x2)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %23 = load_const (0x0000000000000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %24 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %25 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %26 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %27 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %28 = vec4 %24 (0x3), %25 (0x3), %26 (0x3), %27 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       32x3   %29 = load_const (0x00000000, 0x00000000, 0x00000000) = (0.000000, 0.000000, 0.
+LapisGPU client: 000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %30 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %31 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %32 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x3   %33 = vec3 %30 (0x0), %31 (0x1), %32 (0x2)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %34 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %35 = vec4 %4 (0x0), %8 (0x1), %34 (0x2), %1
+LapisGPU client: LapisMetal[backboardd 56]:       32     %36 = load_const (0x00000004 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %37 = load_const (0x00000005 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %38 = load_const (0x00000006 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %39 = load_const (0x00000003 = 0.000000)
+exec xpcproxy
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %40 = vec4 %36 (0x4), %37 (0x5), %38 (0x6), %39 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %41 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32     %42 = deref_var &texcoord0 (shader_in vec2)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %43 = @load_deref (%42) (access=none)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %44 = load_const (0x00000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %45 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %46 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %47 = iadd %45 (0x1), %46 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %48 = @load_ubo (%47, %44 (0x0)) (access=none, align_mul=8, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %49 = fadd %48, %43
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %50 = (float16)txl %49 (coord), %7 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %51 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %52 = load_const (0x00000040 = 64)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %53 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %54 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %55 = iadd %53 (0x1), %54 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %56 = @load_ubo (%55, %52 (0x40)) (access=none, align_mul=8, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %57 = mov %56.x
+LapisGPU client: LapisMetal[backboardd 56]:       16     %58 = mov %56.x
+SWEET AKS: CloudKeychainProxy sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+LapisGPU client: LapisMetal[backboardd 56]:       16     %59 = mov %56.x
+LapisGPU client: LapisMetal[backboardd 56]:       16     %60 = mov %56.x
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %61 = vec4 %57, %58, %59, %60
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %62 = ffma %50, %61, %10 (0.000000, 0.000000, 0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %63 = load_const (0x00000008)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %64 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %65 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %66 = iadd %64 (0x1), %65 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %67 = @load_ubo (%66, %63 (0x8)) (access=none, align_mul=8, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %68 = fadd %67, %43
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %69 = (float16)txl %68 (coord), %7 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %70 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %71 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       16     %72 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       16     %73 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       16     %74 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %75 = vec4 %71, %72, %73, %74
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %76 = ffma %69, %75, %62
+LapisGPU client: LapisMetal[backboardd 56]:       32     %77 = load_const (0x00000010 = 16)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %78 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %79 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %80 = iadd %78 (0x1), %79 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %81 = @load_ubo (%80, %77 (0x10)) (access=none, align_mul=8, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %82 = fadd %81, %43
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %83 = (float16)txl %82 (coord), %7 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %84 = load_const (0x00)
+exec pfd
+LapisGPU client: LapisMetal[backboardd 56]:       16     %85 = mov %56.z
+LapisGPU client: LapisMetal[backboardd 56]:       16     %86 = mov %56.z
+LapisGPU client: LapisMetal[backboardd 56]:       16     %87 = mov %56.z
+LapisGPU client: LapisMetal[backboardd 56]:       16     %88 = mov %56.z
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %89 = vec4 %85, %86, %87, %88
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %90 = ffma %83, %89, %76
+LapisGPU client: LapisMetal[backboardd 56]:       32     %91 = load_const (0x00000018 = 24)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %92 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %93 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %94 = iadd %92 (0x1), %93 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %95 = @load_ubo (%94, %91 (0x18)) (access=none, align_mul=8, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %96 = fadd %95, %43
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %97 = (float16)txl %96 (coord), %7 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %98 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %99 = mov %56.w
+LapisGPU client: LapisMetal[backboardd 56]:       16    %100 = mov %56.w
+LapisGPU client: LapisMetal[backboardd 56]:       16    %101 = mov %56.w
+LapisGPU client: LapisMetal[backboardd 56]:       16    %102 = mov %56.w
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %103 = vec4 %99, %100, %101, %102
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %104 = ffma %97, %103, %90
+LapisGPU client: LapisMetal[backboardd 56]:       32    %105 = load_const (0x00000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %106 = load_const (0x00000006)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %107 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %108 = iadd %106 (0x6), %107 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       16    %109 = @load_ubo (%108, %105 (0x0)) (access=none, align_mul=2, align_offset=0, r
+LapisGPU client: ange_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %110 = vec3 %109, %2.y, %2.z
+LapisGPU client: LapisMetal[backboardd 56]:       16    %111 = mov %110.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %112 = mov %110.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %113 = mov %110.x
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %114 = vec3 %111, %112, %113
+LapisGPU client: LapisMetal[backboardd 56]:       16    %115 = mov %104.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %116 = mov %104.y
+LapisGPU client: LapisMetal[backboardd 56]:       16    %117 = mov %104.z
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %118 = vec3 %115, %116, %117
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %119 = fmul %114, %118
+LapisGPU client: LapisMetal[backboardd 56]:       16    %120 = mov %119.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %121 = mov %119.y
+LapisGPU client: LapisMetal[backboardd 56]:       16    %122 = mov %119.z
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %123 = vec4 %120, %121, %122, %0
+LapisGPU client: LapisMetal[backboardd 56]:       16    %124 = mov %123.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %125 = mov %123.y
+LapisGPU client: LapisMetal[backboardd 56]:       16    %126 = mov %123.z
+LapisGPU client: LapisMetal[backboardd 56]:       16    %127 = mov %104.w
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %128 = vec4 %124, %125, %126, %127
+LapisGPU client: LapisMetal[backboardd 56]:                    @nop
+LapisGPU client: LapisMetal[backboardd 56]:       32    %129 = deref_var &io (shader_out f16vec4)
+LapisGPU client: LapisMetal[backboardd 56]:                    @store_deref (%129, %128) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[backboardd 56]:                    // succs: b1
+LapisGPU client: LapisMetal[backboardd 56]:       block b1:
+LapisGPU client: LapisMetal[backboardd 56]:   }
+SWEET AKS: imagent sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+SWEET AKS: calaccessd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: calaccessd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+LapisGPU client: LapisMetal[backboardd 56]: render pipeline downsample_blur_vert_lph + downsample_8_frag_lph: compiled in 15.18 ms (colo
+LapisGPU client: ur format 80)
+LapisGPU client: LapisMetal[backboardd 56]: NIR of downsample_8_frag_lph (10741 bytes):
+LapisGPU client: LapisMetal[backboardd 56]:   shader: MESA_SHADER_FRAGMENT
+LapisGPU client: LapisMetal[backboardd 56]:   name: downsample_8_frag_lph
+LapisGPU client: LapisMetal[backboardd 56]:   num_textures: 4
+LapisGPU client: LapisMetal[backboardd 56]:   num_ubos: 8
+LapisGPU client: LapisMetal[backboardd 56]:   textures_used: 0x00000000'00000000'00000000'00000008
+LapisGPU client: LapisMetal[backboardd 56]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[backboardd 56]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[backboardd 56]:   inputs: 1
+LapisGPU client: LapisMetal[backboardd 56]:   outputs: 1
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_in INTERP_MODE_SMOOTH none vec2 texcoord0 (VARYING_SLOT_VAR0.xy, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_out INTERP_MODE_NONE none f16vec4 io (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[backboardd 56]:   impl main {
+LapisGPU client: LapisMetal[backboardd 56]:       block b0:    // preds:
+LapisGPU client: LapisMetal[backboardd 56]:       16      %0 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32      %1 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       16x4    %2 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       16x3    %3 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32x2    %4 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32      %5 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64      %6 = load_const (0x0000000000000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2    %7 = load_const (0x00000000, 0x00000000) = (0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32      %8 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       16      %9 = load_const (0x2c00 = 0.062500)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %10 = mov %9 (0x2c00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %11 = load_const (0x2c00 = 0.062500)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %12 = mov %11 (0x2c00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %13 = load_const (0x2c00 = 0.062500)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %14 = mov %13 (0x2c00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %15 = load_const (0x2c00 = 0.062500)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %16 = mov %15 (0x2c00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %17 = vec4 %10, %12, %14, %16
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %18 = load_const (0x0000, 0x0000, 0x0000, 0x0000) = (0.000000, 0.000000, 0.0000
+LapisGPU client: 00, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %19 = load_const (0x0000000000000001)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %20 = load_const (0x0000000000000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %21 = load_const (0x0000000000000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %22 = load_const (0x80000000 = -0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %23 = mov %22 (0x80000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %24 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %25 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %26 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %27 = vec2 %25 (0x0), %26 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       32x3   %28 = load_const (0x00000000, 0x00000000, 0x00000000) = (0.000000, 0.000000, 0.
+LapisGPU client: 000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %29 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %30 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %31 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x3   %32 = vec3 %29 (0x0), %30 (0x1), %31 (0x2)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %33 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %34 = vec4 %5 (0x0), %24 (0x1), %33 (0x2), %1
+LapisGPU client: LapisMetal[backboardd 56]:       32     %35 = load_const (0x00000004 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %36 = load_const (0x00000005 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %37 = load_const (0x00000006 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %38 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %39 = vec4 %35 (0x4), %36 (0x5), %37 (0x6), %38 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %40 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32     %41 = deref_var &texcoord0 (shader_in vec2)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %42 = @load_deref (%41) (access=none)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %43 = load_const (0x00000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %44 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %45 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %46 = iadd %44 (0x1), %45 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %47 = @load_ubo (%46, %43 (0x0)) (access=none, align_mul=8, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %48 = fadd %47, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %49 = (float16)txl %48 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %50 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %51 = ffma %49, %17, %18 (0.000000, 0.000000, 0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %52 = load_const (0x00000008)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %53 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %54 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %55 = iadd %53 (0x1), %54 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %56 = @load_ubo (%55, %52 (0x8)) (access=none, align_mul=8, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %57 = fadd %56, %42
+SWEET AKS: IMDPersistenceAgent sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %58 = (float16)txl %57 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+exec profiled
+LapisGPU client: LapisMetal[backboardd 56]:       8      %59 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %60 = ffma %58, %17, %51
+LapisGPU client: LapisMetal[backboardd 56]:       32     %61 = load_const (0x00000010 = 16)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %62 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %63 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %64 = iadd %62 (0x1), %63 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %65 = @load_ubo (%64, %61 (0x10)) (access=none, align_mul=8, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %66 = fadd %65, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %67 = (float16)txl %66 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %68 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %69 = ffma %67, %17, %60
+LapisGPU client: LapisMetal[backboardd 56]:       32     %70 = load_const (0x00000018 = 24)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %71 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %72 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %73 = iadd %71 (0x1), %72 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %74 = @load_ubo (%73, %70 (0x18)) (access=none, align_mul=8, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %75 = fadd %74, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %76 = (float16)txl %75 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %77 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %78 = ffma %76, %17, %69
+LapisGPU client: LapisMetal[backboardd 56]:       32     %79 = u2u32 %6 (0x0)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %80 = mov %47.x
+LapisGPU client: LapisMetal[backboardd 56]:       32     %81 = mov %47.y
+LapisGPU client: LapisMetal[backboardd 56]:       32     %82 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       1      %83 = ilt %79, %82 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %84 = bcsel %83, %80, %81
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %85 = vec2 %84, %4.y
+LapisGPU client: LapisMetal[backboardd 56]:       32     %86 = u2u32 %19 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %87 = mov %47.x
+LapisGPU client: LapisMetal[backboardd 56]:       32     %88 = mov %47.y
+LapisGPU client: LapisMetal[backboardd 56]:       32     %89 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       1      %90 = ilt %86, %89 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %91 = bcsel %90, %87, %88
+LapisGPU client: LapisMetal[backboardd 56]:       32     %92 = fsub %23, %91
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %93 = vec2 %85.x, %92
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %94 = fadd %93, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %95 = (float16)txl %94 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %96 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %97 = ffma %95, %17, %78
+LapisGPU client: LapisMetal[backboardd 56]:       32     %98 = u2u32 %6 (0x0)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %99 = mov %56.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %100 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %101 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       1     %102 = ilt %98, %101 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %103 = bcsel %102, %99, %100
+exec ind
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %104 = vec2 %103, %4.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %105 = u2u32 %19 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %106 = mov %56.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %107 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %108 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       1     %109 = ilt %105, %108 (0x1)
+exec dmd
+LapisGPU client: LapisMetal[backboardd 56]:       32    %110 = bcsel %109, %106, %107
+LapisGPU client: LapisMetal[backboardd 56]:       32    %111 = fsub %23, %110
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %112 = vec2 %104.x, %111
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %113 = fadd %112, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %114 = (float16)txl %113 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %115 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %116 = ffma %114, %17, %97
+LapisGPU client: LapisMetal[backboardd 56]:       32    %117 = u2u32 %6 (0x0)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %118 = mov %65.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %119 = mov %65.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %120 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       1     %121 = ilt %117, %120 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %122 = bcsel %121, %118, %119
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %123 = vec2 %122, %4.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %124 = u2u32 %19 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %125 = mov %65.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %126 = mov %65.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %127 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       1     %128 = ilt %124, %127 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %129 = bcsel %128, %125, %126
+LapisGPU client: LapisMetal[backboardd 56]:       32    %130 = fsub %23, %129
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %131 = vec2 %123.x, %130
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %132 = fadd %131, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %133 = (float16)txl %132 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %134 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %135 = ffma %133, %17, %116
+LapisGPU client: LapisMetal[backboardd 56]:       32    %136 = u2u32 %6 (0x0)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %137 = mov %74.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %138 = mov %74.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %139 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       1     %140 = ilt %136, %139 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %141 = bcsel %140, %137, %138
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %142 = vec2 %141, %4.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %143 = u2u32 %19 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %144 = mov %74.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %145 = mov %74.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %146 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       1     %147 = ilt %143, %146 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %148 = bcsel %147, %144, %145
+LapisGPU client: LapisMetal[backboardd 56]:       32    %149 = fsub %23, %148
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %150 = vec2 %142.x, %149
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %151 = fadd %150, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %152 = (float16)txl %151 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %153 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %154 = ffma %152, %17, %135
+LapisGPU client: LapisMetal[backboardd 56]:       32    %155 = fsub %23, %84
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %156 = vec2 %155, %4.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %157 = mov %156.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %158 = mov %47.y
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %159 = vec2 %157, %158
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %160 = fadd %159, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %161 = (float16)txl %160 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %162 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %163 = ffma %161, %17, %154
+LapisGPU client: LapisMetal[backboardd 56]:       32    %164 = fsub %23, %103
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %165 = vec2 %164, %4.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %166 = mov %165.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %167 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %168 = vec2 %166, %167
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %169 = fadd %168, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %170 = (float16)txl %169 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %171 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %172 = ffma %170, %17, %163
+LapisGPU client: LapisMetal[backboardd 56]:       32    %173 = fsub %23, %122
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %174 = vec2 %173, %4.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %175 = mov %174.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %176 = mov %65.y
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %177 = vec2 %175, %176
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %178 = fadd %177, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %179 = (float16)txl %178 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %180 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %181 = ffma %179, %17, %172
+LapisGPU client: LapisMetal[backboardd 56]:       32    %182 = fsub %23, %141
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %183 = vec2 %182, %4.y
+LapisGPU client: LapisMetal[backboardd 56]:       32    %184 = mov %183.x
+LapisGPU client: LapisMetal[backboardd 56]:       32    %185 = mov %74.y
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %186 = vec2 %184, %185
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %187 = fadd %186, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %188 = (float16)txl %187 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %189 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %190 = ffma %188, %17, %181
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %191 = vec2 %156.x, %92
+exec corespeechd
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %192 = fadd %191, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %193 = (float16)txl %192 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %194 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %195 = ffma %193, %17, %190
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %196 = vec2 %165.x, %111
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %197 = fadd %196, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %198 = (float16)txl %197 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %199 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %200 = ffma %198, %17, %195
+exec remotepairingdeviced
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %201 = vec2 %174.x, %130
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %202 = fadd %201, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %203 = (float16)txl %202 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %204 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %205 = ffma %203, %17, %200
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %206 = vec2 %183.x, %149
+LapisGPU client: LapisMetal[backboardd 56]:       32x2  %207 = fadd %206, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %208 = (float16)txl %207 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler),
+LapisGPU client:  2D
+LapisGPU client: LapisMetal[backboardd 56]:       8     %209 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %210 = ffma %208, %17, %205
+LapisGPU client: LapisMetal[backboardd 56]:       32    %211 = load_const (0x00000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %212 = load_const (0x00000006)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %213 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %214 = iadd %212 (0x6), %213 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       16    %215 = @load_ubo (%214, %211 (0x0)) (access=none, align_mul=2, align_offset=0, r
+LapisGPU client: ange_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %216 = vec3 %215, %3.y, %3.z
+LapisGPU client: LapisMetal[backboardd 56]:       16    %217 = mov %216.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %218 = mov %216.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %219 = mov %216.x
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %220 = vec3 %217, %218, %219
+LapisGPU client: LapisMetal[backboardd 56]:       16    %221 = mov %210.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %222 = mov %210.y
+LapisGPU client: LapisMetal[backboardd 56]:       16    %223 = mov %210.z
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %224 = vec3 %221, %222, %223
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %225 = fmul %220, %224
+LapisGPU client: LapisMetal[backboardd 56]:       16    %226 = mov %225.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %227 = mov %225.y
+LapisGPU client: LapisMetal[backboardd 56]:       16    %228 = mov %225.z
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %229 = vec4 %226, %227, %228, %0
+LapisGPU client: LapisMetal[backboardd 56]:       16    %230 = mov %229.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %231 = mov %229.y
+LapisGPU client: LapisMetal[backboardd 56]:       16    %232 = mov %229.z
+LapisGPU client: LapisMetal[backboardd 56]:       16    %233 = mov %210.w
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %234 = vec4 %230, %231, %232, %233
+LapisGPU client: LapisMetal[backboardd 56]:                    @nop
+LapisGPU client: LapisMetal[backboardd 56]:       32    %235 = deref_var &io (shader_out f16vec4)
+LapisGPU client: LapisMetal[backboardd 56]:                    @store_deref (%235, %234) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[backboardd 56]:                    // succs: b1
+LapisGPU client: LapisMetal[backboardd 56]:       block b1:
+LapisGPU client: LapisMetal[backboardd 56]:   }
+SWEET AKS: ContextService sel 17 arg0 0 in 1/0 out 0/4096 -> 0x0
+LapisGPU client: LapisMetal[backboardd 56]: render pipeline path_blit_vert_lph + attachment_clear_frag_lph: compiled in 9.22 ms (colour 
+LapisGPU client: format 80)
+LapisGPU client: LapisMetal[backboardd 56]: NIR of attachment_clear_frag_lph (952 bytes):
+LapisGPU client: LapisMetal[backboardd 56]:   shader: MESA_SHADER_FRAGMENT
+LapisGPU client: LapisMetal[backboardd 56]:   name: attachment_clear_frag_lph
+LapisGPU client: LapisMetal[backboardd 56]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[backboardd 56]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[backboardd 56]:   outputs: 2
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_out INTERP_MODE_NONE none f16vec4 color0 (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_out INTERP_MODE_NONE none f16vec4 color1 (FRAG_RESULT_DATA1.xyzw, 1, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[backboardd 56]:   impl main {
+LapisGPU client: LapisMetal[backboardd 56]:       block b0:  // preds:
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %0 = load_const (0x0000, 0x0000, 0x0000, 0x0000) = (0.000000, 0.000000, 0.000000
+LapisGPU client: , 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %1 = load_const (0x0000, 0x0000, 0x0000, 0x0000) = (0.000000, 0.000000, 0.000000
+LapisGPU client: , 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:                  @nop
+LapisGPU client: LapisMetal[backboardd 56]:       32    %2 = deref_var &color0 (shader_out f16vec4)
+LapisGPU client: LapisMetal[backboardd 56]:                  @store_deref (%2, %0 (0.000000, 0.000000, 0.000000, 0.000000)) (wrmask=xyzw
+LapisGPU client: , access=none)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %3 = deref_var &color1 (shader_out f16vec4)
+LapisGPU client: LapisMetal[backboardd 56]:                  @store_deref (%3, %1 (0.000000, 0.000000, 0.000000, 0.000000)) (wrmask=xyzw
+LapisGPU client: , access=none)
+LapisGPU client: LapisMetal[backboardd 56]:                  // succs: b1
+LapisGPU client: LapisMetal[backboardd 56]:       block b1:
+LapisGPU client: LapisMetal[backboardd 56]:   }
+LapisGPU client: LapisMetal[backboardd 56]: render pipeline downsample_blur_vert_lph + downsample_4_frag_lph: compiled in 9.81 ms (colou
+LapisGPU client: r format 80)
+LapisGPU client: LapisMetal[backboardd 56]: NIR of downsample_4_frag_lph (6790 bytes):
+LapisGPU client: LapisMetal[backboardd 56]:   shader: MESA_SHADER_FRAGMENT
+LapisGPU client: LapisMetal[backboardd 56]:   name: downsample_4_frag_lph
+LapisGPU client: LapisMetal[backboardd 56]:   num_textures: 4
+LapisGPU client: LapisMetal[backboardd 56]:   num_ubos: 8
+LapisGPU client: LapisMetal[backboardd 56]:   textures_used: 0x00000000'00000000'00000000'00000008
+LapisGPU client: LapisMetal[backboardd 56]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[backboardd 56]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[backboardd 56]:   inputs: 1
+LapisGPU client: LapisMetal[backboardd 56]:   outputs: 1
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_in INTERP_MODE_SMOOTH none vec2 texcoord0 (VARYING_SLOT_VAR0.xy, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_out INTERP_MODE_NONE none f16vec4 io (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[backboardd 56]:   impl main {
+LapisGPU client: LapisMetal[backboardd 56]:       block b0:    // preds:
+LapisGPU client: LapisMetal[backboardd 56]:       16      %0 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32      %1 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       16x3    %2 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       16x4    %3 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32      %4 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64      %5 = load_const (0x0000000000000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2    %6 = load_const (0x00000000, 0x00000000) = (0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32      %7 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32      %8 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4    %9 = load_const (0x00000000, 0x00000000, 0x00000000, 0x00000000) = (0.000000, 
+LapisGPU client: 0.000000, 0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %10 = load_const (0x0000, 0x0000, 0x0000, 0x0000) = (0.000000, 0.000000, 0.0000
+LapisGPU client: 00, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %11 = load_const (0x0000000000000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %12 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %13 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %14 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %15 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %16 = vec4 %12 (0x1), %13 (0x1), %14 (0x1), %15 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %17 = load_const (0x0000000000000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %18 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %19 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %20 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %21 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %22 = vec4 %18 (0x2), %19 (0x2), %20 (0x2), %21 (0x2)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %23 = load_const (0x0000000000000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %24 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %25 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %26 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %27 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %28 = vec4 %24 (0x3), %25 (0x3), %26 (0x3), %27 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       32x3   %29 = load_const (0x00000000, 0x00000000, 0x00000000) = (0.000000, 0.000000, 0.
+LapisGPU client: 000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %30 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %31 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %32 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x3   %33 = vec3 %30 (0x0), %31 (0x1), %32 (0x2)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %34 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %35 = vec4 %4 (0x0), %8 (0x1), %34 (0x2), %1
+LapisGPU client: LapisMetal[backboardd 56]:       32     %36 = load_const (0x00000004 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %37 = load_const (0x00000005 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %38 = load_const (0x00000006 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %39 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %40 = vec4 %36 (0x4), %37 (0x5), %38 (0x6), %39 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %41 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32     %42 = deref_var &texcoord0 (shader_in vec2)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %43 = @load_deref (%42) (access=none)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %44 = load_const (0x00000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %45 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %46 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %47 = iadd %45 (0x1), %46 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %48 = @load_ubo (%47, %44 (0x0)) (access=none, align_mul=8, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %49 = fadd %48, %43
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %50 = (float16)txl %49 (coord), %7 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %51 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %52 = load_const (0x00000040 = 64)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %53 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %54 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %55 = iadd %53 (0x1), %54 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %56 = @load_ubo (%55, %52 (0x40)) (access=none, align_mul=8, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %57 = mov %56.x
+LapisGPU client: LapisMetal[backboardd 56]:       16     %58 = mov %56.x
+LapisGPU client: LapisMetal[backboardd 56]:       16     %59 = mov %56.x
+LapisGPU client: LapisMetal[backboardd 56]:       16     %60 = mov %56.x
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %61 = vec4 %57, %58, %59, %60
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %62 = ffma %50, %61, %10 (0.000000, 0.000000, 0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %63 = load_const (0x00000008)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %64 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %65 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %66 = iadd %64 (0x1), %65 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %67 = @load_ubo (%66, %63 (0x8)) (access=none, align_mul=8, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %68 = fadd %67, %43
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %69 = (float16)txl %68 (coord), %7 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+SWEET AKS: securityd sel 10 arg0 0 in 2/32 out 1/40 -> 0xe00002c7
+LapisGPU client: LapisMetal[backboardd 56]:       8      %70 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %71 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       16     %72 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       16     %73 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       16     %74 = mov %56.y
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %75 = vec4 %71, %72, %73, %74
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %76 = ffma %69, %75, %62
+LapisGPU client: LapisMetal[backboardd 56]:       32     %77 = load_const (0x00000010 = 16)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %78 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %79 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %80 = iadd %78 (0x1), %79 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %81 = @load_ubo (%80, %77 (0x10)) (access=none, align_mul=8, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %82 = fadd %81, %43
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %83 = (float16)txl %82 (coord), %7 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %84 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %85 = mov %56.z
+LapisGPU client: LapisMetal[backboardd 56]:       16     %86 = mov %56.z
+LapisGPU client: LapisMetal[backboardd 56]:       16     %87 = mov %56.z
+LapisGPU client: LapisMetal[backboardd 56]:       16     %88 = mov %56.z
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %89 = vec4 %85, %86, %87, %88
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %90 = ffma %83, %89, %76
+LapisGPU client: LapisMetal[backboardd 56]:       32     %91 = load_const (0x00000018 = 24)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %92 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %93 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %94 = iadd %92 (0x1), %93 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %95 = @load_ubo (%94, %91 (0x18)) (access=none, align_mul=8, align_offset=0, ra
+LapisGPU client: nge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %96 = fadd %95, %43
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %97 = (float16)txl %96 (coord), %7 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %98 = load_const (0x00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %99 = mov %56.w
+LapisGPU client: LapisMetal[backboardd 56]:       16    %100 = mov %56.w
+LapisGPU client: LapisMetal[backboardd 56]:       16    %101 = mov %56.w
+LapisGPU client: LapisMetal[backboardd 56]:       16    %102 = mov %56.w
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %103 = vec4 %99, %100, %101, %102
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %104 = ffma %97, %103, %90
+LapisGPU client: LapisMetal[backboardd 56]:       32    %105 = load_const (0x00000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %106 = load_const (0x00000006)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %107 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32    %108 = iadd %106 (0x6), %107 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       16    %109 = @load_ubo (%108, %105 (0x0)) (access=none, align_mul=2, align_offset=0, r
+LapisGPU client: ange_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %110 = vec3 %109, %2.y, %2.z
+LapisGPU client: LapisMetal[backboardd 56]:       16    %111 = mov %110.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %112 = mov %110.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %113 = mov %110.x
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %114 = vec3 %111, %112, %113
+LapisGPU client: LapisMetal[backboardd 56]:       16    %115 = mov %104.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %116 = mov %104.y
+LapisGPU client: LapisMetal[backboardd 56]:       16    %117 = mov %104.z
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %118 = vec3 %115, %116, %117
+LapisGPU client: LapisMetal[backboardd 56]:       16x3  %119 = fmul %114, %118
+LapisGPU client: LapisMetal[backboardd 56]:       16    %120 = mov %119.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %121 = mov %119.y
+LapisGPU client: LapisMetal[backboardd 56]:       16    %122 = mov %119.z
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %123 = vec4 %120, %121, %122, %0
+LapisGPU client: LapisMetal[backboardd 56]:       16    %124 = mov %123.x
+LapisGPU client: LapisMetal[backboardd 56]:       16    %125 = mov %123.y
+LapisGPU client: LapisMetal[backboardd 56]:       16    %126 = mov %123.z
+LapisGPU client: LapisMetal[backboardd 56]:       16    %127 = mov %104.w
+LapisGPU client: LapisMetal[backboardd 56]:       16x4  %128 = vec4 %124, %125, %126, %127
+LapisGPU client: LapisMetal[backboardd 56]:                    @nop
+LapisGPU client: LapisMetal[backboardd 56]:       32    %129 = deref_var &io (shader_out f16vec4)
+LapisGPU client: LapisMetal[backboardd 56]:                    @store_deref (%129, %128) (wrmask=xyzw, access=none)
+LapisGPU client: LapisMetal[backboardd 56]:                    // succs: b1
+LapisGPU client: LapisMetal[backboardd 56]:       block b1:
+LapisGPU client: LapisMetal[backboardd 56]:   }
+SWEET AKS: tccd sel 0 arg0 0 in 0/0 out 0/0 -> 0x0
+SWEET AKS: tccd sel 7 arg0 0 in 1/0 out 1/0 -> 0x0
+LapisGPU client: LapisMetal[backboardd 56]: render pipeline downsample_blur_vert_lph + downsample_8_frag_lph: compiled in 12.45 ms (colo
+LapisGPU client: ur format 80)
+LapisGPU client: LapisMetal[backboardd 56]: NIR of downsample_8_frag_lph (10741 bytes):
+LapisGPU client: LapisMetal[backboardd 56]:   shader: MESA_SHADER_FRAGMENT
+LapisGPU client: LapisMetal[backboardd 56]:   name: downsample_8_frag_lph
+LapisGPU client: LapisMetal[backboardd 56]:   num_textures: 4
+LapisGPU client: LapisMetal[backboardd 56]:   num_ubos: 8
+LapisGPU client: LapisMetal[backboardd 56]:   textures_used: 0x00000000'00000000'00000000'00000008
+LapisGPU client: LapisMetal[backboardd 56]:   max_subgroup_size: 128
+LapisGPU client: LapisMetal[backboardd 56]:   min_subgroup_size: 1
+LapisGPU client: LapisMetal[backboardd 56]:   inputs: 1
+LapisGPU client: LapisMetal[backboardd 56]:   outputs: 1
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_in INTERP_MODE_SMOOTH none vec2 texcoord0 (VARYING_SLOT_VAR0.xy, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_var shader_out INTERP_MODE_NONE none f16vec4 io (FRAG_RESULT_DATA0.xyzw, 0, 0)
+LapisGPU client: LapisMetal[backboardd 56]:   decl_function main () (entrypoint)
+LapisGPU client: LapisMetal[backboardd 56]:   impl main {
+LapisGPU client: LapisMetal[backboardd 56]:       block b0:    // preds:
+LapisGPU client: LapisMetal[backboardd 56]:       16      %0 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32      %1 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       16x4    %2 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       16x3    %3 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32x2    %4 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32      %5 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64      %6 = load_const (0x0000000000000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2    %7 = load_const (0x00000000, 0x00000000) = (0.000000, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32      %8 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       16      %9 = load_const (0x2c00 = 0.062500)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %10 = mov %9 (0x2c00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %11 = load_const (0x2c00 = 0.062500)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %12 = mov %11 (0x2c00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %13 = load_const (0x2c00 = 0.062500)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %14 = mov %13 (0x2c00)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %15 = load_const (0x2c00 = 0.062500)
+LapisGPU client: LapisMetal[backboardd 56]:       16     %16 = mov %15 (0x2c00)
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %17 = vec4 %10, %12, %14, %16
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %18 = load_const (0x0000, 0x0000, 0x0000, 0x0000) = (0.000000, 0.000000, 0.0000
+LapisGPU client: 00, 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %19 = load_const (0x0000000000000001)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %20 = load_const (0x0000000000000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       64     %21 = load_const (0x0000000000000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %22 = load_const (0x80000000 = -0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %23 = mov %22 (0x80000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %24 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %25 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %26 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %27 = vec2 %25 (0x0), %26 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       32x3   %28 = load_const (0x00000000, 0x00000000, 0x00000000) = (0.000000, 0.000000, 0.
+LapisGPU client: 000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %29 = load_const (0x00000000 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %30 = load_const (0x00000001 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %31 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x3   %32 = vec3 %29 (0x0), %30 (0x1), %31 (0x2)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %33 = load_const (0x00000002 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %34 = vec4 %5 (0x0), %24 (0x1), %33 (0x2), %1
+LapisGPU client: LapisMetal[backboardd 56]:       32     %35 = load_const (0x00000004 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %36 = load_const (0x00000005 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %37 = load_const (0x00000006 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %38 = load_const (0x00000003 = 0.000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %39 = vec4 %35 (0x4), %36 (0x5), %37 (0x6), %38 (0x3)
+LapisGPU client: LapisMetal[backboardd 56]:       32x4   %40 = undefined
+LapisGPU client: LapisMetal[backboardd 56]:       32     %41 = deref_var &texcoord0 (shader_in vec2)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %42 = @load_deref (%41) (access=none)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %43 = load_const (0x00000000)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %44 = load_const (0x00000001)
+SWEET BATTERY: lapis 39% 3892mV 833mA 32.30C status=0 external=1 charging=1 full=0
+LapisGPU client: LapisMetal[backboardd 56]:       32     %45 = load_const (0x00000001)
+LapisGPU client: LapisMetal[backboardd 56]:       32     %46 = iadd %44 (0x1), %45 (0x1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %47 = @load_ubo (%46, %43 (0x0)) (access=none, align_mul=8, align_offset=0, ran
+LapisGPU client: ge_base=0, range=-1)
+LapisGPU client: LapisMetal[backboardd 56]:       32x2   %48 = fadd %47, %42
+LapisGPU client: LapisMetal[backboardd 56]:       16x4   %49 = (float16)txl %48 (coord), %8 (0.000000) (lod), 3 (texture), 0 (sampler), 
+LapisGPU client: 2D
+LapisGPU client: LapisMetal[backboardd 56]:       8      %50 = load_const (0x00)
+LapisGPU client: LapisMetal[back

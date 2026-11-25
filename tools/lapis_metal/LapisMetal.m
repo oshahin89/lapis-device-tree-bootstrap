@@ -796,7 +796,20 @@ cbCommit(id self, SEL _cmd)
 			}
 		}
 		LapisCBState *s2 = stateOf(me);
+		uint64_t t1 = nowNs();
+		NSUInteger nsurf = s2.drawnSurfaces.count;
 		surfacesOutAll(s2);     /* (before the handlers: CoreAnimation swaps the surface in one) */
+		{
+			static uint64_t count, surfaces, gpuNs, copyNs;
+			count++;
+			surfaces += nsurf;
+			gpuNs += t1 - s2.committedNs;
+			copyNs += nowNs() - t1;
+			if (count <= 3 || count % 100 == 0) {
+				say([NSString stringWithFormat:@"%llu command buffers done: %llu surface copies; avg %.2f ms to complete, %.2f ms copying out",
+				    count, surfaces, gpuNs / 1e6 / count, copyNs / 1e6 / count]);
+			}
+		}
 		s2.completedNs = nowNs();
 		s2.status = MTLCommandBufferStatusCompleted;
 		NSArray *done;
@@ -1780,8 +1793,14 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	say([NSString stringWithFormat:@"render pipeline %@ + %@: compiled in %.2f ms (colour format %lu)", vs.name, fs.name,
 	    (nowNs() - t0) / 1e6, (unsigned long)d.colorAttachments[0].pixelFormat]);
 	/* the NIR the shaders became, into the log: the vertex shader the first time, every fragment shader */
+	/* only in the test program: in backboardd every pipeline's NIR (hundreds of
+	 * lines through the kernel's log and serial port) stalled the phone (m7d) */
 	static BOOL vsShown;
-	for (int frag = vsShown ? 1 : 0; G.render_nir && frag < 2; frag++) {
+	static int dumpNIR = -1;
+	if (dumpNIR < 0) {
+		dumpNIR = getprogname() && strcmp(getprogname(), "IOMFB_FDR_Loader") == 0;
+	}
+	for (int frag = vsShown ? 1 : 0; dumpNIR && G.render_nir && frag < 2; frag++) {
 		size_t n = G.render_nir(r, frag, NULL, 0);
 		char *text = malloc(n + 1);
 		G.render_nir(r, frag, text, n + 1);
