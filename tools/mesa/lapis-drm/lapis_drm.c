@@ -872,6 +872,24 @@ sync_all_maps(void)
 	}
 }
 
+/*
+ * A buffer's lines out of the CPU's caches, at the moment it is mapped: the
+ * caches are indexed by physical address and the kernel's own mapping of all
+ * memory can bring lines of it in at any time, so a buffer mapped after the
+ * GPU wrote it (Mesa maps a texture only to read it back) could read old
+ * lines until they were evicted (m7s, v52: a 2048-wide clear short when read
+ * at once, whole a second later). The waits' cache syncs only cover the
+ * mappings there were.
+ */
+static void
+sync_range(uintptr_t base, size_t size)
+{
+	for (uintptr_t a = base & ~(uintptr_t)63, end = base + size; a < end; a += 64) {
+		__asm__ volatile("dc civac, %0" :: "r"(a) : "memory");
+	}
+	__asm__ volatile("dsb sy" ::: "memory");
+}
+
 void *
 lapis_drm_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
@@ -888,6 +906,7 @@ lapis_drm_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if (maps[i].base != 0 && maps[i].handle == (uint32_t)offset && !maps[i].live && length <= maps[i].size) {
 			maps[i].live = true;
 			pthread_mutex_unlock(&map_lock);
+			sync_range(maps[i].base, length);
 			return (void *)maps[i].base;
 		}
 	}
@@ -913,6 +932,7 @@ lapis_drm_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		}
 	}
 	pthread_mutex_unlock(&map_lock);
+	sync_range((uintptr_t)at, length);
 	return (void *)(uintptr_t)at;
 }
 

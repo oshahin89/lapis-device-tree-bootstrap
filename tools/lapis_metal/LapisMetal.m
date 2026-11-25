@@ -2143,11 +2143,44 @@ cbRenderEncoder(id self, SEL _cmd, MTLRenderPassDescriptor *pass)
 
 static id reLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisRenderState *)stateOf(self)).label; }
 static void reSetLabel(id self, SEL _cmd, NSString *l) { (void)_cmd; ((LapisRenderState *)stateOf(self)).label = l; }
-static void rePipeline(id self, SEL _cmd, id p) { (void)_cmd; ((LapisRenderState *)stateOf(self)).pipeline = p; }
+/*
+ * The first 30 calls on an encoder drawing into an IOSurface (CoreAnimation's
+ * framebuffer), each said and followed by 1.1 s so it reaches the disk: the
+ * phone dies right after that pass is set up (m7p, v52), and the last line
+ * names the call.
+ */
+static void
+surfTrace(id encoder, NSString *what)
+{
+	static unsigned n;
+	LapisRenderState *rs = stateOf(encoder);
+	if (n >= 30 || !rs.target || !texState(rs.target).surface) {
+		return;
+	}
+	n++;
+	say([NSString stringWithFormat:@"surface pass #%u: %@", n, what]);
+	usleep(1100000);
+}
+
+static void rePipeline(id self, SEL _cmd, id p)
+{
+	(void)_cmd;
+	surfTrace(self, [NSString stringWithFormat:@"setRenderPipelineState %s", p ? object_getClassName(p) : "nil"]);
+	((LapisRenderState *)stateOf(self)).pipeline = p;
+}
+
+static void
+reEnd(id self, SEL _cmd)
+{
+	(void)_cmd;
+	surfTrace(self, @"endEncoding");
+}
 
 static void
 reSet(id self, BOOL fragment, id buffer, NSUInteger offset, NSUInteger index)
 {
+	surfTrace(self, [NSString stringWithFormat:@"set%@Buffer %lu bytes at %lu, index %lu", fragment ? @"Fragment" : @"Vertex",
+	    buffer ? (unsigned long)bufferState(buffer)->length : 0, (unsigned long)offset, (unsigned long)index]);
 	LapisRenderState *rs = stateOf(self);
 	if (index >= LAPIS_MAX_BINDINGS) {
 		say(@"refused: a buffer index past 30");
@@ -2187,6 +2220,8 @@ static void
 reDrawFull(id self, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInteger instances, NSUInteger baseInstance,
     id indexBuffer, NSUInteger indexOffset, NSUInteger indexType, NSInteger baseVertex)
 {
+	surfTrace(self, [NSString stringWithFormat:@"draw prim %lu start %lu count %lu instances %lu%s", (unsigned long)prim,
+	    (unsigned long)start, (unsigned long)count, (unsigned long)instances, indexBuffer ? " indexed" : ""]);
 	LapisRenderState *rs = stateOf(self);
 	LapisRenderPipeState *ps = rs.pipeline ? stateOf(rs.pipeline) : nil;
 	if (!ps.render) {
@@ -2311,6 +2346,9 @@ reDrawIndexedFull(id self, SEL _cmd, NSUInteger prim, NSUInteger count, NSUInteg
 static void
 reTexture(id self, BOOL fragment, id tex, NSUInteger index)
 {
+	surfTrace(self, [NSString stringWithFormat:@"set%@Texture %lux%lu format %lu index %lu%s", fragment ? @"Fragment" : @"Vertex",
+	    tex ? (unsigned long)texState(tex).width : 0, tex ? (unsigned long)texState(tex).height : 0,
+	    tex ? (unsigned long)texState(tex).pixelFormat : 0, (unsigned long)index, tex && texState(tex).surface ? " (IOSurface)" : ""]);
 	LapisRenderState *rs = stateOf(self);
 	if (index >= LAPIS_MAX_BINDINGS) {
 		return;
@@ -2328,6 +2366,7 @@ static void reFragmentTexture(id self, SEL _cmd, id t, NSUInteger i) { (void)_cm
 static void
 reSampler(id self, BOOL fragment, id s, NSUInteger index)
 {
+	surfTrace(self, [NSString stringWithFormat:@"set%@SamplerState index %lu", fragment ? @"Fragment" : @"Vertex", (unsigned long)index]);
 	LapisRenderState *rs = stateOf(self);
 	if (index >= 16) {
 		return;
@@ -2345,6 +2384,7 @@ static void reFragmentSampler(id self, SEL _cmd, id s, NSUInteger i) { (void)_cm
 static void
 reViewport(id self, SEL _cmd, MTLViewport v)
 {
+	surfTrace(self, [NSString stringWithFormat:@"setViewport %.0f %.0f %.0f %.0f", v.originX, v.originY, v.width, v.height]);
 	(void)self;
 	(void)_cmd;
 	double d[6] = { v.originX, v.originY, v.width, v.height, v.znear, v.zfar };
@@ -2356,6 +2396,8 @@ reViewport(id self, SEL _cmd, MTLViewport v)
 static void
 reScissor(id self, SEL _cmd, MTLScissorRect r)
 {
+	surfTrace(self, [NSString stringWithFormat:@"setScissorRect %lu %lu %lu %lu", (unsigned long)r.x, (unsigned long)r.y,
+	    (unsigned long)r.width, (unsigned long)r.height]);
 	(void)self;
 	(void)_cmd;
 	if (G.draw2) {
@@ -2616,7 +2658,7 @@ registerRenderClasses(Class device)
 		    "setVertexTexture:atIndex:", "setFragmentTexture:atIndex:", "setVertexSamplerState:atIndex:",
 		    "setFragmentSamplerState:atIndex:", "setScissorRect:", "setBlendColorRed:green:blue:alpha:",
 		    "setDepthStencilState:", "setStencilReferenceValue:" };
-		IMP i[] = { (IMP)reLabel, (IMP)reSetLabel, (IMP)cbNothing, (IMP)rePipeline, (IMP)reVertexBuffer,
+		IMP i[] = { (IMP)reLabel, (IMP)reSetLabel, (IMP)reEnd, (IMP)rePipeline, (IMP)reVertexBuffer,
 		    (IMP)reFragmentBuffer, (IMP)reVertexBytes, (IMP)reFragmentBytes, (IMP)reDraw, (IMP)reDrawInstanced,
 		    (IMP)reViewport, (IMP)reIgnored1, (IMP)reIgnored1, (IMP)reIgnored1, (IMP)reDrawBase, (IMP)reDrawIndexed,
 		    (IMP)reDrawIndexedInst, (IMP)reDrawIndexedFull, (IMP)reVertexTexture, (IMP)reFragmentTexture,
