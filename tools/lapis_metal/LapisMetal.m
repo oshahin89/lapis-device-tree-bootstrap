@@ -2352,6 +2352,27 @@ reIgnored1(id self, SEL _cmd, NSUInteger a)
  */
 static BOOL deviceYes(id self, SEL _cmd) { (void)self; (void)_cmd; return YES; }
 
+/*
+ * GPU families: up to Apple3 (and Common1-2). CoreAnimation builds its
+ * format limits from these: Apple3 (1003) is what lets it map its 'b3a8'
+ * framebuffer to RGB10A8_2P_XR10 (four_cc_to_mtl_format, limits bit 0x100;
+ * _MTLDevice said yes to Apple2 only: "Unexpected framebuffer format b3a8",
+ * m7k/m7l). Not Apple4+: imageblocks and tile shaders are not done here.
+ */
+static BOOL
+deviceSupportsFamily(id self, SEL _cmd, NSInteger family)
+{
+	(void)self;
+	(void)_cmd;
+	BOOL yes = (family >= 1001 && family <= 1003) || family == 3001 || family == 3002;
+	static uint64_t asked;
+	if (family >= 1001 && family < 1064 && !(asked & (1ull << (family - 1001)))) {
+		asked |= 1ull << (family - 1001);
+		say([NSString stringWithFormat:@"supportsFamily:%ld -> %s", (long)family, yes ? "YES" : "NO"]);
+	}
+	return yes;
+}
+
 static BOOL
 deviceResponds(id self, SEL _cmd, SEL sel)
 {
@@ -2482,6 +2503,7 @@ registerRenderClasses(Class device)
 	 * without these it draws nothing into it ("Unexpected framebuffer format b3a8", m7k) */
 	class_addMethod(device, sel_registerName("supportsExtendedXR10Formats"), (IMP)deviceYes, "B@:");
 	class_addMethod(device, sel_registerName("supportsPublicXR10Formats"), (IMP)deviceYes, "B@:");
+	class_addMethod(device, sel_registerName("supportsFamily:"), (IMP)deviceSupportsFamily, "B@:q");
 	gDSClass = computeSubclass("_MTLDepthStencilState", "LapisMetalDepthStencilState", @protocol(MTLDepthStencilState));
 	class_addMethod(gDSClass, sel_registerName("label"), (IMP)dsLabel, "@@:");
 	objc_registerClassPair(gDSClass);
