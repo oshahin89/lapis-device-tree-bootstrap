@@ -188,7 +188,7 @@ tracedMethod(id self, SEL sel)
 static void
 traceBaseMethods(Class ours, Class base)
 {
-	if (!ours || !base) {
+	if (!ours || !base || base == [NSObject class]) {
 		return;
 	}
 	static const char *const skip[] = { "init", "dealloc", ".cxx", "retain", "release", "autorelease", "_tryRetain",
@@ -821,6 +821,10 @@ queueCommandBuffer(id self, SEL _cmd)
 	st.done = dispatch_semaphore_create(0);
 	st.status = MTLCommandBufferStatusNotEnqueued;
 	st.keep = [NSMutableArray new];
+	static unsigned made;
+	if (made++ < 8) {
+		say([NSString stringWithFormat:@"command buffer #%u made", made]);
+	}
 	return gCommandBufferClass ? plainNew(gCommandBufferClass, st) : nil;
 }
 
@@ -840,6 +844,10 @@ cbAddCompleted(id self, SEL _cmd, void (^handler)(id))
 {
 	(void)_cmd;
 	LapisCBState *st = stateOf(self);
+	static unsigned added;
+	if (added++ < 8) {
+		say([NSString stringWithFormat:@"completed handler #%u added (status %ld)", added, (long)st.status]);
+	}
 	if (st.status == MTLCommandBufferStatusCompleted) {
 		handler(self);
 		return;
@@ -1818,6 +1826,20 @@ deviceNewTextureSurface(id self, SEL _cmd, MTLTextureDescriptor *d, IOSurfaceRef
 	return t;
 }
 
+static void texReplace(id self, SEL _cmd, MTLRegion r, NSUInteger level, const void *bytes, NSUInteger stride);
+
+static void
+texReplaceSlice(id self, SEL _cmd, MTLRegion r, NSUInteger level, NSUInteger slice, const void *bytes, NSUInteger stride,
+    NSUInteger imageBytes)
+{
+	(void)imageBytes;
+	if (slice) {
+		say(@"replaceRegion: a slice past 0 refused");
+		return;
+	}
+	texReplace(self, _cmd, r, level, bytes, stride);
+}
+
 static void *texSurface(id self, SEL _cmd) { (void)_cmd; return texState(self).surface; }
 static NSUInteger texPlane(id self, SEL _cmd) { (void)_cmd; return texState(self).plane; }
 
@@ -2393,14 +2415,16 @@ registerRenderClasses(Class device)
 		const char *s[] = { "width", "height", "depth", "mipmapLevelCount", "arrayLength", "sampleCount", "pixelFormat",
 		    "textureType", "usage", "storageMode", "label", "setLabel:", "isFramebufferOnly", "allowGPUOptimizedContents",
 		    "getBytes:bytesPerRow:fromRegion:mipmapLevel:", "replaceRegion:mipmapLevel:withBytes:bytesPerRow:",
-		    "firstMipmapInTail", "isShareable", "parentTexture", "buffer", "iosurface", "iosurfacePlane" };
+		    "firstMipmapInTail", "isShareable", "parentTexture", "buffer", "iosurface", "iosurfacePlane",
+		    "replaceRegion:mipmapLevel:slice:withBytes:bytesPerRow:bytesPerImage:" };
 		IMP i[] = { (IMP)texWidth, (IMP)texHeight, (IMP)texOne, (IMP)texLevels, (IMP)texOne, (IMP)texOne, (IMP)texFormat,
 		    (IMP)texType, (IMP)texUsage, (IMP)texStorage, (IMP)texLabel, (IMP)texSetLabel, (IMP)texNo, (IMP)texNo,
 		    (IMP)texGetBytes, (IMP)texReplace, (IMP)texZero, (IMP)texNo, (IMP)texZero, (IMP)texZero, (IMP)texSurface,
-		    (IMP)texPlane };
+		    (IMP)texPlane, (IMP)texReplaceSlice };
 		const char *t[] = { "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "@@:", "v@:@", "B@:", "B@:",
-		    "v@:^vQ{?={?=QQQ}{?=QQQ}}Q", "v@:{?={?=QQQ}{?=QQQ}}Qr^vQ", "Q@:", "B@:", "@@:", "@@:", "^v@:", "Q@:" };
-		addMethods(gTextureClass, s, i, t, 22);
+		    "v@:^vQ{?={?=QQQ}{?=QQQ}}Q", "v@:{?={?=QQQ}{?=QQQ}}Qr^vQ", "Q@:", "B@:", "@@:", "@@:", "^v@:", "Q@:",
+		    "v@:{?={?=QQQ}{?=QQQ}}QQr^vQQ" };
+		addMethods(gTextureClass, s, i, t, 23);
 	}
 	objc_registerClassPair(gTextureClass);
 
@@ -2647,5 +2671,14 @@ registerClasses(void)
 	traceBaseMethods(gRenderClass, objc_getClass("_MTLRenderCommandEncoder"));
 	traceBaseMethods(gBlitClass, objc_getClass("_MTLCommandEncoder"));
 	traceBaseMethods(gTextureClass, gResourceBase);
+	traceBaseMethods(gLibraryClass, objc_getClass("_MTLLibrary"));
+	traceBaseMethods(gFunctionClass, objc_getClass("_MTLFunction"));
+	traceBaseMethods(gPipelineClass, objc_getClass("_MTLComputePipelineState"));
+	traceBaseMethods(gRenderPipelineClass, objc_getClass("_MTLRenderPipelineState"));
+	traceBaseMethods(gSamplerClass, objc_getClass("_MTLSamplerState"));
+	traceBaseMethods(gDSClass, objc_getClass("_MTLDepthStencilState"));
+	traceBaseMethods(gComputeClass, objc_getClass("_MTLComputeCommandEncoder"));
+	say([NSString stringWithFormat:@"render encoder base: %s", gRenderClass ? class_getName(class_getSuperclass(gRenderClass)) : "none"]);
+	traceBaseMethods(gRenderClass, class_getSuperclass(gRenderClass));
 	say(@"LapisMetalDevice registered (a subclass of _MTLDevice)");
 }
