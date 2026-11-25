@@ -27,6 +27,7 @@
  */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
+#import <IOSurface/IOSurfaceRef.h>
 #import <mach/mach.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
@@ -35,6 +36,8 @@
 #include <string.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
+#include <errno.h>
+#include <stdio.h>
 
 typedef mach_port_t io_object_t, io_service_t, io_connect_t;
 extern CFMutableDictionaryRef IOServiceMatching(const char *name);
@@ -583,6 +586,7 @@ registerBufferClass(Class device)
 @property (nonatomic) uint64_t committedNs, completedNs;
 @property (nonatomic, strong) NSMutableArray *keep;     /* what its work uses, until it completes */
 @property (nonatomic, strong) NSMutableArray *arenas;   /* its setBytes upload arenas */
+@property (nonatomic, strong) NSMutableArray *drawnSurfaces;   /* IOSurface textures it draws into */
 @property (nonatomic) NSUInteger arenaUsed;             /* bytes used of the last one */
 @end
 @implementation LapisCBState
@@ -597,6 +601,7 @@ registerBufferClass(Class device)
  */
 #define LAPIS_ARENA (64u << 10)
 static NSMutableArray *gArenaPool;
+static void surfacesOutAll(LapisCBState *cb);
 
 static id
 uploadBytes(LapisCBState *cb, const void *bytes, NSUInteger length, NSUInteger *offset)
@@ -769,6 +774,7 @@ cbCommit(id self, SEL _cmd)
 			}
 		}
 		LapisCBState *s2 = stateOf(me);
+		surfacesOutAll(s2);     /* (before the handlers: CoreAnimation swaps the surface in one) */
 		s2.completedNs = nowNs();
 		s2.status = MTLCommandBufferStatusCompleted;
 		NSArray *done;
@@ -1311,6 +1317,9 @@ registerComputeClasses(Class device)
 @property (nonatomic) void *tex;
 @property (nonatomic) NSUInteger width, height, pixelFormat, usage, storageMode;
 @property (nonatomic, copy) NSString *label;
+@property (nonatomic) IOSurfaceRef surface;     /* an IOSurface texture's surface (retained), or NULL */
+@property (nonatomic) NSUInteger plane;
+@property (nonatomic) uint32_t seed;            /* the surface's seed the GPU copy matches */
 @end
 @implementation LapisTexState
 - (void)dealloc
@@ -1318,8 +1327,61 @@ registerComputeClasses(Class device)
 	if (_tex) {
 		G.tex_free(G.gpu, _tex);
 	}
+	if (_surface) {
+		CFRelease(_surface);
+	}
 }
 @end
+
+/*
+ * IOSurface textures, by copy for now: the GPU draws into and samples its own
+ * texture; the surface's pixels are copied in when the CPU has changed them
+ * (its seed moved) before the GPU reads it, and copied out after a command
+ * buffer that drew into it completes, before its completed handlers run
+ * (which is when CoreAnimation swaps it to the display). The zero-copy way,
+ * the surface's own memory mapped into the GPU's VM, needs LapisGPU to import
+ * IOSurfaces.
+ */
+static void
+surfaceIn(LapisTexState *t)
+{
+	if (!t.surface || IOSurfaceGetSeed(t.surface) == t.seed) {
+		return;
+	}
+	IOSurfaceLock(t.surface, kIOSurfaceLockReadOnly, NULL);
+	const void *base = IOSurfaceGetBaseAddressOfPlane(t.surface, t.plane);
+	size_t stride = IOSurfaceGetBytesPerRowOfPlane(t.surface, t.plane);
+	if (base) {
+		G.tex_write(G.gpu, t.tex, 0, 0, (unsigned)t.width, (unsigned)t.height, base, stride);
+	}
+	IOSurfaceUnlock(t.surface, kIOSurfaceLockReadOnly, NULL);
+	t.seed = IOSurfaceGetSeed(t.surface);
+}
+
+static void
+surfaceOut(LapisTexState *t)
+{
+	if (!t.surface) {
+		return;
+	}
+	IOSurfaceLock(t.surface, 0, NULL);
+	void *base = IOSurfaceGetBaseAddressOfPlane(t.surface, t.plane);
+	size_t stride = IOSurfaceGetBytesPerRowOfPlane(t.surface, t.plane);
+	if (base) {
+		G.tex_read(G.gpu, t.tex, 0, 0, (unsigned)t.width, (unsigned)t.height, base, stride);
+	}
+	IOSurfaceUnlock(t.surface, 0, NULL);
+	t.seed = IOSurfaceGetSeed(t.surface);
+}
+
+static void
+surfacesOutAll(LapisCBState *cb)
+{
+	for (LapisTexState *t in cb.drawnSurfaces) {
+		surfaceOut(t);
+	}
+	[cb.drawnSurfaces removeAllObjects];
+}
 
 @interface LapisSamplerState : NSObject
 @property (nonatomic) void *sampler;
@@ -1397,6 +1459,36 @@ deviceNewTexture(id self, SEL _cmd, MTLTextureDescriptor *d)
 	st.storageMode = d.storageMode;
 	return plainNew(gTextureClass, st);
 }
+
+static id
+deviceNewTextureSurface(id self, SEL _cmd, MTLTextureDescriptor *d, IOSurfaceRef surface, NSUInteger plane)
+{
+	if (!surface) {
+		return nil;
+	}
+	id t = deviceNewTexture(self, _cmd, d);
+	LapisTexState *ts = texState(t);
+	if (!ts) {
+		say([NSString stringWithFormat:@"newTextureWithDescriptor:iosurface: %ux%u '%.4s' plane %lu refused",
+		    (unsigned)IOSurfaceGetWidth(surface), (unsigned)IOSurfaceGetHeight(surface),
+		    (const char *)&(uint32_t){ IOSurfaceGetPixelFormat(surface) }, (unsigned long)plane]);
+		return nil;
+	}
+	CFRetain(surface);
+	ts.surface = surface;
+	ts.plane = plane;
+	ts.seed = IOSurfaceGetSeed(surface) + 1;        /* (not matched yet: copied in at first use) */
+	static unsigned shown;
+	if (shown++ < 16) {
+		say([NSString stringWithFormat:@"IOSurface texture %ux%u format %lu (surface id %u, %zu bytes a row)",
+		    (unsigned)d.width, (unsigned)d.height, (unsigned long)d.pixelFormat, IOSurfaceGetID(surface),
+		    IOSurfaceGetBytesPerRowOfPlane(surface, plane)]);
+	}
+	return t;
+}
+
+static void *texSurface(id self, SEL _cmd) { (void)_cmd; return texState(self).surface; }
+static NSUInteger texPlane(id self, SEL _cmd) { (void)_cmd; return texState(self).plane; }
 
 static NSUInteger texWidth(id self, SEL _cmd) { (void)_cmd; return texState(self).width; }
 static NSUInteger texHeight(id self, SEL _cmd) { (void)_cmd; return texState(self).height; }
@@ -1521,6 +1613,18 @@ cbRenderEncoder(id self, SEL _cmd, MTLRenderPassDescriptor *pass)
 		say(@"renderCommandEncoderWithDescriptor: no colour attachment 0 of LapisMetal's (depth-only passes are not done yet)");
 		return nil;
 	}
+	LapisCBState *cbs = stateOf(self);
+	if (ts.surface) {
+		if (ca.loadAction == MTLLoadActionLoad) {
+			surfaceIn(ts);
+		}
+		if (!cbs.drawnSurfaces) {
+			cbs.drawnSurfaces = [NSMutableArray new];
+		}
+		if (![cbs.drawnSurfaces containsObject:ts]) {
+			[cbs.drawnSurfaces addObject:ts];
+		}
+	}
 	MTLClearColor c = ca.clearColor;
 	double rgba[4] = { c.red, c.green, c.blue, c.alpha };
 	G.pass_begin(G.gpu, ts.tex, ca.loadAction == MTLLoadActionClear, rgba);
@@ -1592,6 +1696,12 @@ reDrawFull(id self, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInte
 		a.fbufs[i] = rs->fbufs[i] ? bufferState(rs->fbufs[i])->gpubuf : NULL;
 		a.voffs[i] = rs->voffs[i];
 		a.foffs[i] = rs->foffs[i];
+		if (rs->vtex[i]) {
+			surfaceIn(texState(rs->vtex[i]));
+		}
+		if (rs->ftex[i]) {
+			surfaceIn(texState(rs->ftex[i]));
+		}
 		a.vtex[i] = rs->vtex[i] ? texState(rs->vtex[i]).tex : NULL;
 		a.ftex[i] = rs->ftex[i] ? texState(rs->ftex[i]).tex : NULL;
 		for (id o in @[ rs->vbufs[i] ?: [NSNull null], rs->fbufs[i] ?: [NSNull null], rs->vtex[i] ?: [NSNull null],
@@ -1796,13 +1906,14 @@ registerRenderClasses(Class device)
 		const char *s[] = { "width", "height", "depth", "mipmapLevelCount", "arrayLength", "sampleCount", "pixelFormat",
 		    "textureType", "usage", "storageMode", "label", "setLabel:", "isFramebufferOnly", "allowGPUOptimizedContents",
 		    "getBytes:bytesPerRow:fromRegion:mipmapLevel:", "replaceRegion:mipmapLevel:withBytes:bytesPerRow:",
-		    "firstMipmapInTail", "isShareable", "parentTexture", "buffer", "iosurface" };
+		    "firstMipmapInTail", "isShareable", "parentTexture", "buffer", "iosurface", "iosurfacePlane" };
 		IMP i[] = { (IMP)texWidth, (IMP)texHeight, (IMP)texOne, (IMP)texOne, (IMP)texOne, (IMP)texOne, (IMP)texFormat,
 		    (IMP)texType, (IMP)texUsage, (IMP)texStorage, (IMP)texLabel, (IMP)texSetLabel, (IMP)texNo, (IMP)texNo,
-		    (IMP)texGetBytes, (IMP)texReplace, (IMP)texZero, (IMP)texNo, (IMP)texZero, (IMP)texZero, (IMP)texZero };
+		    (IMP)texGetBytes, (IMP)texReplace, (IMP)texZero, (IMP)texNo, (IMP)texZero, (IMP)texZero, (IMP)texSurface,
+		    (IMP)texPlane };
 		const char *t[] = { "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "Q@:", "@@:", "v@:@", "B@:", "B@:",
-		    "v@:^vQ{?={?=QQQ}{?=QQQ}}Q", "v@:{?={?=QQQ}{?=QQQ}}Qr^vQ", "Q@:", "B@:", "@@:", "@@:", "^v@:" };
-		addMethods(gTextureClass, s, i, t, 21);
+		    "v@:^vQ{?={?=QQQ}{?=QQQ}}Q", "v@:{?={?=QQQ}{?=QQQ}}Qr^vQ", "Q@:", "B@:", "@@:", "@@:", "^v@:", "Q@:" };
+		addMethods(gTextureClass, s, i, t, 22);
 	}
 	objc_registerClassPair(gTextureClass);
 
@@ -1841,11 +1952,12 @@ registerRenderClasses(Class device)
 	objc_registerClassPair(gSamplerClass);
 
 	const char *s[] = { "newTextureWithDescriptor:", "newRenderPipelineStateWithDescriptor:error:",
-	    "newRenderPipelineStateWithDescriptor:options:reflection:error:", "newSamplerStateWithDescriptor:" };
+	    "newRenderPipelineStateWithDescriptor:options:reflection:error:", "newSamplerStateWithDescriptor:",
+	    "newTextureWithDescriptor:iosurface:plane:" };
 	IMP i[] = { (IMP)deviceNewTexture, (IMP)deviceNewRenderPipeline, (IMP)deviceNewRenderPipelineOpts,
-	    (IMP)deviceNewSampler };
-	const char *t[] = { "@@:@", "@@:@^@", "@@:@Q^@^@", "@@:@" };
-	addMethods(device, s, i, t, 4);
+	    (IMP)deviceNewSampler, (IMP)deviceNewTextureSurface };
+	const char *t[] = { "@@:@", "@@:@^@", "@@:@Q^@^@", "@@:@", "@@:@^vQ" };
+	addMethods(device, s, i, t, 5);
 }
 
 static void
@@ -1909,6 +2021,48 @@ deviceNewQueueMax(id self, SEL _cmd, unsigned long max)
 	return deviceNewQueue(self, _cmd);
 }
 
+/*
+ * backboardd (CoreAnimation's render server) is shown the device at most
+ * twice a boot: each start counts itself in a file, and after two starts in
+ * one boot (a crash, and the crash again) it is told there is no GPU and
+ * draws on the CPU as before, so iOS still comes up. The file holds the boot
+ * time and the count.
+ */
+#define LAPIS_BB_GUARD "/private/var/tmp/lapismetal_backboardd"
+#define LAPIS_BB_TRIES 2
+
+static BOOL
+backboarddGuard(void)
+{
+	struct timeval bt = { 0, 0 };
+	size_t sz = sizeof(bt);
+	(void)sysctlbyname("kern.boottime", &bt, &sz, NULL, 0);
+	long boot = 0, tries = 0;
+	FILE *f = fopen(LAPIS_BB_GUARD, "r");
+	if (f) {
+		if (fscanf(f, "%ld %ld", &boot, &tries) != 2) {
+			boot = tries = 0;
+		}
+		fclose(f);
+	}
+	if (boot != (long)bt.tv_sec) {
+		tries = 0;
+	}
+	if (tries >= LAPIS_BB_TRIES) {
+		say([NSString stringWithFormat:@"backboardd: started %ld times this boot with the GPU: not shown it now (CPU drawing)", tries]);
+		return NO;
+	}
+	f = fopen(LAPIS_BB_GUARD, "w");
+	if (!f) {
+		say([NSString stringWithFormat:@"backboardd: cannot write %s (errno %d): not shown the device", LAPIS_BB_GUARD, errno]);
+		return NO;
+	}
+	fprintf(f, "%ld %ld\n", (long)bt.tv_sec, tries + 1);
+	fclose(f);
+	say([NSString stringWithFormat:@"backboardd: shown the device (try %ld of %d this boot)", tries + 1, LAPIS_BB_TRIES]);
+	return YES;
+}
+
 static BOOL
 shownToThisProcess(void)
 {
@@ -1925,11 +2079,15 @@ shownToThisProcess(void)
 	if (!name) {
 		return NO;
 	}
+	if (strcmp(name, "backboardd") == 0 && level != 2) {
+		return backboarddGuard();
+	}
 	if (level >= 3 || (level == 2 && strcmp(name, "backboardd") != 0) ||
 	    (level == 1 && strcmp(name, "IOMFB_FDR_Loader") == 0)) {
 		return YES;
 	}
-	say([NSString stringWithFormat:@"not shown the device (lapismetal=%d: 1 the test program, 2 all but backboardd, 3 all)", level]);
+	say([NSString stringWithFormat:@"not shown the device (lapismetal=%d: 1 the test program and backboardd, 2 all but "
+	                                @"backboardd, 3 all)", level]);
 	return NO;
 }
 

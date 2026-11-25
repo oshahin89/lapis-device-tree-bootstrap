@@ -33,10 +33,10 @@ jobs:
           (cd out && xxd -i lapis_test.metallib > lapis_test_metallib.h)
           xcrun --sdk iphoneos clang $FLAGS -dynamiclib -install_name /System/Library/Extensions/AGXMetalA11.bundle/ds.g10p \
             -o out/LapisMetal.dylib tools/lapis_metal/LapisMetal.m \
-            -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
+            -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation -framework IOSurface
           # the test program goes into a 147456-byte slot (tools/lapis_rootslot.sh fdr): small and stripped
           xcrun --sdk iphoneos clang $FLAGS -Os -o out/lapis_metaltest tools/lapis_metal/lapis_metaltest.m -Iout \
-            -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
+            -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation -framework IOSurface
           strip -x out/lapis_metaltest
           rm out/lapis_test_metallib.h
           for f in out/LapisMetal.dylib out/lapis_metaltest; do codesign -s - -f "$f"; done

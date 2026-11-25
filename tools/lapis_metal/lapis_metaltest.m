@@ -8,6 +8,7 @@
  */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
+#import <IOSurface/IOSurfaceRef.h>
 #import <mach/mach.h>
 #import <objc/runtime.h>
 #include "lapis_test_metallib.h"   /* lapis_test.metallib as bytes (CI: xxd -i) */
@@ -483,6 +484,47 @@ main(void)
 				}
 			}
 
+
+			/* m7: a Metal texture over an IOSurface (as CoreAnimation draws), cleared to red, read through the surface */
+			{
+				IOSurfaceRef sf = IOSurfaceCreate((__bridge CFDictionaryRef) @{
+					(__bridge NSString *)kIOSurfaceWidth : @64, (__bridge NSString *)kIOSurfaceHeight : @64,
+					(__bridge NSString *)kIOSurfaceBytesPerElement : @4,
+					(__bridge NSString *)kIOSurfacePixelFormat : @((uint32_t)'BGRA') });
+				MTLTextureDescriptor *sd = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+				                                                                                width:64
+				                                                                               height:64
+				                                                                            mipmapped:NO];
+				sd.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+				id<MTLTexture> st = sf ? [dev newTextureWithDescriptor:sd iosurface:sf plane:0] : nil;
+				if (st) {
+					MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
+					rpd.colorAttachments[0].texture = st;
+					rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
+					rpd.colorAttachments[0].clearColor = MTLClearColorMake(1, 0, 0, 1);
+					id<MTLCommandBuffer> c = [q commandBuffer];
+					[[c renderCommandEncoderWithDescriptor:rpd] endEncoding];
+					[c commit];
+					[c waitUntilCompleted];
+					IOSurfaceLock(sf, kIOSurfaceLockReadOnly, NULL);
+					const uint32_t *p = IOSurfaceGetBaseAddress(sf);
+					size_t stride = IOSurfaceGetBytesPerRow(sf) / 4;
+					unsigned red = 0;
+					for (unsigned y = 0; y < 64; y++) {
+						for (unsigned x = 0; x < 64; x++) {
+							red += p[y * stride + x] == 0xffff0000u;   /* BGRA bytes 00 00 ff ff */
+						}
+					}
+					say(@"m7 IOSurface texture (64x64 BGRA, id %u): %s, %u/4096 pixels red in the surface, (0,0) %08x",
+					    IOSurfaceGetID(sf), object_getClassName(st), red, p[0]);
+					IOSurfaceUnlock(sf, kIOSurfaceLockReadOnly, NULL);
+				} else {
+					say(@"m7 IOSurface texture: surface %p, texture nil", sf);
+				}
+				if (sf) {
+					CFRelease(sf);
+				}
+			}
 			/* the cost of a command buffer once the boot has settled (the numbers above are taken while iOS starts) */
 			{
 				sleep(20);
