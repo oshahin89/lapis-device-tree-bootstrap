@@ -936,7 +936,9 @@ cbCommit(id self, SEL _cmd)
 	}
 	st.committedNs = nowNs();
 	st.status = MTLCommandBufferStatusCommitted;
+	checkpoint(10, @"first submission to the GPU (flush)");
 	void *fence = gpu() ? G.flush(G.gpu) : NULL;
+	checkpoint(11, [NSString stringWithFormat:@"first submission done (fence %p)", fence]);
 	st.status = MTLCommandBufferStatusScheduled;
 	NSArray *sched;
 	@synchronized(st) {
@@ -2114,8 +2116,10 @@ cbRenderEncoder(id self, SEL _cmd, MTLRenderPassDescriptor *pass)
 		    (unsigned long)ca.loadAction]);
 	}
 	if (ts.surface) {
+		checkpoint(5, [NSString stringWithFormat:@"first pass on a surface (load %lu)", (unsigned long)ca.loadAction]);
 		if (ca.loadAction == MTLLoadActionLoad) {
 			surfaceIn(ts);
+			checkpoint(6, @"surface copied in");
 		}
 		if (!cbs.drawnSurfaces) {
 			cbs.drawnSurfaces = [NSMutableArray new];
@@ -2127,6 +2131,9 @@ cbRenderEncoder(id self, SEL _cmd, MTLRenderPassDescriptor *pass)
 	MTLClearColor c = ca.clearColor;
 	double rgba[4] = { c.red, c.green, c.blue, c.alpha };
 	G.pass_begin(G.gpu, ts.tex, ca.loadAction == MTLLoadActionClear, rgba);
+	if (ts.surface) {
+		checkpoint(7, @"pass on the surface set up (framebuffer bound, clear recorded)");
+	}
 	LapisRenderState *rs = [LapisRenderState new];
 	rs.commandBuffer = self;
 	rs.target = ca.texture;
@@ -2237,8 +2244,16 @@ reDrawFull(id self, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInte
 		}
 	}
 	int r;
+	BOOL onSurface = texState(rs.target).surface != NULL;
+	if (onSurface) {
+		checkpoint(8, [NSString stringWithFormat:@"first draw on the surface: prim %lu count %lu", (unsigned long)prim,
+		    (unsigned long)count]);
+	}
 	if (G.draw2) {
 		r = G.draw2(G.gpu, ps.render, &a);
+		if (onSurface) {
+			checkpoint(9, [NSString stringWithFormat:@"first draw on the surface recorded (%d)", r]);
+		}
 	} else if (!indexBuffer) {
 		r = G.draw(G.gpu, ps.render, a.vbufs, a.voffs, a.fbufs, a.foffs, LAPIS_MAX_BINDINGS, (unsigned)prim,
 		    (unsigned)start, (unsigned)count, (unsigned)instances);
