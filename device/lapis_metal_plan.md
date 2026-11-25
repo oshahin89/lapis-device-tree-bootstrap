@@ -129,4 +129,15 @@ work that lets CoreAnimation draw on the GPU.
    ff7f007f.
    Seen on the way: the per-submission cache sync grows with Mesa's maps
    (140 maps, 4.9 MiB by the end of this test), the next cost to cut.
+   **Speed, p1 (2026-11-25, device/captures/sweetlog_p1_speed.txt):** the cost
+   was lapis-drm's fence handling, not the cache flush (~150 us): every poll
+   of a fence was a kernel round trip (~76 us) even for one long done, and
+   every successful wait, Mesa's BO-cache probes included, synced all the
+   caches. Now done fences are remembered per group (a group's submissions
+   complete in order) and a wait syncs only when the GPU finished something
+   new. A command buffer 38.6 ms -> 0.224 ms at boot, 0.140 ms settled; the
+   1 MiB copy 0.23 ms; compute dispatches 0.15-0.24 ms; cache syncs over the
+   whole test ~1300 -> ~100; every check still right. All 1600 instant probes
+   found their buffer done. Still slow: a render frame (3.7 ms), which makes
+   a new BO and VM_BIND each (139 of each per 500 requests, maps growing).
 7. IOSurface textures; then backboardd (CoreAnimation) on the device.
