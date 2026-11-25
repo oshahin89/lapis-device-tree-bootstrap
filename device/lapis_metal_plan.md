@@ -104,6 +104,12 @@ work that lets CoreAnimation draw on the GPU.
    the fragment stage), so Metal's constant buffer n is gallium's n + 1 in
    every stage (a NIR pass on load_ubo). Each render pipeline's NIR is in the
    log (lapis_gpu_render_nir) for the next shader that goes wrong.
+   And air_to_nir leaves system values as derefs of `system` variables
+   (Metal's `[[position]]` in a fragment shader), which panfrost's compiler
+   crashed on (m5c: SIGSEGV in bi_alu_src_index); `nir_lower_system_values`
+   runs first now, as gallium's own frontends do. m5d
+   (device/captures/sweetlog_m5d_render.txt): every check right, `[[position]]`
+   included, through to the end.
    Not yet: `[[stage_in]]` vertex attributes (vertex descriptors), viewport
    and scissor, depth/stencil, blending, textures and samplers in shaders,
    indexed draws, several colour attachments, MSAA.
