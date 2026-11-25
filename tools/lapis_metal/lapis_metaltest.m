@@ -314,48 +314,6 @@ main(void)
 					say(@"100 frames: %.3f ms each; the red triangle covers %u pixels (want ~20972); the rgb frame left %u clear",
 					    each, redCount, clearCount);
 
-					/* m5b: each fragment shader alone, centre pixel and the triangle's rows at column 128 */
-					for (NSString *fsn in @[ @"lapis_fs_const", @"lapis_fs_color", @"lapis_fs_tint0", @"lapis_fs_tint1",
-					         @"lapis_fs_dtint", @"lapis_fs_pos" ]) {
-						MTLRenderPipelineDescriptor *pd2 = [MTLRenderPipelineDescriptor new];
-						pd2.vertexFunction = pd.vertexFunction;
-						pd2.fragmentFunction = [lib newFunctionWithName:fsn];
-						pd2.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm;
-						err = nil;
-						id<MTLRenderPipelineState> rp2 = pd2.fragmentFunction ? [dev newRenderPipelineStateWithDescriptor:pd2 error:&err] : nil;
-						if (!rp2) {
-							say(@"%@: no pipeline %@", fsn, err ? err.localizedDescription : @"");
-							continue;
-						}
-						MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
-						rpd.colorAttachments[0].texture = tex;
-						rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
-						rpd.colorAttachments[0].clearColor = MTLClearColorMake(0, 0.5, 1, 1);
-						id<MTLCommandBuffer> c6 = [q commandBuffer];
-						id<MTLRenderCommandEncoder> re = [c6 renderCommandEncoderWithDescriptor:rpd];
-						float tint[4] = { 0.25f, 0.5f, 0.75f, 1 };
-						id<MTLBuffer> tb = [dev newBufferWithBytes:tint length:sizeof(tint) options:0];
-						[re setRenderPipelineState:rp2];
-						[re setVertexBuffer:vRgb offset:0 atIndex:0];
-						[re setFragmentBuffer:tb offset:0 atIndex:0];
-						[re setFragmentBuffer:tb offset:0 atIndex:1];
-						[re drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
-						[re endEncoding];
-						[c6 commit];
-						[c6 waitUntilCompleted];
-						[tex getBytes:px bytesPerRow:256 * 4 fromRegion:MTLRegionMake2D(0, 0, 256, 256) mipmapLevel:0];
-						int top = -1, bottom = -1;
-						for (int y = 0; y < 256; y++) {
-							if (px[y * 256 + 128] != 0xffff8000u) {
-								if (top < 0) {
-									top = y;
-								}
-								bottom = y;
-							}
-						}
-						say(@"%@: centre %08x, (100,200) %08x, (150,200) %08x; rows %d-%d at column 128 (want 26-230: apex at the top)",
-						    fsn, px[128 * 256 + 128], px[200 * 256 + 100], px[200 * 256 + 150], top, bottom);
-					}
 				}
 			}
 

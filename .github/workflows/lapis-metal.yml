@@ -38,9 +38,9 @@ jobs:
           xcrun --sdk iphoneos clang $FLAGS -Os -o out/lapis_metaltest tools/lapis_metal/lapis_metaltest.m -Iout \
             -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
           strip -x out/lapis_metaltest
-          test $(stat -f %z out/lapis_metaltest) -le 147456 || { echo "lapis_metaltest is past the fdr slot"; exit 1; }
           rm out/lapis_test_metallib.h
           for f in out/LapisMetal.dylib out/lapis_metaltest; do codesign -s - -f "$f"; done
+          test $(stat -f %z out/lapis_metaltest) -le 147456 || { echo "lapis_metaltest is past the fdr slot (signed)"; exit 1; }
           ls -la out
           otool -L out/LapisMetal.dylib out/lapis_metaltest
           shasum -a 256 out/* | tee out/SHA256.txt

@@ -60,14 +60,6 @@ fragment float4 lapis_tri_fs(lapis_vout in [[stage_in]], constant float4 &tint [
 	return in.color * tint;
 }
 
-/* m5b: what loses the colour (m5 drew the triangle's pixels as 00000000) */
-fragment float4 lapis_fs_const(lapis_vout in [[stage_in]]) { return float4(1.0, 0.0, 0.0, 1.0); }
-fragment float4 lapis_fs_color(lapis_vout in [[stage_in]]) { return in.color; }
-fragment float4 lapis_fs_tint0(lapis_vout in [[stage_in]], constant float4 &tint [[buffer(0)]]) { return tint; }
-fragment float4 lapis_fs_tint1(lapis_vout in [[stage_in]], constant float4 &tint [[buffer(1)]]) { return tint; }
-fragment float4 lapis_fs_dtint(lapis_vout in [[stage_in]], device const float4 *tint [[buffer(0)]]) { return tint[0]; }
-fragment float4 lapis_fs_pos(lapis_vout in [[stage_in]]) { return float4(in.position.x / 256.0, in.position.y / 256.0, 0.0, 1.0); }
-
 /* m6: a full-target quad through a vertex descriptor ([[stage_in]]), and
  * fragment shaders that sample a texture (an API sampler and a constexpr
  * one) or give a colour for the blending, viewport and scissor checks */
