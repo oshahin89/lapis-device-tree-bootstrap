@@ -1897,9 +1897,67 @@ reIgnored1(id self, SEL _cmd, NSUInteger a)
 	say([NSString stringWithFormat:@"%s: not done yet (ignored)", sel_getName(_cmd)]);
 }
 
+/*
+ * Methods Metal's own _MTLDevice has and answers from state our device does
+ * not have: our device says it does not respond to them, so Metal takes its
+ * path for a device without them. -targetDeviceInfo: _MTLDevice returns NULL
+ * and MTLPipelineLibraryBuilder::newLibraryWithFile read +0x10 of it when
+ * CoreAnimation made its Metal context (sweetlog_m7: backboardd SIGSEGV at
+ * 0x10; AGX's own returns a pointer into its device).
+ */
+static BOOL
+deviceResponds(id self, SEL _cmd, SEL sel)
+{
+	(void)_cmd;
+	static const char *const hidden[] = { "targetDeviceInfo", NULL };
+	for (int i = 0; hidden[i]; i++) {
+		if (sel == sel_registerName(hidden[i])) {
+			return NO;
+		}
+	}
+	return class_respondsToSelector(object_getClass(self), sel);
+}
+
+/* depth/stencil state: kept, and accepted by the render encoder; passes have no depth attachment yet */
+@interface LapisDSState : NSObject
+@property (nonatomic, copy) NSString *label;
+@property (nonatomic, strong) MTLDepthStencilDescriptor *descriptor;
+@end
+@implementation LapisDSState
+@end
+
+static Class gDSClass;
+
+static id
+deviceNewDSState(id self, SEL _cmd, MTLDepthStencilDescriptor *d)
+{
+	(void)self;
+	(void)_cmd;
+	LapisDSState *st = [LapisDSState new];
+	st.descriptor = [d copy];
+	st.label = d.label;
+	static BOOL said;
+	if (!said && d.depthCompareFunction != MTLCompareFunctionAlways) {
+		said = YES;
+		say([NSString stringWithFormat:@"depth/stencil state with depth test %lu: kept, not applied yet (no depth attachments)",
+		    (unsigned long)d.depthCompareFunction]);
+	}
+	return gDSClass ? plainNew(gDSClass, st) : nil;
+}
+
+static id dsLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisDSState *)stateOf(self)).label; }
+static void reNothing1(id self, SEL _cmd, id a) { (void)self; (void)_cmd; (void)a; }
+static void reNothingU(id self, SEL _cmd, uint32_t a) { (void)self; (void)_cmd; (void)a; }
+
 static void
 registerRenderClasses(Class device)
 {
+	class_addMethod(device, sel_registerName("respondsToSelector:"), (IMP)deviceResponds, "B@::");
+	gDSClass = computeSubclass("_MTLDepthStencilState", "LapisMetalDepthStencilState", @protocol(MTLDepthStencilState));
+	class_addMethod(gDSClass, sel_registerName("label"), (IMP)dsLabel, "@@:");
+	objc_registerClassPair(gDSClass);
+	class_addMethod(device, sel_registerName("newDepthStencilStateWithDescriptor:"), (IMP)deviceNewDSState, "@@:@");
+
 	gTextureClass = computeSubclass("_MTLResource", "LapisMetalTexture", @protocol(MTLTexture));
 	gProtocols[gProtocolCount++] = @protocol(MTLResource);
 	{
@@ -1934,16 +1992,18 @@ registerRenderClasses(Class device)
 		    "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:",
 		    "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:baseVertex:baseInstance:",
 		    "setVertexTexture:atIndex:", "setFragmentTexture:atIndex:", "setVertexSamplerState:atIndex:",
-		    "setFragmentSamplerState:atIndex:", "setScissorRect:", "setBlendColorRed:green:blue:alpha:" };
+		    "setFragmentSamplerState:atIndex:", "setScissorRect:", "setBlendColorRed:green:blue:alpha:",
+		    "setDepthStencilState:", "setStencilReferenceValue:" };
 		IMP i[] = { (IMP)reLabel, (IMP)reSetLabel, (IMP)cbNothing, (IMP)rePipeline, (IMP)reVertexBuffer,
 		    (IMP)reFragmentBuffer, (IMP)reVertexBytes, (IMP)reFragmentBytes, (IMP)reDraw, (IMP)reDrawInstanced,
 		    (IMP)reViewport, (IMP)reIgnored1, (IMP)reIgnored1, (IMP)reIgnored1, (IMP)reDrawBase, (IMP)reDrawIndexed,
 		    (IMP)reDrawIndexedInst, (IMP)reDrawIndexedFull, (IMP)reVertexTexture, (IMP)reFragmentTexture,
-		    (IMP)reVertexSampler, (IMP)reFragmentSampler, (IMP)reScissor, (IMP)reBlendColor };
+		    (IMP)reVertexSampler, (IMP)reFragmentSampler, (IMP)reScissor, (IMP)reBlendColor, (IMP)reNothing1,
+		    (IMP)reNothingU };
 		const char *t[] = { "@@:", "v@:@", "v@:", "v@:@", "v@:@QQ", "v@:@QQ", "v@:r^vQQ", "v@:r^vQQ", "v@:QQQ", "v@:QQQQ",
 		    "v@:{?=dddddd}", "v@:Q", "v@:Q", "v@:Q", "v@:QQQQQ", "v@:QQQ@Q", "v@:QQQ@QQ", "v@:QQQ@QQqQ", "v@:@Q",
-		    "v@:@Q", "v@:@Q", "v@:@Q", "v@:{?=QQQQ}", "v@:ffff" };
-		addMethods(gRenderClass, s, i, t, 24);
+		    "v@:@Q", "v@:@Q", "v@:@Q", "v@:{?=QQQQ}", "v@:ffff", "v@:@", "v@:I" };
+		addMethods(gRenderClass, s, i, t, 26);
 	}
 	objc_registerClassPair(gRenderClass);
 
