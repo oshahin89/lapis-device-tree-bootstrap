@@ -28,14 +28,17 @@ jobs:
           FLAGS="-arch arm64 -miphoneos-version-min=16.0 -O2 -fobjc-arc -Wall"
           # the test kernels: Apple's AIR in a .metallib, embedded in the test program
           xcrun --sdk iphoneos metal --version || xcodebuild -downloadComponent MetalToolchain
-          xcrun --sdk iphoneos metal -std=ios-metal2.4 -mios-version-min=16.0 -O2 \
+          xcrun --sdk iphoneos metal -std=ios-metal2.4 -mios-version-min=16.0 -Os \
             -o out/lapis_test.metallib tools/lapis_metal/lapis_test.metal
           (cd out && xxd -i lapis_test.metallib > lapis_test_metallib.h)
           xcrun --sdk iphoneos clang $FLAGS -dynamiclib -install_name /System/Library/Extensions/AGXMetalA11.bundle/ds.g10p \
             -o out/LapisMetal.dylib tools/lapis_metal/LapisMetal.m \
             -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
-          xcrun --sdk iphoneos clang $FLAGS -o out/lapis_metaltest tools/lapis_metal/lapis_metaltest.m -Iout \
+          # the test program goes into a 147456-byte slot (tools/lapis_rootslot.sh fdr): small and stripped
+          xcrun --sdk iphoneos clang $FLAGS -Os -o out/lapis_metaltest tools/lapis_metal/lapis_metaltest.m -Iout \
             -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation
+          strip -x out/lapis_metaltest
+          test $(stat -f %z out/lapis_metaltest) -le 147456 || { echo "lapis_metaltest is past the fdr slot"; exit 1; }
           rm out/lapis_test_metallib.h
           for f in out/LapisMetal.dylib out/lapis_metaltest; do codesign -s - -f "$f"; done
           ls -la out
