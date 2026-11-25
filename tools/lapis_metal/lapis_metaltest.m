@@ -526,32 +526,19 @@ main(void)
 				}
 			}
 
-			/* m7q: big GPU memory (CoreAnimation's framebuffer texture is 22 MB; the phone died right after making it) */
+			/* m7r: big render targets came out partly drawn (m7q: 1125x2436 first pixel right, last 0):
+			 * clears of several sizes, every pixel counted, the first wrong one placed */
 			{
-				say(@"big: a 32 MiB buffer, filled by the GPU");
-				sleep(2);
-				const NSUInteger big = 32u << 20;
-				id<MTLBuffer> bb = [dev newBufferWithLength:big options:0];
-				memset(bb.contents, 0, big);
-				id<MTLCommandBuffer> c = [q commandBuffer];
-				id<MTLBlitCommandEncoder> e = [c blitCommandEncoder];
-				[e fillBuffer:bb range:NSMakeRange(0, big) value:0x5a];
-				[e endEncoding];
-				[c commit];
-				[c waitUntilCompleted];
-				const uint8_t *p = bb.contents;
-				NSUInteger right = 0;
-				for (NSUInteger i = 0; i < big; i++) {
-					right += p[i] == 0x5a;
-				}
-				say(@"big: 32 MiB fill: %lu/%lu bytes right", (unsigned long)right, (unsigned long)big);
-				sleep(2);
-				for (int k = 0; k < 2; k++) {
-					MTLPixelFormat pf = k ? MTLPixelFormatRGBA16Float : MTLPixelFormatBGRA8Unorm;
-					say(@"big: a 1125x2436 %s texture cleared by the GPU", k ? "RGBA16Float (22 MB)" : "BGRA8 (11 MB)");
+				static const unsigned sizes[][2] = { { 512, 512 }, { 1024, 1024 }, { 2048, 1024 }, { 1024, 2048 },
+					{ 1125, 2436 } };
+				for (unsigned k = 0; k < sizeof(sizes) / sizeof(sizes[0]); k++) {
+					unsigned w = sizes[k][0], h = sizes[k][1];
+					say(@"big: %ux%u BGRA8 clear", w, h);
 					sleep(2);
-					MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:pf width:1125 height:2436
-					                                                                          mipmapped:NO];
+					MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+					                                                                                width:w
+					                                                                               height:h
+					                                                                            mipmapped:NO];
 					td.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
 					id<MTLTexture> t = [dev newTextureWithDescriptor:td];
 					MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
@@ -562,13 +549,32 @@ main(void)
 					[[c2 renderCommandEncoderWithDescriptor:rpd] endEncoding];
 					[c2 commit];
 					[c2 waitUntilCompleted];
-					uint64_t first = 0, last = 0;
-					[t getBytes:&first bytesPerRow:8 fromRegion:MTLRegionMake2D(0, 0, 1, 1) mipmapLevel:0];
-					[t getBytes:&last bytesPerRow:8 fromRegion:MTLRegionMake2D(1124, 2435, 1, 1) mipmapLevel:0];
-					say(@"big: %s cleared: status %ld, (0,0) %016llx, (1124,2435) %016llx", k ? "RGBA16F" : "BGRA8",
-					    (long)c2.status, first, last);
+					uint32_t *px = malloc((size_t)w * h * 4);
+					[t getBytes:px bytesPerRow:w * 4 fromRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0];
+					unsigned long right = 0;
+					long firstBad = -1, maxRow = -1, maxCol = -1;
+					for (unsigned long i = 0; i < (unsigned long)w * h; i++) {
+						if (px[i] == 0xffff0000u) {
+							right++;
+							if ((long)(i / w) > maxRow) {
+								maxRow = (long)(i / w);
+							}
+							if ((long)(i % w) > maxCol) {
+								maxCol = (long)(i % w);
+							}
+						} else if (firstBad < 0) {
+							firstBad = (long)i;
+						}
+					}
+					say(@"big: %ux%u: %lu/%lu red; first wrong at (%ld,%ld) = %08x; red up to row %ld, column %ld", w, h, right,
+					    (unsigned long)w * h, firstBad < 0 ? -1 : firstBad % w, firstBad < 0 ? -1 : firstBad / w,
+					    firstBad < 0 ? 0 : px[firstBad], maxRow, maxCol);
+					free(px);
 					sleep(2);
 				}
+				say(@"big: done; still alive in 60 s?");
+				sleep(60);
+				say(@"big: alive 60 s after the big clears");
 			}
 			/* the cost of a command buffer once the boot has settled (the numbers above are taken while iOS starts) */
 			{
