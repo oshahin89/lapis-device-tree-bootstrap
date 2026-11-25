@@ -32,6 +32,7 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 #include <dlfcn.h>
+#include <mach-o/dyld.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/sysctl.h>
@@ -2622,11 +2623,26 @@ coreAnimationLogToStderr(void)
 {
 	setenv("QUARTZCORE_LOG_FILE", "/dev/stderr", 1);
 	setenv("X_LOG_FILE", "/dev/stderr", 1);
-	void (*setName)(const char *) = (void (*)(const char *))dlsym(RTLD_DEFAULT, "x_set_log_filename");
-	if (setName) {
-		setName("/dev/stderr");
+	/* x_set_log_filename is not exported: QuartzCore + 0x14b528 in the iPhone X
+	 * iOS 16.7 shared cache (tools/dsc), called only if its first 16 bytes are
+	 * the ones the cache has there */
+	static const uint8_t prologue[16] = { 0xff, 0xc3, 0x00, 0xd1, 0xf4, 0x4f, 0x01, 0xa9,
+		0xfd, 0x7b, 0x02, 0xa9, 0xfd, 0x83, 0x00, 0x91 };
+	const struct mach_header *qc = NULL;
+	for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+		const char *n = _dyld_get_image_name(i);
+		if (n && strstr(n, "/QuartzCore.framework/QuartzCore") && !strstr(n, ".dylib")) {
+			qc = _dyld_get_image_header(i);
+			break;
+		}
 	}
-	say([NSString stringWithFormat:@"CoreAnimation's log to stderr (x_set_log_filename %s)", setName ? "called" : "not exported: env only"]);
+	const uint8_t *fn = qc ? (const uint8_t *)qc + 0x14b528 : NULL;
+	BOOL ok = fn && memcmp(fn, prologue, sizeof(prologue)) == 0;
+	if (ok) {
+		((void (*)(const char *))(uintptr_t)fn)("/dev/stderr");
+	}
+	say([NSString stringWithFormat:@"CoreAnimation's log to stderr: QuartzCore at %p, x_set_log_filename %s", qc,
+	    ok ? "called" : "not matched (another build): env only"]);
 }
 
 __attribute__((constructor)) static void
