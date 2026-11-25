@@ -189,14 +189,59 @@ now_ns(void)
 	return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec;
 }
 
+/*
+ * What is known done, per group: a group's submissions complete in order
+ * (one ring, each ends with a WAIT all and the store of its number), so once
+ * seq N is seen done every seq up to N is, without asking the kernel again
+ * (m6: every poll of a fence was a ~76 us round trip). gpu_progress says the
+ * GPU finished something this process has not synced its caches for since.
+ */
+static uint32_t known_done[64];
+static bool gpu_progress;
+
 /* submission (group, seq) done, waited for until DEADLINE (absolute CLOCK_MONOTONIC ns; 0: not at all) */
 static bool
 fence_done(uint32_t group, uint32_t seq, int64_t deadline)
 {
+	uint32_t *known = &known_done[group & 63];
+	if (seq == 0 || (int32_t)(__atomic_load_n(known, __ATOMIC_ACQUIRE) - seq) >= 0) {
+		return true;
+	}
 	int64_t left = deadline ? deadline - now_ns() : 0;
 	struct lapis_wait w = { .group_handle = group, .seq = seq, .timeout_ns = left > 0 ? left : 0 };
+	if (call(LAPIS_WAIT, &w, sizeof(w)) != 0) {
+		return false;
+	}
+	uint32_t was = __atomic_load_n(known, __ATOMIC_RELAXED);
+	while ((int32_t)(seq - was) > 0 &&
+	    !__atomic_compare_exchange_n(known, &was, seq, false, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
+	}
+	__atomic_store_n(&gpu_progress, true, __ATOMIC_RELEASE);
+	return true;
+}
 
-	return seq == 0 || call(LAPIS_WAIT, &w, sizeof(w)) == 0;
+/* after a wait: the caches, when the GPU finished something since the last sync */
+static void
+sync_after_wait(void)
+{
+	if (__atomic_exchange_n(&gpu_progress, false, __ATOMIC_ACQ_REL)) {
+		sync_all_maps();
+	}
+}
+
+/* instant probes (a deadline already past: Mesa's BO cache asking if a buffer is idle), by outcome */
+static uint32_t probe_stats[3];   /* done, busy, a point not submitted */
+
+static void
+probe_count(int outcome)
+{
+	uint32_t n = __atomic_add_fetch(&probe_stats[outcome], 1, __ATOMIC_RELAXED);
+	(void)n;
+	uint32_t total = probe_stats[0] + probe_stats[1] + probe_stats[2];
+	if (total % 200 == 0) {
+		lapis_drm_log("lapis-drm: %u instant probes: %u done, %u busy, %u not submitted", total, probe_stats[0],
+		    probe_stats[1], probe_stats[2]);
+	}
 }
 
 /* --- syncobjs (hakios's design, over (group, seq) fences) --- */
@@ -345,6 +390,7 @@ drmSyncobjQuery2(int fd, uint32_t *handles, uint64_t *points, uint32_t count, ui
 		points[i] = s != NULL ? s->reached : 0;
 	}
 	pthread_mutex_unlock(&syncobj_lock);
+	sync_after_wait();      /* (a point seen reached here may be read by the CPU next) */
 	return 0;
 }
 
@@ -365,6 +411,7 @@ drmSyncobjTimelineWait(int fd, uint32_t *handles, uint64_t *points, unsigned cou
     uint32_t *first)
 {
 	const bool all = (flags & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL) != 0;
+	const bool instant = deadline <= now_ns();
 
 	(void)fd;
 	pthread_mutex_lock(&syncobj_lock);
@@ -400,7 +447,10 @@ drmSyncobjTimelineWait(int fd, uint32_t *handles, uint64_t *points, unsigned cou
 						*first = i;
 					}
 					pthread_mutex_unlock(&syncobj_lock);
-					sync_all_maps();
+					if (instant) {
+						probe_count(0);
+					}
+					sync_after_wait();
 					return 0;
 				}
 			} else if (!on_the_way) {
@@ -412,11 +462,17 @@ drmSyncobjTimelineWait(int fd, uint32_t *handles, uint64_t *points, unsigned cou
 				*first = 0;
 			}
 			pthread_mutex_unlock(&syncobj_lock);
-			sync_all_maps();
+			if (instant) {
+				probe_count(0);
+			}
+			sync_after_wait();
 			return 0;
 		}
 		if (unknown != 0 && !(flags & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_FOR_SUBMIT)) {
 			pthread_mutex_unlock(&syncobj_lock);
+			if (instant) {
+				probe_count(2);
+			}
 			return -EINVAL;
 		}
 		if (now_ns() >= deadline) {
@@ -439,6 +495,9 @@ drmSyncobjTimelineWait(int fd, uint32_t *handles, uint64_t *points, unsigned cou
 		}
 	}
 	pthread_mutex_unlock(&syncobj_lock);
+	if (instant) {
+		probe_count(1);
+	}
 	return -ETIME;
 }
 

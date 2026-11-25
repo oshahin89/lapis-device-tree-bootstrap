@@ -476,6 +476,25 @@ main(void)
 					}
 				}
 			}
+
+			/* the cost of a command buffer once the boot has settled (the numbers above are taken while iOS starts) */
+			{
+				sleep(20);
+				id<MTLBuffer> fb = [dev newBufferWithLength:4096 options:0];
+				NSDate *t1 = [NSDate date];
+				unsigned good = 0;
+				for (unsigned i = 0; i < 200; i++) {
+					id<MTLCommandBuffer> c = [q commandBuffer];
+					id<MTLBlitCommandEncoder> e = [c blitCommandEncoder];
+					[e fillBuffer:fb range:NSMakeRange(0, 4096) value:(uint8_t)i];
+					[e endEncoding];
+					[c commit];
+					[c waitUntilCompleted];
+					good += ((uint8_t *)fb.contents)[4095] == (uint8_t)i;
+				}
+				say(@"settled: 200 command buffers (4 KiB fill each): %u right, %.3f ms each", good,
+				    -[t1 timeIntervalSinceNow] * 1000 / 200);
+			}
 		}
 		say(@"done");
 	}
