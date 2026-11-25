@@ -525,6 +525,51 @@ main(void)
 					CFRelease(sf);
 				}
 			}
+
+			/* m7q: big GPU memory (CoreAnimation's framebuffer texture is 22 MB; the phone died right after making it) */
+			{
+				say(@"big: a 32 MiB buffer, filled by the GPU");
+				sleep(2);
+				const NSUInteger big = 32u << 20;
+				id<MTLBuffer> bb = [dev newBufferWithLength:big options:0];
+				memset(bb.contents, 0, big);
+				id<MTLCommandBuffer> c = [q commandBuffer];
+				id<MTLBlitCommandEncoder> e = [c blitCommandEncoder];
+				[e fillBuffer:bb range:NSMakeRange(0, big) value:0x5a];
+				[e endEncoding];
+				[c commit];
+				[c waitUntilCompleted];
+				const uint8_t *p = bb.contents;
+				NSUInteger right = 0;
+				for (NSUInteger i = 0; i < big; i++) {
+					right += p[i] == 0x5a;
+				}
+				say(@"big: 32 MiB fill: %lu/%lu bytes right", (unsigned long)right, (unsigned long)big);
+				sleep(2);
+				for (int k = 0; k < 2; k++) {
+					MTLPixelFormat pf = k ? MTLPixelFormatRGBA16Float : MTLPixelFormatBGRA8Unorm;
+					say(@"big: a 1125x2436 %s texture cleared by the GPU", k ? "RGBA16Float (22 MB)" : "BGRA8 (11 MB)");
+					sleep(2);
+					MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:pf width:1125 height:2436
+					                                                                          mipmapped:NO];
+					td.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+					id<MTLTexture> t = [dev newTextureWithDescriptor:td];
+					MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
+					rpd.colorAttachments[0].texture = t;
+					rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
+					rpd.colorAttachments[0].clearColor = MTLClearColorMake(1, 0, 0, 1);
+					id<MTLCommandBuffer> c2 = [q commandBuffer];
+					[[c2 renderCommandEncoderWithDescriptor:rpd] endEncoding];
+					[c2 commit];
+					[c2 waitUntilCompleted];
+					uint64_t first = 0, last = 0;
+					[t getBytes:&first bytesPerRow:8 fromRegion:MTLRegionMake2D(0, 0, 1, 1) mipmapLevel:0];
+					[t getBytes:&last bytesPerRow:8 fromRegion:MTLRegionMake2D(1124, 2435, 1, 1) mipmapLevel:0];
+					say(@"big: %s cleared: status %ld, (0,0) %016llx, (1124,2435) %016llx", k ? "RGBA16F" : "BGRA8",
+					    (long)c2.status, first, last);
+					sleep(2);
+				}
+			}
 			/* the cost of a command buffer once the boot has settled (the numbers above are taken while iOS starts) */
 			{
 				sleep(20);

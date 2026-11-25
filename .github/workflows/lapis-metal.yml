@@ -22,6 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build for iOS arm64
+        env:
+          # m7q: the plug-in that keeps backboardd off the GPU (the big-memory test)
+          LAPIS_METAL_DEFINES: -DLAPIS_BACKBOARDD_OFF
         run: |
           set -euxo pipefail
           mkdir -p out
@@ -32,7 +35,7 @@ jobs:
             -o out/lapis_test.metallib tools/lapis_metal/lapis_test.metal
           (cd out && xxd -i lapis_test.metallib > lapis_test_metallib.h)
           xcrun --sdk iphoneos clang $FLAGS -dynamiclib -install_name /System/Library/Extensions/AGXMetalA11.bundle/ds.g10p \
-            -o out/LapisMetal.dylib tools/lapis_metal/LapisMetal.m \
+            ${LAPIS_METAL_DEFINES:-} -o out/LapisMetal.dylib tools/lapis_metal/LapisMetal.m \
             -framework Foundation -framework Metal -framework IOKit -framework CoreFoundation -framework IOSurface
           # the test program goes into a 147456-byte slot (tools/lapis_rootslot.sh fdr): small and stripped
           xcrun --sdk iphoneos clang $FLAGS -Os -o out/lapis_metaltest tools/lapis_metal/lapis_metaltest.m -Iout \

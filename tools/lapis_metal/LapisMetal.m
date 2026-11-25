@@ -2768,9 +2768,16 @@ shownToThisProcess(void)
 	if (!name) {
 		return NO;
 	}
+#ifndef LAPIS_BACKBOARDD_OFF
 	if (strcmp(name, "backboardd") == 0 && level != 2) {
 		return backboarddGuard();
 	}
+#else
+	if (strcmp(name, "backboardd") == 0) {
+		say(@"backboardd: not shown the device (this build is for the big-memory test)");
+		return NO;
+	}
+#endif
 	if (level >= 3 || (level == 2 && strcmp(name, "backboardd") != 0) ||
 	    (level == 1 && strcmp(name, "IOMFB_FDR_Loader") == 0)) {
 		return YES;
