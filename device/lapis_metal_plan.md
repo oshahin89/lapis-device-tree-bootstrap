@@ -148,4 +148,27 @@ work that lets CoreAnimation draw on the GPU.
    idle): a command buffer 0.149 ms, **a frame (pass clear + quad +
    setFragmentBytes, 256x256) 0.509 ms**, colours right. Numbers taken during
    iOS's boot swing widely (1-200 ms) from CPU contention on the 4 A55s.
-7. IOSurface textures; then backboardd (CoreAnimation) on the device.
+7. **CoreAnimation (backboardd) on the device, in progress (2026-11-25, m7-m7n
+   logs in device/captures/).** backboardd is shown the device behind a crash
+   guard (2 starts a boot, keyed by kern.bootsessionuuid: kern.boottime is the
+   same every boot, no RTC). IOSurface textures by copy work (test: 64x64
+   BGRA surface right). What CoreAnimation needed so far, each found from its
+   own code (tools/dsc symbolizes the shared cache) or its own log
+   (QuartzCore's x_log to stderr through x_set_log_filename, called by
+   address): the device hides -targetDeviceInfo (Metal's pipeline-library
+   builder read NULL+0x10); depth/stencil states; function constants
+   (recorded on MTLFunctionConstantValuesInternal, given to the AIR front end
+   by index or name); function descriptors; mipmapped and 1D textures; the
+   common pixel formats; texture copies; mipmap generation; setGPUPriority:.
+   It then compiled ~20 of QuartzCore's pipelines and warmed up, but drew no
+   frame: its IOMFB display gives a 'b3a8' framebuffer (RGB10A8_2P_XR10, two
+   planes) and four_cc_to_mtl_format maps that only with GPU family Apple3
+   (limits bit 0x100, set in new_metal_context from supportsFamily:1003;
+   _MTLDevice says Apple2). With supportsFamily: up to Apple3 (m7m, m7n) the
+   phone resets silently within a second after the warm-up, before our first
+   IOSurface texture or commit (checkpoints): most likely a kernel panic
+   (panics are not kept: gPanicBase is not set) in what follows the format
+   check, is_viable_texture_from_iosurface on the two-plane surface, i.e. the
+   IOSurface driver (SWEET SURF). Next: keep kernel panics (sweetlog), and/or
+   a 2-plane 'b3a8' surface exercised from the test program step by step.
+8. IOSurface textures without copies; then CoreAnimation at speed (CoreAnimation) on the device.
