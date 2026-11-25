@@ -2141,9 +2141,7 @@ cbRenderEncoder(id self, SEL _cmd, MTLRenderPassDescriptor *pass)
 			traced = YES;
 			void (*setTrace)(int) = gLib ? (void (*)(int))dlsym(gLib, "lapis_drm_set_trace") : NULL;
 			say([NSString stringWithFormat:@"tracing the next GPU submissions: %s", setTrace ? "on" : "no lapis_drm_set_trace"]);
-			if (setTrace) {
-				setTrace(10);
-			}
+			(void)setTrace;     /* off: m7w found the crash */
 		}
 	}
 	LapisRenderState *rs = [LapisRenderState new];
@@ -2166,7 +2164,7 @@ surfTrace(id encoder, NSString *what)
 {
 	static unsigned n;
 	LapisRenderState *rs = stateOf(encoder);
-	if (n >= 30 || !rs.target || !texState(rs.target).surface) {
+	if (n >= 0 /* off: m7w found the crash */ || !rs.target || !texState(rs.target).surface) {
 		return;
 	}
 	n++;

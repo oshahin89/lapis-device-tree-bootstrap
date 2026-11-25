@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1641 @@
+@@ -0,0 +1,1670 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -1269,6 +1269,9 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   }
 +}
 +
++#define LAPIS_ZERO_VB 31u                /* the vertex buffer slot of zeros (no Metal index) */
++static struct lapis_gpu_buf *zero_vb;
++
 +/* one stage of a pipeline: AIR -> NIR -> a panfrost shader state */
 +static bool
 +stage_new(struct lapis_gpu *gpu, struct lapis_gpu_stage *st, mesa_shader_stage want, const void *bc,
@@ -1308,6 +1311,14 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   /* [[stage_in]]: gallium feeds vertex element i to the input whose
 +    * driver_location is i (nir_air.h); each element's buffer gets a vertex
 +    * buffer slot of its own, in the order first met */
++   /*
++    * An attribute the vertex descriptor gives no format (0) is fed zeros
++    * from a small buffer of zeros (stride 0), in the slot of Metal buffer
++    * index 31, which no Metal binding has: AIR lists an attribute gated by a
++    * function constant as used whatever the constant says (nir_air.h), and
++    * CoreAnimation's fixed_vert_lph_spc has one at 4 its descriptor leaves
++    * out; refusing the pipeline made CoreAnimation abort (m7w).
++    */
 +   if (r && info.num_vertex_attributes) {
 +      unsigned n = 0;
 +      for (unsigned i = 0; i < info.num_vertex_attributes; i++) {
@@ -1316,6 +1327,24 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +            continue;
 +         unsigned idx = va->index, dl = va->driver_location;
 +         enum pipe_format pf = desc && idx < 31 ? mtl_vertex_format(desc->attribs[idx].format) : PIPE_FORMAT_NONE;
++         bool zeros = desc && idx < 31 && desc->attribs[idx].format == 0 && dl < PIPE_MAX_ATTRIBS;
++         if (zeros) {
++            if (!zero_vb)
++               zero_vb = lapis_gpu_buf_new(gpu, 256);
++            unsigned slot = 0;
++            while (slot < r->num_vb && r->vb_buffer[slot] != LAPIS_ZERO_VB)
++               slot++;
++            if (slot == r->num_vb)
++               r->vb_buffer[r->num_vb++] = LAPIS_ZERO_VB;
++            struct pipe_vertex_element *ve = &r->velems.velems[dl];
++            ve->src_offset = 0;
++            ve->vertex_buffer_index = slot;
++            ve->src_format = PIPE_FORMAT_R32G32B32A32_FLOAT;
++            ve->src_stride = 0;
++            ve->instance_divisor = 0;
++            n = MAX2(n, dl + 1);
++            continue;
++         }
 +         if (pf == PIPE_FORMAT_NONE || dl >= PIPE_MAX_ATTRIBS) {
 +            snprintf(error, error_size, "%s: attribute %u has no vertex descriptor format this port reads (%u)",
 +                     entry, idx, desc && idx < 31 ? desc->attribs[idx].format : 0);
@@ -1702,13 +1731,13 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   struct pipe_vertex_buffer vb[PIPE_MAX_ATTRIBS];
 +   memset(vb, 0, sizeof(vb));
 +   for (unsigned i = 0; i < r->num_vb; i++) {
-+      struct lapis_gpu_buf *b = a->vbufs[r->vb_buffer[i]];
++      struct lapis_gpu_buf *b = r->vb_buffer[i] == LAPIS_ZERO_VB ? zero_vb : a->vbufs[r->vb_buffer[i]];
 +      if (!b) {
 +         pthread_mutex_unlock(&gpu->lock);
 +         return -1;
 +      }
 +      vb[i].buffer.resource = b->res;
-+      vb[i].buffer_offset = (unsigned)a->voffs[r->vb_buffer[i]];
++      vb[i].buffer_offset = r->vb_buffer[i] == LAPIS_ZERO_VB ? 0 : (unsigned)a->voffs[r->vb_buffer[i]];
 +   }
 +   cso_set_vertex_elements(lapis_cso, &r->velems);
 +   cso_set_vertex_buffers(lapis_cso, r->num_vb, vb);
