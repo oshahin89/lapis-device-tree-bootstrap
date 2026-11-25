@@ -113,4 +113,20 @@ work that lets CoreAnimation draw on the GPU.
    Not yet: `[[stage_in]]` vertex attributes (vertex descriptors), viewport
    and scissor, depth/stencil, blending, textures and samplers in shaders,
    indexed draws, several colour attachments, MSAA.
-6. IOSurface textures; then backboardd (CoreAnimation) on the device.
+6. ~~Textures and samplers in shaders, vertex descriptors, blending, viewport,
+   scissor, indexed draws~~ **done (2026-11-25, device/captures/sweetlog_m6_textures.txt),
+   every check right on the first run.** liblapis_gallium: sampler states
+   (MTLSamplerDescriptor and the shader's own constexpr samplers, after
+   hakios's air_run.c), sampler views made on a texture's first use, Metal's
+   null texture as a 1x1 zero texture, blend state per pipeline, `[[stage_in]]`
+   vertex elements by the front end's driver_location with each Metal buffer
+   given a vertex-buffer slot, viewport/scissor/blend colour, indexed draws
+   (`lapis_gpu_draw2`). On the phone: a 4x4 texture over the target through an
+   API nearest sampler and a vertex descriptor, 65536/65536 pixels their texel;
+   a constexpr linear sampler between black and white, 7f/80 in the middle;
+   indexed quad 65536/65536; viewport {0,0,128,128} 16384 in the top-left
+   quarter; scissor {64,64,64,64} 4096 inside; source-alpha blending
+   ff7f007f.
+   Seen on the way: the per-submission cache sync grows with Mesa's maps
+   (140 maps, 4.9 MiB by the end of this test), the next cost to cut.
+7. IOSurface textures; then backboardd (CoreAnimation) on the device.
