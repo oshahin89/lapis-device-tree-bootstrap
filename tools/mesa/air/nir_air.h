@@ -440,6 +440,11 @@ struct air_constant_value {
     * "nothing was supplied", which is the truth about it.
     */
    bool supplied;
+
+   /* lapis: the constant's name (air.function_constants), so a runtime given
+    * values by name (MTLFunctionConstantValues setConstantValue:type:withName:)
+    * can find the index; NULL when the module names none */
+   const char *name;
 };
 
 /* -- function stitching ----------------------------------------------------

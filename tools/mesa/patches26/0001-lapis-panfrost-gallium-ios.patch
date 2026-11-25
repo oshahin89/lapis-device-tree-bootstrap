@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1490 @@
+@@ -0,0 +1,1584 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -584,8 +584,38 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +#include "compiler/nir/nir_builder.h"
 +#include "util/half_float.h"
 +#include "util/u_sampler.h"
++#include "util/u_gen_mipmap.h"
 +
 +#define LAPIS_GPU_MAX_RES 64
++
++/* a function constant LapisMetal was given (MTLFunctionConstantValues): by
++ * index, or by name when index is -1; its value as the bits of its type */
++struct lapis_gpu_constant {
++   int32_t index;
++   const char *name;
++   uint64_t bits;
++};
++
++/* the module's declared constants, with the ones given filled in, into OPTS */
++static void
++fill_constants(void *mem, const void *bc, size_t size, const struct lapis_gpu_constant *given, unsigned num_given,
++               struct air_to_nir_options *opts)
++{
++   struct air_constant_value *decl = NULL;
++   unsigned n = air_module_function_constants(mem, bc, size, &decl);
++   for (unsigned i = 0; i < n; i++) {
++      for (unsigned k = 0; k < num_given; k++) {
++         bool match = given[k].index >= 0 ? (unsigned)given[k].index == decl[i].index
++                                           : (given[k].name && decl[i].name && !strcmp(given[k].name, decl[i].name));
++         if (match) {
++            decl[i].bits = given[k].bits;
++            decl[i].supplied = true;
++         }
++      }
++   }
++   opts->constants = decl;
++   opts->num_constants = n;
++}
 +
 +/*
 + * Metal's constant buffer n is gallium's constant buffer n + 1: panfrost's
@@ -686,9 +716,20 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   return r;
 +}
 +
++PUBLIC struct lapis_gpu_compute *lapis_gpu_compute_new2(struct lapis_gpu *gpu, const void *bitcode, size_t size,
++                                                        const char *entry, const struct lapis_gpu_constant *consts,
++                                                        unsigned num_consts, char *error, size_t error_size);
++
 +PUBLIC struct lapis_gpu_compute *
 +lapis_gpu_compute_new(struct lapis_gpu *gpu, const void *bitcode, size_t size, const char *entry, char *error,
 +                      size_t error_size)
++{
++   return lapis_gpu_compute_new2(gpu, bitcode, size, entry, NULL, 0, error, error_size);
++}
++
++PUBLIC struct lapis_gpu_compute *
++lapis_gpu_compute_new2(struct lapis_gpu *gpu, const void *bitcode, size_t size, const char *entry,
++                       const struct lapis_gpu_constant *consts, unsigned num_consts, char *error, size_t error_size)
 +{
 +   void *mem = ralloc_context(NULL);
 +   struct air_shader_info info;
@@ -696,6 +737,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   const char *why = NULL;
 +   memset(&info, 0, sizeof(info));
 +   memset(&opts, 0, sizeof(opts));
++   fill_constants(mem, bitcode, size, consts, num_consts, &opts);
 +   nir_shader *nir = air_to_nir(mem, bitcode, size, entry, &opts,
 +                                gpu->screen->nir_options[MESA_SHADER_COMPUTE], &info, &why);
 +   if (!nir) {
@@ -840,6 +882,8 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   unsigned blend_enabled, rgb_op, alpha_op, src_rgb, dst_rgb, src_alpha, dst_alpha, write_mask;
 +   struct { unsigned format, offset, buffer; } attribs[31];     /* by [[attribute(n)]]; format 0: none */
 +   struct { unsigned stride, step_function, step_rate; } layouts[31];   /* by buffer index */
++   const struct lapis_gpu_constant *vs_consts, *fs_consts;   /* each function's constants */
++   unsigned num_vs_consts, num_fs_consts;
 +};
 +
 +struct lapis_gpu_render {
@@ -899,12 +943,27 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   case 81: return PIPE_FORMAT_B8G8R8A8_SRGB;               /* BGRA8Unorm_sRGB */
 +   case 115: *bpp = 8; return PIPE_FORMAT_R16G16B16A16_FLOAT;  /* RGBA16Float */
 +   case 125: *bpp = 16; return PIPE_FORMAT_R32G32B32A32_FLOAT; /* RGBA32Float */
++   /* the extended-range (XR) wide-colour formats CoreAnimation uses (550,
++    * 552 BGRA10_XR, 553 its sRGB, 554 BGR10_XR, 555 its sRGB): stored as
++    * half floats, which hold their range exactly for rendering and sampling;
++    * CPU copies of them are not in Apple's packing */
++   case 550: case 552: case 553: case 554: case 555:
++      *bpp = 8; return PIPE_FORMAT_R16G16B16A16_FLOAT;
 +   default: return PIPE_FORMAT_NONE;
 +   }
 +}
 +
++PUBLIC struct lapis_gpu_tex *lapis_gpu_tex_new2(struct lapis_gpu *gpu, unsigned width, unsigned height,
++                                                unsigned format, unsigned levels);
++
 +PUBLIC struct lapis_gpu_tex *
 +lapis_gpu_tex_new(struct lapis_gpu *gpu, unsigned width, unsigned height, unsigned format)
++{
++   return lapis_gpu_tex_new2(gpu, width, height, format, 1);
++}
++
++PUBLIC struct lapis_gpu_tex *
++lapis_gpu_tex_new2(struct lapis_gpu *gpu, unsigned width, unsigned height, unsigned format, unsigned levels)
 +{
 +   unsigned bpp;
 +   enum pipe_format pf = mtl_format(format, &bpp);
@@ -917,6 +976,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      .height0 = (uint16_t)height,
 +      .depth0 = 1,
 +      .array_size = 1,
++      .last_level = (uint8_t)(levels > 1 ? levels - 1 : 0),
 +      .bind = PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW | PIPE_BIND_LINEAR,
 +      .usage = PIPE_USAGE_DEFAULT,
 +   };
@@ -944,6 +1004,37 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   pipe_resource_reference(&tex->res, NULL);
 +   pthread_mutex_unlock(&gpu->lock);
 +   free(tex);
++}
++
++/* the levels below level 0 made from it (blitCommandEncoder generateMipmapsForTexture:) */
++PUBLIC void lapis_gpu_gen_mipmaps(struct lapis_gpu *gpu, struct lapis_gpu_tex *tex);
++PUBLIC int lapis_gpu_tex_copy(struct lapis_gpu *gpu, struct lapis_gpu_tex *dst, unsigned dst_level, unsigned dx,
++                              unsigned dy, struct lapis_gpu_tex *src, unsigned src_level, unsigned sx, unsigned sy,
++                              unsigned w, unsigned h);
++
++PUBLIC void
++lapis_gpu_gen_mipmaps(struct lapis_gpu *gpu, struct lapis_gpu_tex *tex)
++{
++   if (!tex || !tex->res->last_level)
++      return;
++   pthread_mutex_lock(&gpu->lock);
++   util_gen_mipmap(gpu->ctx, tex->res, tex->res->format, 0, tex->res->last_level, 0, 0, PIPE_TEX_FILTER_LINEAR);
++   pthread_mutex_unlock(&gpu->lock);
++}
++
++/* a region of one texture's level into another's (the same format family) */
++PUBLIC int
++lapis_gpu_tex_copy(struct lapis_gpu *gpu, struct lapis_gpu_tex *dst, unsigned dst_level, unsigned dx, unsigned dy,
++                   struct lapis_gpu_tex *src, unsigned src_level, unsigned sx, unsigned sy, unsigned w, unsigned h)
++{
++   if (!dst || !src || dst_level > dst->res->last_level || src_level > src->res->last_level)
++      return -1;
++   struct pipe_box box;
++   u_box_2d((int)sx, (int)sy, (int)w, (int)h, &box);
++   pthread_mutex_lock(&gpu->lock);
++   gpu->ctx->resource_copy_region(gpu->ctx, dst->res, dst_level, dx, dy, 0, src->res, src_level, &box);
++   pthread_mutex_unlock(&gpu->lock);
++   return 0;
 +}
 +
 +/* the CPU's copy of a region; waits for the GPU work that writes it */
@@ -1125,7 +1216,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +static bool
 +stage_new(struct lapis_gpu *gpu, struct lapis_gpu_stage *st, mesa_shader_stage want, const void *bc,
 +          size_t size, const char *entry, struct lapis_gpu_render *r, const struct lapis_gpu_render_desc *desc,
-+          char *error, size_t error_size)
++          const struct lapis_gpu_render_desc *consts_desc, char *error, size_t error_size)
 +{
 +   void *mem = ralloc_context(NULL);
 +   struct air_shader_info info;
@@ -1133,6 +1224,9 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   const char *why = NULL;
 +   memset(&info, 0, sizeof(info));
 +   memset(&opts, 0, sizeof(opts));
++   if (consts_desc)
++      fill_constants(mem, bc, size, want == MESA_SHADER_VERTEX ? consts_desc->vs_consts : consts_desc->fs_consts,
++                     want == MESA_SHADER_VERTEX ? consts_desc->num_vs_consts : consts_desc->num_fs_consts, &opts);
 +   nir_shader *nir = air_to_nir(mem, bc, size, entry, &opts, gpu->screen->nir_options[want], &info, &why);
 +   if (!nir || nir->info.stage != want) {
 +      snprintf(error, error_size, "%s: %s", entry,
@@ -1271,8 +1365,8 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +                      size_t error_size)
 +{
 +   struct lapis_gpu_render *r = calloc(1, sizeof(*r));
-+   if (!stage_new(gpu, &r->vs, MESA_SHADER_VERTEX, vs, vs_size, vs_entry, r, desc, error, error_size) ||
-+       !stage_new(gpu, &r->fs, MESA_SHADER_FRAGMENT, fs, fs_size, fs_entry, NULL, NULL, error, error_size)) {
++   if (!stage_new(gpu, &r->vs, MESA_SHADER_VERTEX, vs, vs_size, vs_entry, r, desc, desc, error, error_size) ||
++       !stage_new(gpu, &r->fs, MESA_SHADER_FRAGMENT, fs, fs_size, fs_entry, NULL, NULL, desc, error, error_size)) {
 +      lapis_gpu_render_free(gpu, r);
 +      return NULL;
 +   }

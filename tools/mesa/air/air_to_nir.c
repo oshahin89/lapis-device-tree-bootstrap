@@ -1281,10 +1281,18 @@ air_module_function_constants(void *mem_ctx, const void *bitcode, size_t size,
       *out = rzalloc_array(mem_ctx, struct air_constant_value, n->num_ops);
       for (unsigned i = 0; i < n->num_ops; i++) {
          const struct air_md *node = n->ops[i];
+         const char *name = NULL;   /* lapis: the last string before the index ({ptr, type, name, index, required}) */
          for (unsigned k = 1; k < (node ? node->num_ops : 0); k++) {
+            const char *str = md_str(node, k);
+            if (str) {
+               name = str;
+               continue;
+            }
             uint64_t idx;
             if (md_int(node, k, &idx)) {
-               (*out)[num++].index = idx;
+               (*out)[num].index = idx;
+               (*out)[num].name = name ? ralloc_strdup(mem_ctx, name) : NULL;
+               num++;
                break;
             }
          }
