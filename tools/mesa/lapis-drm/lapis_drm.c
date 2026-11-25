@@ -600,9 +600,35 @@ sync_ops_signal(const struct drm_panthor_obj_array *syncs, struct fence fence)
 
 static pthread_mutex_t submit_lock = PTHREAD_MUTEX_INITIALIZER;
 
+/*
+ * Tracing the next submissions (LapisMetal turns it on when CoreAnimation's
+ * framebuffer pass is set up: the phone dies while backboardd itself waits,
+ * m7u): each said before it goes to the kernel, then whether it completed
+ * within two seconds, with a pause after each line so it reaches the disk.
+ */
+static int trace_left;
+
+__attribute__((visibility("default"))) void lapis_drm_set_trace(int n);
+
+__attribute__((visibility("default"))) void
+lapis_drm_set_trace(int n)
+{
+	__atomic_store_n(&trace_left, n, __ATOMIC_RELAXED);
+}
+
+static bool fence_done(uint32_t group, uint32_t seq, int64_t deadline);
+
 static int
 group_submit(struct drm_panthor_group_submit *gs, size_t size)
 {
+	int traced = __atomic_load_n(&trace_left, __ATOMIC_RELAXED) > 0 ? __atomic_sub_fetch(&trace_left, 1, __ATOMIC_RELAXED) + 1 : 0;
+	if (traced) {
+		const struct drm_panthor_queue_submit *q0 = gs->queue_submits.count ? (const void *)(uintptr_t)gs->queue_submits.array : NULL;
+		lapis_drm_log("lapis-drm: trace: submit on group %u, %u queue submit(s); first stream 0x%llx, %u bytes, %u syncs",
+		    gs->group_handle, gs->queue_submits.count, q0 ? (unsigned long long)q0->stream_addr : 0ull,
+		    q0 ? q0->stream_size : 0, q0 ? q0->syncs.count : 0);
+		usleep(1100000);
+	}
 	for (uint32_t q = 0; q < gs->queue_submits.count; q++) {
 		const struct drm_panthor_queue_submit *qs =
 		    (const void *)((uintptr_t)gs->queue_submits.array + (uint64_t)q * gs->queue_submits.stride);
@@ -626,6 +652,11 @@ group_submit(struct drm_panthor_group_submit *gs, size_t size)
 		const struct drm_panthor_queue_submit *qs =
 		    (const void *)((uintptr_t)gs->queue_submits.array + (uint64_t)q * gs->queue_submits.stride);
 		sync_ops_signal(&qs->syncs, (struct fence){ gs->group_handle, w.seq });
+	}
+	if (traced) {
+		bool done = fence_done(gs->group_handle, w.seq, now_ns() + 2000000000LL);
+		lapis_drm_log("lapis-drm: trace: submission %u %s", w.seq, done ? "completed" : "NOT completed in 2 s");
+		usleep(1100000);
 	}
 	return 0;
 }

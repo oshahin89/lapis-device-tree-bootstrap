@@ -2133,6 +2133,15 @@ cbRenderEncoder(id self, SEL _cmd, MTLRenderPassDescriptor *pass)
 	G.pass_begin(G.gpu, ts.tex, ca.loadAction == MTLLoadActionClear, rgba);
 	if (ts.surface) {
 		checkpoint(7, @"pass on the surface set up (framebuffer bound, clear recorded)");
+		static BOOL traced;
+		if (!traced && getprogname() && strcmp(getprogname(), "backboardd") == 0) {
+			traced = YES;
+			void (*setTrace)(int) = (void (*)(int))dlsym(RTLD_DEFAULT, "lapis_drm_set_trace");
+			say([NSString stringWithFormat:@"tracing the next GPU submissions: %s", setTrace ? "on" : "no lapis_drm_set_trace"]);
+			if (setTrace) {
+				setTrace(10);
+			}
+		}
 	}
 	LapisRenderState *rs = [LapisRenderState new];
 	rs.commandBuffer = self;
