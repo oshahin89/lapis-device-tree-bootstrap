@@ -62,6 +62,9 @@ main(void)
 			IOObjectRelease(acc);
 		}
 		id<MTLDevice> dev = MTLCreateSystemDefaultDevice();
+		id<MTLRenderPipelineState> settledPipe = nil;   /* m6's solid-colour quad, for the settled frames */
+		id<MTLTexture> settledTarget = nil;
+		id<MTLBuffer> settledQuad = nil;
 		say(@"MTLCreateSystemDefaultDevice: %s \"%@\"", dev ? object_getClassName(dev) : "nil", dev ? dev.name : @"");
 		if (dev) {
 			id<MTLCommandQueue> q = [dev newCommandQueue];
@@ -441,6 +444,9 @@ main(void)
 						    @"x=255 %08x (white)", px[128 * 256], px[128 * 256 + 127], px[128 * 256 + 128], px[128 * 256 + 255]);
 					}
 					id<MTLRenderPipelineState> psolid = pipe(@"lapis_solid_fs", NO), pblend = pipe(@"lapis_solid_fs", YES);
+					settledPipe = psolid;
+					settledTarget = rt;
+					settledQuad = qb;
 					static const float red[4] = { 1, 0, 0, 1 }, halfred[4] = { 1, 0, 0, 0.5f };
 					if (psolid && pass(psolid, nil, nil, red, 0, YES)) {
 						unsigned n = 0;
@@ -494,6 +500,30 @@ main(void)
 				}}
 				say(@"settled: 200 command buffers (4 KiB fill each): %u right, %.3f ms each", good,
 				    -[t1 timeIntervalSinceNow] * 1000 / 200);
+				/* 200 frames as an app makes them: a pass that clears, a quad with setFragmentBytes, commit, wait */
+				if (settledPipe && settledTarget && settledQuad) {
+					t1 = [NSDate date];
+					for (unsigned i = 0; i < 200; i++) { @autoreleasepool {
+						MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
+						rpd.colorAttachments[0].texture = settledTarget;
+						rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
+						rpd.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 1, 1);
+						id<MTLCommandBuffer> c = [q commandBuffer];
+						id<MTLRenderCommandEncoder> re = [c renderCommandEncoderWithDescriptor:rpd];
+						float col[4] = { (i & 1) ? 1.0f : 0.0f, 1, 0, 1 };
+						[re setRenderPipelineState:settledPipe];
+						[re setVertexBuffer:settledQuad offset:0 atIndex:1];
+						[re setFragmentBytes:col length:16 atIndex:0];
+						[re drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
+						[re endEncoding];
+						[c commit];
+						[c waitUntilCompleted];
+					}}
+					uint32_t p0 = 0;
+					[settledTarget getBytes:&p0 bytesPerRow:4 fromRegion:MTLRegionMake2D(128, 128, 1, 1) mipmapLevel:0];
+					say(@"settled: 200 frames (clear + quad + setFragmentBytes, 256x256): %.3f ms each; last centre %08x (want ff00ffff)",
+					    -[t1 timeIntervalSinceNow] * 1000 / 200, p0);
+				}
 			}
 		}
 		say(@"done");
