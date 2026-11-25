@@ -275,10 +275,18 @@ deallocPlain(__unsafe_unretained id self, SEL _cmd)
  * run on the CPU.
  */
 /* the same structures as liblapis_gallium's (lapis_target.c); Metal's enums */
+struct lapis_gpu_constant {
+	int32_t index;          /* -1: by name */
+	const char *name;
+	uint64_t bits;
+};
+
 struct lapis_gpu_render_desc {
 	unsigned blend_enabled, rgb_op, alpha_op, src_rgb, dst_rgb, src_alpha, dst_alpha, write_mask;
 	struct { unsigned format, offset, buffer; } attribs[31];
 	struct { unsigned stride, step_function, step_rate; } layouts[31];
+	const struct lapis_gpu_constant *vs_consts, *fs_consts;
+	unsigned num_vs_consts, num_fs_consts;
 };
 
 struct lapis_gpu_draw_args {
@@ -337,6 +345,12 @@ static struct {
 	void (*scissor)(void *, unsigned, unsigned, unsigned, unsigned);
 	void (*blend_color)(void *, const float[4]);
 	int (*draw2)(void *, void *, const struct lapis_gpu_draw_args *);
+	/* m7d: function constants, mipmapped textures, texture copies; optional */
+	void *(*compute_new2)(void *, const void *, size_t, const char *, const struct lapis_gpu_constant *, unsigned, char *,
+	    size_t);
+	void *(*tex_new2)(void *, unsigned, unsigned, unsigned, unsigned);
+	void (*gen_mipmaps)(void *, void *);
+	int (*tex_copy)(void *, void *, unsigned, unsigned, unsigned, void *, unsigned, unsigned, unsigned, unsigned, unsigned);
 } G;
 
 static void *
@@ -385,6 +399,14 @@ gpu(void)
 		G.scissor = dlsym(h, "lapis_gpu_scissor");
 		G.blend_color = dlsym(h, "lapis_gpu_blend_color");
 		G.draw2 = dlsym(h, "lapis_gpu_draw2");
+		G.compute_new2 = dlsym(h, "lapis_gpu_compute_new2");
+		G.tex_new2 = dlsym(h, "lapis_gpu_tex_new2");
+		G.gen_mipmaps = dlsym(h, "lapis_gpu_gen_mipmaps");
+		G.tex_copy = dlsym(h, "lapis_gpu_tex_copy");
+		if (!G.compute_new2 || !G.tex_new2 || !G.gen_mipmaps || !G.tex_copy) {
+			say(@"the GPU library is before m7d: no function constants, mipmaps or texture copies");
+			G.tex_new2 = NULL;
+		}
 		if (!G.render_new2 || !G.sampler_new || !G.sampler_free || !G.viewport || !G.scissor || !G.blend_color ||
 		    !G.draw2) {
 			say(@"the GPU library is before m6: no samplers, textures in shaders, blending or vertex descriptors");
@@ -876,6 +898,7 @@ blitFill(id self, SEL _cmd, id buffer, NSRange range, uint8_t value)
 @end
 
 @interface LapisFnState : NSObject
+@property (nonatomic, strong) NSDictionary *constants;   /* NSNumber index or NSString name -> NSNumber bits */
 @property (nonatomic, strong) LapisLibState *library;
 @property (nonatomic, copy) NSString *name, *label;
 @property (nonatomic) const void *bitcode;
@@ -1001,6 +1024,144 @@ static id libLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisLibState *)sta
 static void libSetLabel(id self, SEL _cmd, NSString *l) { (void)_cmd; ((LapisLibState *)stateOf(self)).label = l; }
 static NSInteger libType(id self, SEL _cmd) { (void)self; (void)_cmd; return 0; /* MTLLibraryTypeExecutable */ }
 
+/*
+ * Function constants: MTLFunctionConstantValues has no way to read its
+ * values back, so what is set on Metal's MTLFunctionConstantValuesInternal is
+ * recorded beside it (setConstantValue:type:atIndex: / withName:, the range
+ * form, copies and reset), as index or name -> the value's bits.
+ */
+static char kConstKey;
+static IMP gCVSetIndex, gCVSetName, gCVSetRange, gCVCopy, gCVReset;
+
+static size_t
+dataTypeSize(NSUInteger t)
+{
+	switch (t) {
+	case 53: case 45: case 49: return 1;                    /* bool, char, uchar */
+	case 54: case 46: case 50: case 37: case 41: case 16: return 2;   /* bool2, char2, uchar2, short, ushort, half */
+	case 55: case 47: case 51: return 3;
+	case 56: case 48: case 52: case 38: case 42: case 17: case 3: case 29: case 33: return 4;
+	case 18: return 6;
+	case 39: case 43: case 19: case 4: case 30: case 34: case 81: case 85: return 8;
+	case 5: case 31: case 35: return 12;
+	case 40: case 44: case 6: case 32: case 36: return 16;
+	default: return 4;
+	}
+}
+
+static NSMutableDictionary *
+constantsOf(id cv, BOOL make)
+{
+	NSMutableDictionary *d = objc_getAssociatedObject(cv, &kConstKey);
+	if (!d && make) {
+		d = [NSMutableDictionary new];
+		objc_setAssociatedObject(cv, &kConstKey, d, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	}
+	return d;
+}
+
+static NSNumber *
+constantBits(const void *value, NSUInteger type)
+{
+	uint64_t bits = 0;
+	size_t n = dataTypeSize(type);
+	memcpy(&bits, value, n < 8 ? n : 8);
+	return @(bits);
+}
+
+static void
+cvSetIndex(id self, SEL _cmd, const void *value, NSUInteger type, NSUInteger index)
+{
+	((void (*)(id, SEL, const void *, NSUInteger, NSUInteger))gCVSetIndex)(self, _cmd, value, type, index);
+	if (value) {
+		constantsOf(self, YES)[@(index)] = constantBits(value, type);
+	}
+}
+
+static void
+cvSetName(id self, SEL _cmd, const void *value, NSUInteger type, NSString *name)
+{
+	((void (*)(id, SEL, const void *, NSUInteger, NSString *))gCVSetName)(self, _cmd, value, type, name);
+	if (value && name) {
+		constantsOf(self, YES)[[name copy]] = constantBits(value, type);
+	}
+}
+
+static void
+cvSetRange(id self, SEL _cmd, const void *values, NSUInteger type, NSRange range)
+{
+	((void (*)(id, SEL, const void *, NSUInteger, NSRange))gCVSetRange)(self, _cmd, values, type, range);
+	size_t n = dataTypeSize(type);
+	for (NSUInteger i = 0; values && i < range.length; i++) {
+		constantsOf(self, YES)[@(range.location + i)] = constantBits((const uint8_t *)values + i * n, type);
+	}
+}
+
+static id
+cvCopy(id self, SEL _cmd, void *zone)
+{
+	id c = ((id (*)(id, SEL, void *))gCVCopy)(self, _cmd, zone);
+	NSMutableDictionary *d = constantsOf(self, NO);
+	if (c && d) {
+		objc_setAssociatedObject(c, &kConstKey, [d mutableCopy], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	}
+	return c;
+}
+
+static void
+cvReset(id self, SEL _cmd)
+{
+	((void (*)(id, SEL))gCVReset)(self, _cmd);
+	[constantsOf(self, NO) removeAllObjects];
+}
+
+static void
+hookConstantValues(void)
+{
+	Class c = objc_getClass("MTLFunctionConstantValuesInternal");
+	if (!c) {
+		say(@"no MTLFunctionConstantValuesInternal: function constants are not seen");
+		return;
+	}
+	struct { const char *sel; IMP imp; IMP *orig; } h[] = {
+		{ "setConstantValue:type:atIndex:", (IMP)cvSetIndex, &gCVSetIndex },
+		{ "setConstantValue:type:withName:", (IMP)cvSetName, &gCVSetName },
+		{ "setConstantValues:type:withRange:", (IMP)cvSetRange, &gCVSetRange },
+		{ "copyWithZone:", (IMP)cvCopy, &gCVCopy },
+		{ "reset", (IMP)cvReset, &gCVReset },
+	};
+	for (unsigned i = 0; i < sizeof(h) / sizeof(h[0]); i++) {
+		Method m = class_getInstanceMethod(c, sel_registerName(h[i].sel));
+		if (m) {
+			*h[i].orig = method_setImplementation(m, h[i].imp);
+		} else {
+			say([NSString stringWithFormat:@"MTLFunctionConstantValuesInternal has no %s", h[i].sel]);
+		}
+	}
+}
+
+/* a function's constants as liblapis_gallium wants them (pointers valid while CONSTANTS lives) */
+static unsigned
+constantsArray(NSDictionary *constants, struct lapis_gpu_constant *out, unsigned max)
+{
+	unsigned n = 0;
+	for (id key in constants) {
+		if (n == max) {
+			break;
+		}
+		out[n].bits = [constants[key] unsignedLongLongValue];
+		if ([key isKindOfClass:[NSNumber class]]) {
+			out[n].index = [key intValue];
+			out[n].name = NULL;
+		} else {
+			out[n].index = -1;
+			out[n].name = [key UTF8String];
+		}
+		n++;
+	}
+	return n;
+}
+
 static id
 libNewFunction(id self, SEL _cmd, NSString *name)
 {
@@ -1024,12 +1185,44 @@ static id
 libNewFunctionError(id self, SEL _cmd, NSString *name, id constants, NSError **error)
 {
 	(void)_cmd;
-	(void)constants;
 	id f = libNewFunction(self, sel_registerName("newFunctionWithName:"), name);
 	if (!f && error) {
 		*error = metalError(MTLLibraryErrorDomain, MTLLibraryErrorFunctionNotFound, @"no such function");
 	}
+	if (f && constants) {
+		((LapisFnState *)stateOf(f)).constants = [constantsOf(constants, NO) copy];
+	}
 	return f;
+}
+
+/* MTLFunctionDescriptor: name and constant values (CoreAnimation: newFunctionWithDescriptor:destinationArchive:error:) */
+static id
+libNewFunctionDesc(id self, SEL _cmd, MTLFunctionDescriptor *d, NSError **error)
+{
+	return libNewFunctionError(self, _cmd, d.name, d.constantValues, error);
+}
+
+static id
+libNewFunctionDescArchive(id self, SEL _cmd, MTLFunctionDescriptor *d, id archive, NSError **error)
+{
+	(void)archive;
+	return libNewFunctionError(self, _cmd, d.name, d.constantValues, error);
+}
+
+static void
+libNewFunctionAsync(id self, SEL _cmd, NSString *name, id constants, void (^done)(id, NSError *))
+{
+	NSError *e = nil;
+	id f = libNewFunctionError(self, _cmd, name, constants, &e);
+	if (done) {
+		done(f, e);
+	}
+}
+
+static void
+libNewFunctionDescAsync(id self, SEL _cmd, MTLFunctionDescriptor *d, void (^done)(id, NSError *))
+{
+	libNewFunctionAsync(self, _cmd, d.name, d.constantValues, done);
 }
 
 static id fnName(id self, SEL _cmd) { (void)_cmd; return ((LapisFnState *)stateOf(self)).name; }
@@ -1052,7 +1245,10 @@ deviceNewComputePipeline(id self, SEL _cmd, id function, NSError **error)
 	}
 	char why[512] = "";
 	uint64_t t0 = nowNs();
-	void *c = G.compute_new(G.gpu, fn.bitcode, fn.bitcodeSize, fn.name.UTF8String, why, sizeof(why));
+	struct lapis_gpu_constant consts[64];
+	unsigned nconsts = constantsArray(fn.constants, consts, 64);
+	void *c = G.tex_new2 ? G.compute_new2(G.gpu, fn.bitcode, fn.bitcodeSize, fn.name.UTF8String, consts, nconsts, why, sizeof(why))
+	                     : G.compute_new(G.gpu, fn.bitcode, fn.bitcodeSize, fn.name.UTF8String, why, sizeof(why));
 	if (!c) {
 		if (error) {
 			*error = metalError(@"CompilerError", 2, [NSString stringWithFormat:@"%@: %s", fn.name, why]);
@@ -1248,11 +1444,14 @@ registerComputeClasses(Class device)
 	gLibraryClass = computeSubclass("_MTLLibrary", "LapisMetalLibrary", @protocol(MTLLibrary));
 	{
 		const char *s[] = { "functionNames", "label", "setLabel:", "type", "newFunctionWithName:",
-		    "newFunctionWithName:constantValues:error:" };
+		    "newFunctionWithName:constantValues:error:", "newFunctionWithDescriptor:error:",
+		    "newFunctionWithDescriptor:destinationArchive:error:", "newFunctionWithName:constantValues:completionHandler:",
+		    "newFunctionWithDescriptor:completionHandler:" };
 		IMP i[] = { (IMP)libNames, (IMP)libLabel, (IMP)libSetLabel, (IMP)libType, (IMP)libNewFunction,
-		    (IMP)libNewFunctionError };
-		const char *t[] = { "@@:", "@@:", "v@:@", "q@:", "@@:@", "@@:@@^@" };
-		addMethods(gLibraryClass, s, i, t, 6);
+		    (IMP)libNewFunctionError, (IMP)libNewFunctionDesc, (IMP)libNewFunctionDescArchive, (IMP)libNewFunctionAsync,
+		    (IMP)libNewFunctionDescAsync };
+		const char *t[] = { "@@:", "@@:", "v@:@", "q@:", "@@:@", "@@:@@^@", "@@:@^@", "@@:@@^@", "v@:@@@?", "v@:@@?" };
+		addMethods(gLibraryClass, s, i, t, 10);
 	}
 	objc_registerClassPair(gLibraryClass);
 
@@ -1315,7 +1514,7 @@ registerComputeClasses(Class device)
  */
 @interface LapisTexState : NSObject
 @property (nonatomic) void *tex;
-@property (nonatomic) NSUInteger width, height, pixelFormat, usage, storageMode;
+@property (nonatomic) NSUInteger width, height, pixelFormat, usage, storageMode, levels;
 @property (nonatomic, copy) NSString *label;
 @property (nonatomic) IOSurfaceRef surface;     /* an IOSurface texture's surface (retained), or NULL */
 @property (nonatomic) NSUInteger plane;
@@ -1439,12 +1638,14 @@ deviceNewTexture(id self, SEL _cmd, MTLTextureDescriptor *d)
 		say(@"newTextureWithDescriptor: no render interface");
 		return nil;
 	}
-	if (d.textureType != MTLTextureType2D || d.mipmapLevelCount > 1 || d.sampleCount > 1 || d.arrayLength > 1) {
-		say([NSString stringWithFormat:@"newTextureWithDescriptor: only plain 2D textures yet (type %lu, %lu levels)",
-		    (unsigned long)d.textureType, (unsigned long)d.mipmapLevelCount]);
+	NSUInteger levels = d.mipmapLevelCount ? d.mipmapLevelCount : 1;
+	if (d.textureType != MTLTextureType2D || (levels > 1 && !G.tex_new2) || d.sampleCount > 1 || d.arrayLength > 1) {
+		say([NSString stringWithFormat:@"newTextureWithDescriptor: only 2D textures yet (type %lu, %lu levels, %lu samples)",
+		    (unsigned long)d.textureType, (unsigned long)levels, (unsigned long)d.sampleCount]);
 		return nil;
 	}
-	void *t = G.tex_new(G.gpu, (unsigned)d.width, (unsigned)d.height, (unsigned)d.pixelFormat);
+	void *t = G.tex_new2 ? G.tex_new2(G.gpu, (unsigned)d.width, (unsigned)d.height, (unsigned)d.pixelFormat, (unsigned)levels)
+	                     : G.tex_new(G.gpu, (unsigned)d.width, (unsigned)d.height, (unsigned)d.pixelFormat);
 	if (!t) {
 		say([NSString stringWithFormat:@"newTextureWithDescriptor: %lux%lu format %lu refused", (unsigned long)d.width,
 		    (unsigned long)d.height, (unsigned long)d.pixelFormat]);
@@ -1457,6 +1658,7 @@ deviceNewTexture(id self, SEL _cmd, MTLTextureDescriptor *d)
 	st.pixelFormat = d.pixelFormat;
 	st.usage = d.usage;
 	st.storageMode = d.storageMode;
+	st.levels = levels;
 	return plainNew(gTextureClass, st);
 }
 
@@ -1492,6 +1694,7 @@ static NSUInteger texPlane(id self, SEL _cmd) { (void)_cmd; return texState(self
 
 static NSUInteger texWidth(id self, SEL _cmd) { (void)_cmd; return texState(self).width; }
 static NSUInteger texHeight(id self, SEL _cmd) { (void)_cmd; return texState(self).height; }
+static NSUInteger texLevels(id self, SEL _cmd) { (void)_cmd; return texState(self).levels ? texState(self).levels : 1; }
 static NSUInteger texOne(id self, SEL _cmd) { (void)self; (void)_cmd; return 1; }
 static NSUInteger texZero(id self, SEL _cmd) { (void)self; (void)_cmd; return 0; }
 static NSUInteger texFormat(id self, SEL _cmd) { (void)_cmd; return texState(self).pixelFormat; }
@@ -1556,6 +1759,13 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 		desc.layouts[i].stride = (unsigned)vd.layouts[i].stride;
 		desc.layouts[i].step_function = (unsigned)vd.layouts[i].stepFunction;
 		desc.layouts[i].step_rate = (unsigned)vd.layouts[i].stepRate;
+	}
+	struct lapis_gpu_constant vconsts[64], fconsts[64];
+	if (G.tex_new2) {
+		desc.num_vs_consts = constantsArray(vs.constants, vconsts, 64);
+		desc.num_fs_consts = constantsArray(fs.constants, fconsts, 64);
+		desc.vs_consts = vconsts;
+		desc.fs_consts = fconsts;
 	}
 	void *r = G.draw2 ? G.render_new2(G.gpu, vs.bitcode, vs.bitcodeSize, vs.name.UTF8String, fs.bitcode, fs.bitcodeSize,
 	    fs.name.UTF8String, &desc, why, sizeof(why))
@@ -1949,9 +2159,87 @@ static id dsLabel(id self, SEL _cmd) { (void)_cmd; return ((LapisDSState *)state
 static void reNothing1(id self, SEL _cmd, id a) { (void)self; (void)_cmd; (void)a; }
 static void reNothingU(id self, SEL _cmd, uint32_t a) { (void)self; (void)_cmd; (void)a; }
 
+/* texture blits (CoreAnimation: copyFromTexture:..., generateMipmapsForTexture:) */
+static LapisCBState *
+blitCB(id encoder)
+{
+	return stateOf(((LapisEncState *)stateOf(encoder)).commandBuffer);
+}
+
+static void
+blitMarkDrawn(id encoder, LapisTexState *t)
+{
+	if (!t.surface) {
+		return;
+	}
+	LapisCBState *cb = blitCB(encoder);
+	if (!cb.drawnSurfaces) {
+		cb.drawnSurfaces = [NSMutableArray new];
+	}
+	if (![cb.drawnSurfaces containsObject:t]) {
+		[cb.drawnSurfaces addObject:t];
+	}
+}
+
+static void
+blitGenMipmaps(id self, SEL _cmd, id tex)
+{
+	(void)_cmd;
+	LapisTexState *t = texState(tex);
+	if (!t.tex || !G.gen_mipmaps) {
+		return;
+	}
+	surfaceIn(t);
+	[blitCB(self).keep addObject:tex];
+	G.gen_mipmaps(G.gpu, t.tex);
+}
+
+static void
+blitTexCopy(id self, SEL _cmd, id src, NSUInteger sslice, NSUInteger slevel, MTLOrigin so, MTLSize size, id dst,
+    NSUInteger dslice, NSUInteger dlevel, MTLOrigin dor)
+{
+	(void)_cmd;
+	LapisTexState *s1 = texState(src), *d1 = texState(dst);
+	if (!s1.tex || !d1.tex || !G.tex_copy || sslice || dslice) {
+		say(@"refused: a texture copy (no texture, an array slice, or no copy interface)");
+		return;
+	}
+	surfaceIn(s1);
+	LapisCBState *cb = blitCB(self);
+	[cb.keep addObject:src];
+	[cb.keep addObject:dst];
+	if (G.tex_copy(G.gpu, d1.tex, (unsigned)dlevel, (unsigned)dor.x, (unsigned)dor.y, s1.tex, (unsigned)slevel,
+	        (unsigned)so.x, (unsigned)so.y, (unsigned)size.width, (unsigned)size.height) != 0) {
+		say(@"refused: a texture copy past a texture's levels");
+		return;
+	}
+	blitMarkDrawn(self, d1);
+}
+
+static void
+blitTexCopyAll(id self, SEL _cmd, id src, id dst)
+{
+	LapisTexState *s1 = texState(src);
+	blitTexCopy(self, _cmd, src, 0, 0, MTLOriginMake(0, 0, 0), MTLSizeMake(s1.width, s1.height, 1), dst, 0, 0,
+	    MTLOriginMake(0, 0, 0));
+}
+
+static BOOL queueYes(id self, SEL _cmd, NSUInteger a) { (void)self; (void)_cmd; (void)a; return YES; }
+
 static void
 registerRenderClasses(Class device)
 {
+	if (gBlitClass) {
+		class_addMethod(gBlitClass, sel_registerName("generateMipmapsForTexture:"), (IMP)blitGenMipmaps, "v@:@");
+		class_addMethod(gBlitClass,
+		    sel_registerName("copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toTexture:destinationSlice:"
+		                     "destinationLevel:destinationOrigin:"),
+		    (IMP)blitTexCopy, "v@:@QQ{?=QQQ}{?=QQQ}@QQ{?=QQQ}");
+		class_addMethod(gBlitClass, sel_registerName("copyFromTexture:toTexture:"), (IMP)blitTexCopyAll, "v@:@@");
+	}
+	if (gQueueClass) {
+		class_addMethod(gQueueClass, sel_registerName("setGPUPriority:"), (IMP)queueYes, "B@:Q");
+	}
 	class_addMethod(device, sel_registerName("respondsToSelector:"), (IMP)deviceResponds, "B@::");
 	gDSClass = computeSubclass("_MTLDepthStencilState", "LapisMetalDepthStencilState", @protocol(MTLDepthStencilState));
 	class_addMethod(gDSClass, sel_registerName("label"), (IMP)dsLabel, "@@:");
@@ -1965,7 +2253,7 @@ registerRenderClasses(Class device)
 		    "textureType", "usage", "storageMode", "label", "setLabel:", "isFramebufferOnly", "allowGPUOptimizedContents",
 		    "getBytes:bytesPerRow:fromRegion:mipmapLevel:", "replaceRegion:mipmapLevel:withBytes:bytesPerRow:",
 		    "firstMipmapInTail", "isShareable", "parentTexture", "buffer", "iosurface", "iosurfacePlane" };
-		IMP i[] = { (IMP)texWidth, (IMP)texHeight, (IMP)texOne, (IMP)texOne, (IMP)texOne, (IMP)texOne, (IMP)texFormat,
+		IMP i[] = { (IMP)texWidth, (IMP)texHeight, (IMP)texOne, (IMP)texLevels, (IMP)texOne, (IMP)texOne, (IMP)texFormat,
 		    (IMP)texType, (IMP)texUsage, (IMP)texStorage, (IMP)texLabel, (IMP)texSetLabel, (IMP)texNo, (IMP)texNo,
 		    (IMP)texGetBytes, (IMP)texReplace, (IMP)texZero, (IMP)texNo, (IMP)texZero, (IMP)texZero, (IMP)texSurface,
 		    (IMP)texPlane };
@@ -2207,6 +2495,7 @@ registerClasses(void)
 		class_addMethod(gQueueClass, sel_registerName("forwardInvocation:"), (IMP)stubForward, "v@:@");
 		objc_registerClassPair(gQueueClass);
 	}
+	hookConstantValues();
 	registerBufferClass(device);
 	registerCommandClasses();
 	registerComputeClasses(device);
