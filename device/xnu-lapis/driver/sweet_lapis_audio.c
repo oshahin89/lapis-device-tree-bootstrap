@@ -20,6 +20,11 @@
 #include <kern/sched_prim.h>
 #include <machine/machine_routines.h>
 #include <pexpert/pexpert.h>
+#include <miscfs/devfs/devfs.h>
+#include <sys/conf.h>
+#include <sys/errno.h>
+#include <sys/proc.h>
+#include <sys/uio.h>
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern kern_return_t thread_terminate(thread_t);
@@ -64,6 +69,62 @@ static const int16_t au_tone[48] = {
 static vm_offset_t au_gpio, au_topck, au_apmix, au_afe, au_ring, au_i2c;
 static unsigned au_errors;
 static int au_sleep_chan;
+
+/* Opt-in PCM ingress probe. It consumes samples without touching the amps.
+ * The bounded stack buffer keeps this safe to exercise before streaming exists. */
+static uint64_t au_probe_frames, au_probe_nonzero;
+
+static int
+au_probe_open(dev_t dev __unused, int flags __unused, int type __unused, struct proc *p __unused)
+{
+	return 0;
+}
+
+static int
+au_probe_close(dev_t dev __unused, int flags __unused, int type __unused, struct proc *p __unused)
+{
+	printf("LAPIS AUDIO PROBE: total frames %llu, nonzero samples %llu (not played)\n",
+	    (unsigned long long)au_probe_frames, (unsigned long long)au_probe_nonzero);
+	return 0;
+}
+
+static int
+au_probe_write(dev_t dev __unused, struct uio *uio, int flags __unused)
+{
+	int16_t samples[512];
+	if (uio_resid(uio) % 4 != 0) return EINVAL;
+	while (uio_resid(uio) > 0) {
+		user_ssize_t bytes = uio_resid(uio);
+		if (bytes > (user_ssize_t)sizeof(samples)) bytes = sizeof(samples);
+		int error = uiomove((caddr_t)samples, (int)bytes, uio);
+		if (error) return error;
+		uint64_t nonzero = 0;
+		for (unsigned i = 0; i < (unsigned)bytes / sizeof(samples[0]); i++) nonzero += samples[i] != 0;
+		__sync_fetch_and_add(&au_probe_frames, (uint64_t)bytes / 4);
+		__sync_fetch_and_add(&au_probe_nonzero, nonzero);
+	}
+	return 0;
+}
+
+static const struct cdevsw au_probe_cdev = {
+	.d_open = au_probe_open, .d_close = au_probe_close, .d_read = eno_rdwrt, .d_write = au_probe_write,
+	.d_ioctl = eno_ioctl, .d_stop = eno_stop, .d_reset = eno_reset, .d_select = eno_select,
+	.d_mmap = eno_mmap, .d_strategy = eno_strat, .d_type = 0
+};
+
+static void
+au_probe_init(void)
+{
+	int enabled = 0;
+	(void)PE_parse_boot_argn("lapisaudioprobe", &enabled, sizeof(enabled));
+	if (!enabled) return;
+	int major = cdevsw_add(-1, &au_probe_cdev);
+	if (major < 0 || !devfs_make_node(makedev(major, 0), DEVFS_CHAR, UID_ROOT, GID_WHEEL, 0600, "lapis-audio-probe")) {
+		printf("LAPIS AUDIO PROBE: device creation failed\n");
+		return;
+	}
+	printf("LAPIS AUDIO PROBE: /dev/lapis-audio-probe accepts stereo 48kHz s16le; samples not played\n");
+}
 
 static uint32_t
 au_rd(vm_offset_t base, uint32_t off)
@@ -320,6 +381,7 @@ sweet_lapis_audio_init(void)
 		return;
 	}
 	started = true;
+	au_probe_init();
 	(void)PE_parse_boot_argn("lapisaudio", &enabled, sizeof(enabled));
 	if (!enabled) {
 		printf("LAPIS AUDIO: disabled (lapisaudio=0)\n");
