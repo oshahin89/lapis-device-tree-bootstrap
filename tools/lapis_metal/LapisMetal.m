@@ -2172,6 +2172,16 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 		desc.vs_consts = vconsts;
 		desc.fs_consts = fconsts;
 	}
+	/* Identify repeated shader specializations before attempting to cache them. */
+	static unsigned pipelineDiagnostics;
+	if (pipelineDiagnostics++ < 100 && [fs.name hasPrefix:@"fixed_frag"]) {
+		NSUInteger vhash = [[NSData dataWithBytes:vs.bitcode length:vs.bitcodeSize] hash];
+		NSUInteger fhash = [[NSData dataWithBytes:fs.bitcode length:fs.bitcodeSize] hash];
+		NSUInteger dhash = [[NSData dataWithBytes:&desc length:offsetof(struct lapis_gpu_render_desc, vs_consts)] hash];
+		say([NSString stringWithFormat:@"pipeline keys: vertex %lx fragment %lx descriptor %lx constants %lx/%lx",
+		    (unsigned long)vhash, (unsigned long)fhash, (unsigned long)dhash,
+		    (unsigned long)vs.constants.hash, (unsigned long)fs.constants.hash]);
+	}
 	void *r = G.draw2 ? G.render_new2(G.gpu, vs.bitcode, vs.bitcodeSize, vs.name.UTF8String, fs.bitcode, fs.bitcodeSize,
 	    fs.name.UTF8String, &desc, why, sizeof(why))
 	                  : G.render_new(G.gpu, vs.bitcode, vs.bitcodeSize, vs.name.UTF8String, fs.bitcode,
