@@ -1842,15 +1842,33 @@ static void
 logNIRSummary(NSString *name, char *text)
 {
 	unsigned lineNo = 0, uboLines = 0, outputLines = 0;
+	char *previous[16] = { 0 };
+	unsigned prevCount = 0, prevNext = 0, afterUBO6 = 0;
 	char *line = text;
 	while (line && *line) {
 		char *end = strchr(line, '\n');
 		if (end) *end = '\0';
 		BOOL ubo = strstr(line, "load_ubo") != NULL;
 		BOOL output = strstr(line, "load_output") || strstr(line, "store_output") || strstr(line, "store_deref");
+		if (afterUBO6) {
+			say([NSString stringWithFormat:@"NIR %@ UBO6 context line %u: %s", name, lineNo, line]);
+			afterUBO6--;
+		}
 		if (lineNo < 12 || (ubo && uboLines < 160) || (output && outputLines < 48)) {
 			say([NSString stringWithFormat:@"NIR %@ line %u: %s", name, lineNo, line]);
 		}
+		if (ubo && strstr(line, "(0x6)")) {
+			unsigned first = (prevNext + 16 - prevCount) % 16;
+			for (unsigned i = 0; i < prevCount; i++) {
+				char *ctx = previous[(first + i) % 16];
+				if (ctx) say([NSString stringWithFormat:@"NIR %@ UBO6 context line %u: %s", name, lineNo - prevCount + i, ctx]);
+			}
+			say([NSString stringWithFormat:@"NIR %@ UBO6 context line %u: %s", name, lineNo, line]);
+			afterUBO6 = 12;
+		}
+		previous[prevNext] = line;
+		prevNext = (prevNext + 1) % 16;
+		if (prevCount < 16) prevCount++;
 		if (ubo) uboLines++;
 		if (output) outputLines++;
 		lineNo++;
