@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1780 @@
+@@ -0,0 +1,1783 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -1465,7 +1465,10 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      }
 +      r->velems.count = n;
 +   }
-+   {
++   static unsigned fixed_nir_dumped[2];
++   bool dump_nir = !strstr(entry, "fixed_") ||
++                   __sync_fetch_and_add(&fixed_nir_dumped[want == MESA_SHADER_FRAGMENT], 1) == 0;
++   if (dump_nir) {
 +      char *text = NULL;
 +      size_t len = 0;
 +      FILE *f = open_memstream(&text, &len);
