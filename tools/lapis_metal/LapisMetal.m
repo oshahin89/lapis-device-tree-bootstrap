@@ -1811,13 +1811,13 @@ xrSurfaceOut(LapisTexState *t, void *base, size_t stride)
 			for (size_t x = 0; x < w; x++) {
 				uint8_t *p = row + x * 4;
 				p[0] = colored ? 255 : 0;
-				p[1] = 0;
-				p[2] = colored ? 0 : 255;
+				p[1] = 255;
+				p[2] = colored ? 255 : 0;
 				p[3] = 255;
 			}
 		}
 		say([NSString stringWithFormat:@"DISPLAY TEST: copy %u is %@ based on GPU pixel count",
-		    diagnosticCopies + 1, colored ? @"blue (non-black)" : @"red (all black)"]);
+		    diagnosticCopies + 1, colored ? @"white (non-black)" : @"green (all black)"]);
 		diagnosticCopies++;
 	}
 	free(tmp);
