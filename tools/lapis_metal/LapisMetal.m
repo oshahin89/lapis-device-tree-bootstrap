@@ -1892,6 +1892,24 @@ surfaceIn(LapisTexState *t)
 	if (base && !xrSurfaceIn(t, base, stride)) {
 		G.tex_write(G.gpu, t.tex, 0, 0, (unsigned)t.width, (unsigned)t.height, base, stride);
 	}
+	static unsigned diagnosticInputs;
+	if (base && diagnosticInputs < 6 && isXR(t.pixelFormat) && surfBpe(t.surface, t.plane) == 4) {
+		uint64_t colored = 0;
+		for (size_t y = 0; y < t.height; y++) {
+			const uint8_t *row = (const uint8_t *)base + y * stride;
+			for (size_t x = 0; x < t.width; x++) {
+				const uint8_t *p = row + x * 4;
+				colored += p[0] || p[1] || p[2];
+			}
+		}
+		const uint8_t *first = base;
+		const uint8_t *center = (const uint8_t *)base + (t.height / 2) * stride + (t.width / 2) * 4;
+		say([NSString stringWithFormat:@"XR surface input %u %lux%lu stride %lu: colored %llu/%llu pixels; first BGRA %02x%02x%02x%02x center BGRA %02x%02x%02x%02x",
+		    diagnosticInputs + 1, (unsigned long)t.width, (unsigned long)t.height, (unsigned long)stride,
+		    (unsigned long long)colored, (unsigned long long)(t.width * t.height),
+		    first[0], first[1], first[2], first[3], center[0], center[1], center[2], center[3]]);
+		diagnosticInputs++;
+	}
 	IOSurfaceUnlock(t.surface, kIOSurfaceLockReadOnly, NULL);
 	t.seed = IOSurfaceGetSeed(t.surface);
 }
