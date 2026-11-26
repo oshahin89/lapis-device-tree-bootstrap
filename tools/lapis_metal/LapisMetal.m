@@ -2176,14 +2176,15 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	static NSMutableDictionary *pipelineCache;
 	static dispatch_once_t pipelineCacheOnce;
 	dispatch_once(&pipelineCacheOnce, ^{ pipelineCache = [NSMutableDictionary new]; });
-	NSArray *pipelineKey = @[
+	BOOL cachePipeline = [fs.name hasPrefix:@"fixed_frag"];
+	NSArray *pipelineKey = cachePipeline ? @[
 		[NSData dataWithBytes:vs.bitcode length:vs.bitcodeSize], vs.name,
 		[NSData dataWithBytes:fs.bitcode length:fs.bitcodeSize], fs.name,
 		[NSData dataWithBytes:&desc length:offsetof(struct lapis_gpu_render_desc, vs_consts)],
 		vs.constants ?: @{}, fs.constants ?: @{}
-	];
+	] : nil;
 	@synchronized (pipelineCache) {
-		LapisRenderPipeState *cached = pipelineCache[pipelineKey];
+		LapisRenderPipeState *cached = pipelineKey ? pipelineCache[pipelineKey] : nil;
 		if (cached) {
 			static unsigned hits;
 			if (hits++ < 20) say(@"render pipeline cache hit");
@@ -2249,7 +2250,7 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	st.render = r;
 	st.label = [NSString stringWithFormat:@"%@ + %@", vs.name, fs.name];
 	@synchronized (pipelineCache) {
-		if (pipelineCache.count < 64 && !pipelineCache[pipelineKey]) pipelineCache[pipelineKey] = st;
+		if (pipelineKey && pipelineCache.count < 128 && !pipelineCache[pipelineKey]) pipelineCache[pipelineKey] = st;
 	}
 	return plainNew(gRenderPipelineClass, st);
 }
