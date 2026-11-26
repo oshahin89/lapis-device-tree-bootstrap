@@ -24,6 +24,7 @@
 #include <miscfs/devfs/devfs.h>
 #include <sys/conf.h>
 #include <sys/errno.h>
+#include <sys/ioccom.h>
 #include <sys/proc.h>
 #include <sys/uio.h>
 #include "lapis_audio_queue.h"
@@ -83,6 +84,11 @@ static lck_grp_t *au_stream_group;
 static lck_mtx_t *au_stream_lock;
 static int au_stream_enabled;
 static uint64_t au_stream_accepted, au_stream_dropped;
+
+/* The HakiOS HAL contract, in a discard-only compatibility probe. */
+struct au_hal_volume { uint32_t below; uint32_t muted; };
+#define AU_HAL_SET_VOLUME _IOW('r', 1, struct au_hal_volume)
+static uint32_t au_hal_below, au_hal_muted = 1;
 
 static int
 au_probe_open(dev_t dev __unused, int flags __unused, int type __unused, struct proc *p __unused)
@@ -144,12 +150,41 @@ static const struct cdevsw au_probe_cdev = {
 	.d_mmap = eno_mmap, .d_strategy = eno_strat, .d_type = 0
 };
 
+static int
+au_hal_ioctl(dev_t dev __unused, u_long command, caddr_t data, int flags __unused, struct proc *p __unused)
+{
+	if (command != AU_HAL_SET_VOLUME) return ENOTTY;
+	const struct au_hal_volume *volume = (const struct au_hal_volume *)data;
+	if (volume->below > 960) return EINVAL;
+	__atomic_store_n(&au_hal_below, volume->below, __ATOMIC_RELAXED);
+	__atomic_store_n(&au_hal_muted, volume->muted != 0, __ATOMIC_RELAXED);
+	printf("LAPIS HAL PROBE: volume below %u eighth-dB muted %u (discard only)\n",
+	    volume->below, volume->muted != 0);
+	return 0;
+}
+
+static const struct cdevsw au_hal_cdev = {
+	.d_open = au_probe_open, .d_close = au_probe_close, .d_read = eno_rdwrt, .d_write = au_probe_write,
+	.d_ioctl = au_hal_ioctl, .d_stop = eno_stop, .d_reset = eno_reset, .d_select = eno_select,
+	.d_mmap = eno_mmap, .d_strategy = eno_strat, .d_type = 0
+};
+
 static void
 au_probe_init(void)
 {
 	int enabled = 0;
+	int hal_probe = 0;
 	(void)PE_parse_boot_argn("lapisaudioprobe", &enabled, sizeof(enabled));
+	(void)PE_parse_boot_argn("lapisaudiohalprobe", &hal_probe, sizeof(hal_probe));
 	(void)PE_parse_boot_argn("lapisaudiostream", &au_stream_enabled, sizeof(au_stream_enabled));
+	/* Never expose a discard probe as a real speaker while the amp is running. */
+	if (hal_probe) au_stream_enabled = 0;
+	if (hal_probe) {
+		int major = cdevsw_add(-1, &au_hal_cdev);
+		if (major < 0 || !devfs_make_node(makedev(major, 0), DEVFS_CHAR, UID_ROOT, GID_WHEEL, 0666, "hakios-audio"))
+			printf("LAPIS HAL PROBE: device creation failed\n");
+		else printf("LAPIS HAL PROBE: /dev/hakios-audio ready, PCM discarded\n");
+	}
 	if (!enabled) { au_stream_enabled = 0; return; }
 	if (au_stream_enabled) {
 		au_stream_group = lck_grp_alloc_init("lapis-audio-stream", LCK_GRP_ATTR_NULL);
