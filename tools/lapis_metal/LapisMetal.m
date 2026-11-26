@@ -2172,6 +2172,24 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 		desc.vs_consts = vconsts;
 		desc.fs_consts = fconsts;
 	}
+	/* Keep a bounded cache keyed by the full inputs, not their diagnostic hashes. */
+	static NSMutableDictionary *pipelineCache;
+	static dispatch_once_t pipelineCacheOnce;
+	dispatch_once(&pipelineCacheOnce, ^{ pipelineCache = [NSMutableDictionary new]; });
+	NSArray *pipelineKey = @[
+		[NSData dataWithBytes:vs.bitcode length:vs.bitcodeSize], vs.name,
+		[NSData dataWithBytes:fs.bitcode length:fs.bitcodeSize], fs.name,
+		[NSData dataWithBytes:&desc length:offsetof(struct lapis_gpu_render_desc, vs_consts)],
+		vs.constants ?: @{}, fs.constants ?: @{}
+	];
+	@synchronized (pipelineCache) {
+		LapisRenderPipeState *cached = pipelineCache[pipelineKey];
+		if (cached) {
+			static unsigned hits;
+			if (hits++ < 20) say(@"render pipeline cache hit");
+			return plainNew(gRenderPipelineClass, cached);
+		}
+	}
 	/* Identify repeated shader specializations before attempting to cache them. */
 	static unsigned pipelineDiagnostics;
 	if (pipelineDiagnostics++ < 100 && [fs.name hasPrefix:@"fixed_frag"]) {
@@ -2230,6 +2248,9 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	LapisRenderPipeState *st = [LapisRenderPipeState new];
 	st.render = r;
 	st.label = [NSString stringWithFormat:@"%@ + %@", vs.name, fs.name];
+	@synchronized (pipelineCache) {
+		if (pipelineCache.count < 64 && !pipelineCache[pipelineKey]) pipelineCache[pipelineKey] = st;
+	}
 	return plainNew(gRenderPipelineClass, st);
 }
 
