@@ -1698,7 +1698,7 @@ registerComputeClasses(Class device)
 @property (nonatomic) NSUInteger plane;
 @property (nonatomic) uint32_t seed;            /* the surface's seed the GPU copy matches */
 @property (nonatomic, strong) id linearSource;  /* a texture over a buffer: the buffer, copied in at each use */
-@property (nonatomic) NSUInteger linearOffset, linearStride;
+@property (nonatomic) NSUInteger linearOffset, linearStride, linearBytesPerImage;
 @end
 @implementation LapisTexState
 - (void)dealloc
@@ -1843,7 +1843,8 @@ linearIn(LapisTexState *t)
 		return;
 	}
 	struct lapis_buffer *b = bufferState(t.linearSource);
-	if (t.linearOffset + t.linearStride * (t.height ? t.height - 1 : 0) >= b->length) {
+	if (!b || !b->memory || !t.width || !t.height || t.linearOffset > b->length ||
+	    t.linearBytesPerImage > b->length - t.linearOffset) {
 		return;
 	}
 	G.tex_write(G.gpu, t.tex, 0, 0, (unsigned)t.width, (unsigned)t.height, (uint8_t *)b->memory + t.linearOffset, t.linearStride);
@@ -2368,11 +2369,13 @@ reDrawFull(id self, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInte
 		r = -1;
 	}
 	if (r != 0) {
-		/* (-(1000+i): a buffer, -(2000+i): a texture, -(3000+i): a sampler; +10000: the fragment stage's) */
+		/* (-(1000+i): device buffer, -(4000+i): constant buffer, -(2000+i): texture,
+		 * -(3000+i): sampler; +10000: the fragment stage's) */
 		int code = -r;
 		NSString *what = code == 1 ? @"a vertex buffer of the vertex descriptor, the index buffer, or a primitive type past 4"
 		    : [NSString stringWithFormat:@"%s %s %d", code >= 10000 ? "fragment" : "vertex",
-		        (code % 10000) >= 3000 ? "sampler" : (code % 10000) >= 2000 ? "texture" : "buffer", code % 1000];
+		        (code % 10000) >= 4000 ? "constant buffer" : (code % 10000) >= 3000 ? "sampler"
+		        : (code % 10000) >= 2000 ? "texture" : "buffer", code % 1000];
 		static NSMutableSet *said;
 		@synchronized([LapisRenderState class]) {
 			if (!said) {
@@ -2380,6 +2383,12 @@ reDrawFull(id self, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInte
 			}
 			if (![said containsObject:what]) {
 				[said addObject:what];
+				NSMutableString *bound = [NSMutableString stringWithString:@"draw bindings:"];
+				for (unsigned i = 0; i < LAPIS_MAX_BINDINGS; i++) {
+					if (rs->vbufs[i]) [bound appendFormat:@" v%u", i];
+					if (rs->fbufs[i]) [bound appendFormat:@" f%u", i];
+				}
+				say(bound);
 				say([@"refused a draw: not bound: " stringByAppendingString:what]);
 			}
 		}
@@ -2681,11 +2690,91 @@ blitTexCopyAll(id self, SEL _cmd, id src, id dst)
 
 static BOOL queueYes(id self, SEL _cmd, NSUInteger a) { (void)self; (void)_cmd; (void)a; return YES; }
 
-/* -[MTLBuffer newLinearTextureWithDescriptor:offset:bytesPerRow:]: a texture of its own, the buffer's bytes copied in at each use */
+static NSUInteger
+linearTextureMinimumBytesPerImage(MTLTextureDescriptor *d, NSUInteger stride)
+{
+	/* The formats used by CoreAnimation are uncompressed and have fixed pixel sizes. */
+	NSUInteger bpp;
+	switch (d.pixelFormat) {
+	case MTLPixelFormatA8Unorm:
+	case MTLPixelFormatR8Unorm:
+	case MTLPixelFormatR8Snorm:
+	case MTLPixelFormatR8Uint:
+	case MTLPixelFormatR8Sint:
+		bpp = 1;
+		break;
+	case MTLPixelFormatRG8Unorm:
+	case MTLPixelFormatRG8Snorm:
+	case MTLPixelFormatRG8Uint:
+	case MTLPixelFormatRG8Sint:
+	case MTLPixelFormatR16Unorm:
+	case MTLPixelFormatR16Snorm:
+	case MTLPixelFormatR16Uint:
+	case MTLPixelFormatR16Sint:
+	case MTLPixelFormatR16Float:
+		bpp = 2;
+		break;
+	case MTLPixelFormatR32Uint:
+	case MTLPixelFormatR32Sint:
+	case MTLPixelFormatR32Float:
+	case MTLPixelFormatRG16Unorm:
+	case MTLPixelFormatRG16Snorm:
+	case MTLPixelFormatRG16Uint:
+	case MTLPixelFormatRG16Sint:
+	case MTLPixelFormatRG16Float:
+	case MTLPixelFormatRGBA8Unorm:
+	case MTLPixelFormatRGBA8Unorm_sRGB:
+	case MTLPixelFormatRGBA8Snorm:
+	case MTLPixelFormatRGBA8Uint:
+	case MTLPixelFormatRGBA8Sint:
+	case MTLPixelFormatBGRA8Unorm:
+	case MTLPixelFormatBGRA8Unorm_sRGB:
+	case MTLPixelFormatRGB10A2Unorm:
+	case MTLPixelFormatRGB10A2Uint:
+		bpp = 4;
+		break;
+	case MTLPixelFormatRG32Uint:
+	case MTLPixelFormatRG32Sint:
+	case MTLPixelFormatRG32Float:
+	case MTLPixelFormatRGBA16Unorm:
+	case MTLPixelFormatRGBA16Snorm:
+	case MTLPixelFormatRGBA16Uint:
+	case MTLPixelFormatRGBA16Sint:
+	case MTLPixelFormatRGBA16Float:
+		bpp = 8;
+		break;
+	case MTLPixelFormatRGBA32Uint:
+	case MTLPixelFormatRGBA32Sint:
+	case MTLPixelFormatRGBA32Float:
+		bpp = 16;
+		break;
+	default:
+		return 0;
+	}
+	if (!d.width || !d.height || d.width > NSUIntegerMax / bpp) {
+		return 0;
+	}
+	NSUInteger rowBytes = d.width * bpp;
+	if (stride < rowBytes || (d.height > 1 && stride > (NSUIntegerMax - rowBytes) / (d.height - 1))) {
+		return 0;
+	}
+	return stride * (d.height - 1) + rowBytes;
+}
+
+/* -[MTLBuffer newLinearTextureWithDescriptor:offset:bytesPerRow:bytesPerImage:] */
 static id
-bufferLinearTexture(id self, SEL _cmd, MTLTextureDescriptor *d, NSUInteger offset, NSUInteger stride)
+bufferLinearTextureWithImage(id self, SEL _cmd, MTLTextureDescriptor *d, NSUInteger offset, NSUInteger stride,
+	NSUInteger bytesPerImage)
 {
 	(void)_cmd;
+	NSUInteger minimum = linearTextureMinimumBytesPerImage(d, stride);
+	struct lapis_buffer *b = bufferState(self);
+	if (!b || !b->memory || !minimum || bytesPerImage < minimum || offset > b->length ||
+	    bytesPerImage > b->length - offset) {
+		say([NSString stringWithFormat:@"newLinearTextureWithDescriptor: invalid buffer range: offset %lu, row bytes %lu, image bytes %lu, buffer %llu",
+		    (unsigned long)offset, (unsigned long)stride, (unsigned long)bytesPerImage, b ? (unsigned long long)b->length : 0]);
+		return nil;
+	}
 	id t = deviceNewTexture(gDevice, sel_registerName("newTextureWithDescriptor:"), d);
 	LapisTexState *ts = texState(t);
 	if (!ts) {
@@ -2694,12 +2783,22 @@ bufferLinearTexture(id self, SEL _cmd, MTLTextureDescriptor *d, NSUInteger offse
 	ts.linearSource = self;
 	ts.linearOffset = offset;
 	ts.linearStride = stride;
+	ts.linearBytesPerImage = bytesPerImage;
 	static unsigned shown;
 	if (shown++ < 8) {
-		say([NSString stringWithFormat:@"texture over a buffer: %lux%lu format %lu, %lu bytes a row at %lu", (unsigned long)d.width,
-		    (unsigned long)d.height, (unsigned long)d.pixelFormat, (unsigned long)stride, (unsigned long)offset]);
+		say([NSString stringWithFormat:@"texture over a buffer: %lux%lu format %lu, row %lu image %lu at %lu",
+		    (unsigned long)d.width, (unsigned long)d.height, (unsigned long)d.pixelFormat, (unsigned long)stride,
+		    (unsigned long)bytesPerImage, (unsigned long)offset]);
 	}
 	return t;
+}
+
+/* Older runtimes may call the selector without bytesPerImage. */
+static id
+bufferLinearTexture(id self, SEL _cmd, MTLTextureDescriptor *d, NSUInteger offset, NSUInteger stride)
+{
+	NSUInteger bytesPerImage = linearTextureMinimumBytesPerImage(d, stride);
+	return bytesPerImage ? bufferLinearTextureWithImage(self, _cmd, d, offset, stride, bytesPerImage) : nil;
 }
 
 static void
@@ -2707,6 +2806,8 @@ registerRenderClasses(Class device)
 {
 	class_addMethod(gBufferClass, sel_registerName("newLinearTextureWithDescriptor:offset:bytesPerRow:"), (IMP)bufferLinearTexture,
 	    "@@:@QQ");
+	class_addMethod(gBufferClass, sel_registerName("newLinearTextureWithDescriptor:offset:bytesPerRow:bytesPerImage:"),
+	    (IMP)bufferLinearTextureWithImage, "@@:@QQQ");
 	if (gBlitClass) {
 		class_addMethod(gBlitClass, sel_registerName("generateMipmapsForTexture:"), (IMP)blitGenMipmaps, "v@:@");
 		class_addMethod(gBlitClass,

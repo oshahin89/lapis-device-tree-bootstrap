@@ -1640,8 +1640,9 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   return s;
 +}
 +
-+/* a stage's buffers, textures and samplers by Metal index; 0, or what is
-+ * missing: 1000 + a buffer's index, 2000 + a texture's (lock held) */
++/* a stage's resources by Metal index; 0, or what is missing:
++ * 1000 + a device buffer, 4000 + a constant buffer,
++ * 2000 + a texture, 3000 + a sampler (the fragment stage adds 10000). */
 +static int
 +bind_stage(struct lapis_gpu *gpu, mesa_shader_stage stage, const struct lapis_gpu_stage *st,
 +           struct lapis_gpu_buf *const *bufs, const uint64_t *offsets, unsigned num_bufs,
@@ -1680,7 +1681,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      if (kind != AIR_RESOURCE_DEVICE_BUFFER && kind != AIR_RESOURCE_CONSTANT_BUFFER)
 +         continue;
 +      if (idx >= num_bufs || idx >= 32 || !bufs[idx])
-+         return 1000 + (int)idx;
++         return (kind == AIR_RESOURCE_CONSTANT_BUFFER ? 4000 : 1000) + (int)idx;
 +      uint64_t off = offsets ? offsets[idx] : 0;
 +      if (kind == AIR_RESOURCE_DEVICE_BUFFER) {
 +         ssbo[idx].buffer = bufs[idx]->res;
