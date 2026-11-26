@@ -25,7 +25,11 @@ jobs:
           strip -x out/lapis_hal_check
           codesign -s - -f out/lapis_hal_check
           test "$(stat -f %z out/lapis_hal_check)" -le 147456
-          shasum -a 256 out/lapis_audio_probe out/lapis_hal_check | tee out/SHA256.txt
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.0 -O2 -Wall -Wextra -framework CoreFoundation -o out/lapis_hal_driver_check tools/lapis_audio_probe/hal_driver_check.c
+          strip -x out/lapis_hal_driver_check
+          codesign -s - -f out/lapis_hal_driver_check
+          test "$(stat -f %z out/lapis_hal_driver_check)" -le 147456
+          shasum -a 256 out/lapis_audio_probe out/lapis_hal_check out/lapis_hal_driver_check | tee out/SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
           name: lapis-audio-probe

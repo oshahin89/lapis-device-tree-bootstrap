@@ -11,8 +11,11 @@ stream: `sweet_lapis_audio.c` writes a fixed waveform to AFE SRAM and stops.
 The root image preparation disables `VirtualAudio.plugin` because its inherited
 script reports a mediaserverd crash (`tools/ios-sweet/sweet-root-tweaks.py`).
 That note originates in the ios-sweet baseline; it is not evidence of a crash
-on Lapis. The original failure and the availability of the required routing
-data on this particular image must be investigated before changing the live root.
+on Lapis. Baseline `NOTES.md` line 70 attributes the prior crash to a missing
+default VirtualAudio device during `ApplyBeamFormerPreference`. This suggests
+that providing a suitable HAL device could help, but does not establish that
+the upstream plug-in resolves it on this image. The availability of routing
+data must also be checked before changing the live root.
 
 ## Upstream reference
 
