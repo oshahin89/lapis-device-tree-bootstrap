@@ -84,6 +84,8 @@ static lck_grp_t *au_stream_group;
 static lck_mtx_t *au_stream_lock;
 static int au_stream_enabled;
 static int au_hal_real;
+static int au_hal_persistent;
+static vm_offset_t au_scp;
 static uint64_t au_stream_accepted, au_stream_dropped;
 
 /* The HakiOS HAL contract, in a discard-only compatibility probe. */
@@ -184,8 +186,9 @@ au_probe_init(void)
 	(void)PE_parse_boot_argn("lapisaudioprobe", &enabled, sizeof(enabled));
 	(void)PE_parse_boot_argn("lapisaudiohalprobe", &hal_probe, sizeof(hal_probe));
 	(void)PE_parse_boot_argn("lapisaudiostream", &au_stream_enabled, sizeof(au_stream_enabled));
-	/* Mode 1 is silent. Mode 2 is an explicit short speaker experiment. */
-	au_hal_real = hal_probe == 2 && au_stream_enabled;
+	/* Mode 1 is silent; 2 and 3 are opt-in bounded and restartable tests. */
+	au_hal_real = (hal_probe == 2 || hal_probe == 3) && au_stream_enabled;
+	au_hal_persistent = hal_probe == 3 && au_hal_real;
 	if (hal_probe && !au_hal_real) au_stream_enabled = 0;
 	if (hal_probe) {
 		int major = cdevsw_add(-1, &au_hal_cdev);
@@ -197,7 +200,7 @@ au_probe_init(void)
 	if (au_stream_enabled) {
 		au_stream_group = lck_grp_alloc_init("lapis-audio-stream", LCK_GRP_ATTR_NULL);
 		if (au_stream_group) au_stream_lock = lck_mtx_alloc_init(au_stream_group, LCK_ATTR_NULL);
-		if (!au_stream_lock) { au_stream_enabled = 0; au_hal_real = 0; printf("LAPIS AUDIO: stream lock unavailable\n"); }
+		if (!au_stream_lock) { au_stream_enabled = 0; au_hal_real = 0; au_hal_persistent = 0; printf("LAPIS AUDIO: stream lock unavailable\n"); }
 	}
 	int major = cdevsw_add(-1, &au_probe_cdev);
 	if (major < 0 || !devfs_make_node(makedev(major, 0), DEVFS_CHAR, UID_ROOT, GID_WHEEL, 0600, "lapis-audio-probe")) {
@@ -348,33 +351,38 @@ au_sleep_ms(unsigned ms)
 
 /* Experimental bounded pump. Write only behind the DMA read head, leaving a
  * 512-byte guard. If the worker is delayed enough to miss a wrap, stop. */
-static void
-au_stream_pump(void)
+static bool
+au_stream_pump(bool persistent)
 {
 	uint32_t cur = au_rd(au_afe, 0x444c);
 	if (cur < AU_RING_PA || cur >= AU_RING_PA + AU_RING_BYTES) {
 		printf("LAPIS AUDIO STREAM: invalid initial DL0 pointer %#x\n", cur);
-		return;
+		return false;
 	}
 	uint32_t safe = (((cur - AU_RING_PA) & ~3u) + AU_RING_BYTES - 512u) % AU_RING_BYTES;
 	uint64_t last = mach_absolute_time(), underruns = 0, played = 0;
-	for (unsigned tick = 0; tick < 500; tick++) {
+	unsigned idle_ticks = 0;
+	bool ok = true;
+	for (unsigned tick = 0; persistent || tick < 500; tick++) {
 		au_sleep_ms(5);
 		uint64_t now = mach_absolute_time(), elapsed_ns = 0;
 		absolutetime_to_nanoseconds(now - last, &elapsed_ns);
 		last = now;
 		if (elapsed_ns > 25000000ULL) {
 			printf("LAPIS AUDIO STREAM: worker late (%llu ns), stopping\n", (unsigned long long)elapsed_ns);
+			ok = false;
 			break;
 		}
 		cur = au_rd(au_afe, 0x444c);
 		if (cur < AU_RING_PA || cur >= AU_RING_PA + AU_RING_BYTES) {
 			printf("LAPIS AUDIO STREAM: invalid DL0 pointer %#x, stopping\n", cur);
+			ok = false;
 			break;
 		}
 		uint32_t next = (((cur - AU_RING_PA) & ~3u) + AU_RING_BYTES - 512u) % AU_RING_BYTES;
 		uint32_t bytes = (next + AU_RING_BYTES - safe) % AU_RING_BYTES;
-		if (bytes > 5120u) { printf("LAPIS AUDIO STREAM: pointer advanced too far, stopping\n"); break; }
+		if (bytes > 5120u) { printf("LAPIS AUDIO STREAM: pointer advanced too far, stopping\n"); ok = false; break; }
+		unsigned got_tick = 0;
 		while (bytes) {
 			uint32_t frames[256];
 			unsigned count = bytes / 4;
@@ -395,6 +403,7 @@ au_stream_pump(void)
 				}
 			}
 			played += got;
+			got_tick += got;
 			underruns += count - got;
 			for (unsigned i = 0; i < count; i++) {
 				*(volatile uint32_t *)(au_ring + safe) = frames[i];
@@ -403,12 +412,21 @@ au_stream_pump(void)
 			__asm__ volatile("dsb oshst" ::: "memory");
 			bytes -= count * 4;
 		}
+		if (persistent) {
+			idle_ticks = got_tick ? 0 : idle_ticks + 1;
+			if (idle_ticks >= 200) { printf("LAPIS AUDIO STREAM: idle, stopping speaker\n"); break; }
+		}
 	}
 	lck_mtx_lock(au_stream_lock);
+	if (!ok) {
+		printf("LAPIS AUDIO STREAM: discard %u queued frames after fault\n", au_stream_queue.count);
+		au_stream_queue.read_pos = au_stream_queue.write_pos = au_stream_queue.count = 0;
+	}
 	printf("LAPIS AUDIO STREAM: accepted %llu dropped %llu fed %llu silent %llu frames\n",
 	    (unsigned long long)au_stream_accepted, (unsigned long long)au_stream_dropped,
 	    (unsigned long long)played, (unsigned long long)underruns);
 	lck_mtx_unlock(au_stream_lock);
+	return ok;
 }
 
 static void
@@ -416,7 +434,17 @@ au_thread(void *arg __unused, wait_result_t wr __unused)
 {
 	int pcm_probe = 0;
 	(void)PE_parse_boot_argn("lapisaudioplayprobe", &pcm_probe, sizeof(pcm_probe));
-	if (pcm_probe) {
+restart:
+	if (au_hal_persistent) {
+		for (;;) {
+			lck_mtx_lock(au_stream_lock);
+			unsigned available = au_stream_queue.count;
+			lck_mtx_unlock(au_stream_lock);
+			if (available) break;
+			au_sleep_ms(20);
+		}
+		printf("LAPIS AUDIO: queued PCM; starting speaker\n");
+	} else if (pcm_probe) {
 		for (unsigned i = 0; i < 600 && __atomic_load_n(&au_probe_packet_state, __ATOMIC_ACQUIRE) != 2; i++) au_sleep_ms(100);
 		if (__atomic_load_n(&au_probe_packet_state, __ATOMIC_ACQUIRE) != 2) {
 			printf("LAPIS AUDIO: PCM probe timed out; speaker left off\n");
@@ -424,12 +452,12 @@ au_thread(void *arg __unused, wait_result_t wr __unused)
 		}
 		printf("LAPIS AUDIO: received PCM probe packet; starting speaker test\n");
 	}
-	au_gpio = ml_io_map(AU_GPIO_PA, 0x1000);
-	au_topck = ml_io_map(AU_TOPCK_PA, 0x1000);
-	au_apmix = ml_io_map(AU_APMIX_PA, 0x1000);
-	au_afe = ml_io_map(AU_AFE_PA, AU_AFE_SIZE);
-	au_ring = ml_io_map(AU_RING_PA, 0x2000);
-	au_i2c = ml_io_map(AU_I2C6_PA, 0x1000);
+	if (!au_gpio) au_gpio = ml_io_map(AU_GPIO_PA, 0x1000);
+	if (!au_topck) au_topck = ml_io_map(AU_TOPCK_PA, 0x1000);
+	if (!au_apmix) au_apmix = ml_io_map(AU_APMIX_PA, 0x1000);
+	if (!au_afe) au_afe = ml_io_map(AU_AFE_PA, AU_AFE_SIZE);
+	if (!au_ring) au_ring = ml_io_map(AU_RING_PA, 0x2000);
+	if (!au_i2c) au_i2c = ml_io_map(AU_I2C6_PA, 0x1000);
 	if (!au_gpio || !au_topck || !au_apmix || !au_afe || !au_ring || !au_i2c) {
 		printf("LAPIS AUDIO: map failed\n");
 		goto out;
@@ -437,8 +465,8 @@ au_thread(void *arg __unused, wait_result_t wr __unused)
 	/* the audio power domain is on after a reboot from Android (taud v1:
 	 * PWR_CON 0x1c001e18 = 0xc200000d); if it is not, leave the AFE alone */
 	{
-		vm_offset_t scp = ml_io_map(0x1c001000UL, 0x1000);
-		uint32_t pwr = scp ? au_rd(scp, 0xe18) : 0;
+		if (!au_scp) au_scp = ml_io_map(0x1c001000UL, 0x1000);
+		uint32_t pwr = au_scp ? au_rd(au_scp, 0xe18) : 0;
 		if ((pwr & 0xc0000000u) != 0xc0000000u) {
 			printf("LAPIS AUDIO: audio domain off (PWR_CON %#x), no chime\n", pwr);
 			goto out;
@@ -515,7 +543,7 @@ au_thread(void *arg __unused, wait_result_t wr __unused)
 	tfa_both(0xe1, 1);
 	tfa_both(0x00, 0xf258);
 	uint32_t cur0 = au_rd(au_afe, 0x444c);
-	if (au_stream_enabled && au_stream_lock) au_stream_pump(); else au_sleep_ms(300);
+	if (au_stream_enabled && au_stream_lock) (void)au_stream_pump(au_hal_persistent); else au_sleep_ms(300);
 	uint32_t cur1 = au_rd(au_afe, 0x444c);
 	tfa_both(0x00, 0xf250);
 	au_wr(au_afe, 0x4460, au_rd(au_afe, 0x4460) & ~(1u << 28));
@@ -523,6 +551,7 @@ au_thread(void *arg __unused, wait_result_t wr __unused)
 	au_wr(au_afe, 0x1580, 0x109ff800);
 	printf("LAPIS AUDIO: chime played, DL0 %#x -> %#x, amp 0x12 %#x, i2c errors %u\n",
 	    cur0, cur1, (unsigned)tfa_read(0x34, 0x12), au_errors);
+	if (au_hal_persistent) goto restart;
 out:
 	(void)thread_terminate(current_thread());
 	thread_block(THREAD_CONTINUE_NULL);

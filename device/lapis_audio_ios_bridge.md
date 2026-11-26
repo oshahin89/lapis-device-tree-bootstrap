@@ -121,3 +121,8 @@ reader. The current bounded experiment runs for 2.5 seconds only and is not a
 permanent sink. The separate `lapisaudiohalprobe=2` experiment exercises the
 actual HAL write path and a software mute against the speaker, and remains
 opt-in and untested on the device at the time of writing.
+
+The mode-2 HAL speaker experiment was subsequently tested: the log recorded
+mute, unmute, mute; 96,000 frames accepted and fed, zero dropped, and no I2C
+errors. The user heard the sound and then silence. This remains a short
+standalone test calling HAL functions directly, not application playback.
