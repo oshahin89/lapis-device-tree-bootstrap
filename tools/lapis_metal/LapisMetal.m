@@ -2177,6 +2177,18 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	static dispatch_once_t pipelineCacheOnce;
 	dispatch_once(&pipelineCacheOnce, ^{ pipelineCache = [NSMutableDictionary new]; });
 	BOOL cachePipeline = [fs.name hasPrefix:@"fixed_frag"];
+	if (cachePipeline) {
+		static NSMutableSet *fragmentKeys;
+		static dispatch_once_t fragmentKeysOnce;
+		dispatch_once(&fragmentKeysOnce, ^{ fragmentKeys = [NSMutableSet new]; });
+		NSArray *fragmentKey = @[[NSData dataWithBytes:fs.bitcode length:fs.bitcodeSize], fs.name, fs.constants ?: @{}];
+		@synchronized (fragmentKeys) {
+			static unsigned fragmentReports;
+			BOOL repeated = [fragmentKeys containsObject:fragmentKey];
+			if (fragmentReports++ < 80) say(repeated ? @"fragment specialization repeated" : @"fragment specialization new");
+			if (fragmentKeys.count < 128) [fragmentKeys addObject:fragmentKey];
+		}
+	}
 	NSArray *pipelineKey = cachePipeline ? @[
 		[NSData dataWithBytes:vs.bitcode length:vs.bitcodeSize], vs.name,
 		[NSData dataWithBytes:fs.bitcode length:fs.bitcodeSize], fs.name,
