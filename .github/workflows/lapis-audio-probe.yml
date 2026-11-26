@@ -1,0 +1,28 @@
+name: lapis-audio-probe
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/lapis_audio_probe/**
+      - .github/workflows/lapis-audio-probe.yml
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build iOS PCM ingress probe
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.0 -O2 -Wall -Wextra -o out/lapis_audio_probe tools/lapis_audio_probe/main.c
+          strip -x out/lapis_audio_probe
+          codesign -s - -f out/lapis_audio_probe
+          test "$(stat -f %z out/lapis_audio_probe)" -le 147456
+          shasum -a 256 out/lapis_audio_probe | tee out/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapis-audio-probe
+          path: out/
