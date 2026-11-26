@@ -1841,31 +1841,25 @@ xrSurfaceIn(LapisTexState *t, const void *base, size_t stride)
 static void
 logNIRSummary(NSString *name, char *text)
 {
-	static const char *tokens[] = { "load_input", "tex", "load_ubo", "load_ssbo", "store_output", "load_const", "deref" };
-	unsigned counts[sizeof(tokens) / sizeof(tokens[0])] = { 0 };
-	unsigned lineNo = 0, interesting = 0;
+	unsigned lineNo = 0, uboLines = 0, outputLines = 0;
 	char *line = text;
 	while (line && *line) {
 		char *end = strchr(line, '\n');
 		if (end) *end = '\0';
-		BOOL match = NO;
-		for (unsigned i = 0; i < sizeof(tokens) / sizeof(tokens[0]); i++) {
-			if (strstr(line, tokens[i])) {
-				counts[i]++;
-				match = YES;
-			}
-		}
-		if (lineNo < 12 || (match && interesting < 64)) {
+		BOOL ubo = strstr(line, "load_ubo") != NULL;
+		BOOL output = strstr(line, "load_output") || strstr(line, "store_output") || strstr(line, "store_deref");
+		if (lineNo < 12 || (ubo && uboLines < 160) || (output && outputLines < 48)) {
 			say([NSString stringWithFormat:@"NIR %@ line %u: %s", name, lineNo, line]);
-			if (match) interesting++;
 		}
+		if (ubo) uboLines++;
+		if (output) outputLines++;
 		lineNo++;
 		if (!end) break;
 		*end = '\n';
 		line = end + 1;
 	}
-	say([NSString stringWithFormat:@"NIR %@ summary: %u lines; input %u tex %u ubo %u ssbo %u output %u const %u deref %u",
-	    name, lineNo, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6]]);
+	say([NSString stringWithFormat:@"NIR %@ summary: %u lines; %u UBO loads, %u output ops",
+	    name, lineNo, uboLines, outputLines]);
 }
 
 static void
