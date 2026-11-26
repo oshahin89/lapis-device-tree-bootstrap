@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1786 @@
+@@ -0,0 +1,1770 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -1375,6 +1375,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      progress = false;
 +      NIR_PASS(progress, nir, nir_opt_copy_prop);
 +      NIR_PASS(progress, nir, nir_opt_constant_folding);
++      NIR_PASS(progress, nir, nir_opt_algebraic);
 +      NIR_PASS(progress, nir, nir_opt_dce);
 +      NIR_PASS(progress, nir, nir_opt_dead_cf);
 +      NIR_PASS(progress, nir, nir_opt_if, nir_opt_if_optimize_phi_true_false);
@@ -1769,25 +1770,8 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      }
 +      if (kind != AIR_RESOURCE_DEVICE_BUFFER && kind != AIR_RESOURCE_CONSTANT_BUFFER)
 +         continue;
-+      if (idx >= num_bufs || idx >= 32 || !bufs[idx]) {
-+         /* Diagnostic only: CoreAnimation's first fixed-function draw asks
-+          * for a constant buffer at Metal slot 5 without binding one. Bind
-+          * zeros so we can see whether that missing input alone blocks output. */
-+         if (kind == AIR_RESOURCE_CONSTANT_BUFFER && idx < 32) {
-+            if (!zero_vb)
-+               zero_vb = lapis_gpu_buf_new(gpu, 256);
-+            if (zero_vb) {
-+               struct pipe_constant_buffer cb = {
-+                  .buffer = zero_vb->res,
-+                  .buffer_offset = 0,
-+                  .buffer_size = (unsigned)zero_vb->size,
-+               };
-+               gpu->ctx->set_constant_buffer(gpu->ctx, stage, idx + LAPIS_UBO_SHIFT, &cb);
-+               continue;
-+            }
-+         }
++      if (idx >= num_bufs || idx >= 32 || !bufs[idx])
 +         return (kind == AIR_RESOURCE_CONSTANT_BUFFER ? 4000 : 1000) + (int)idx;
-+      }
 +      uint64_t off = offsets ? offsets[idx] : 0;
 +      if (kind == AIR_RESOURCE_DEVICE_BUFFER) {
 +         ssbo[idx].buffer = bufs[idx]->res;
