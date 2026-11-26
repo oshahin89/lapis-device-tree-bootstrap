@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1747 @@
+@@ -0,0 +1,1770 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -1328,6 +1328,24 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   return false;
 +}
 +
++/* AIR reflection may include textures used only in inactive function-constant
++ * paths. A texture with no surviving NIR fetch does not need a Metal binding. */
++static bool
++nir_uses_texture(nir_shader *nir, unsigned metal_index)
++{
++   nir_foreach_function_impl(impl, nir) {
++      nir_foreach_block(block, impl) {
++         nir_foreach_instr(instr, block) {
++            if (instr->type != nir_instr_type_tex)
++               continue;
++            if (nir_instr_as_tex(instr)->texture_index == metal_index)
++               return true;
++         }
++      }
++   }
++   return false;
++}
++
 +/* one stage of a pipeline: AIR -> NIR -> a panfrost shader state */
 +static bool
 +stage_new(struct lapis_gpu *gpu, struct lapis_gpu_stage *st, mesa_shader_stage want, const void *bc,
@@ -1367,6 +1385,10 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +         continue;
 +      if (info.resources[i].kind == AIR_RESOURCE_DEVICE_BUFFER &&
 +          !nir_uses_ssbo(nir, info.resources[i].index))
++         continue;
++      if (info.resources[i].kind == AIR_RESOURCE_TEXTURE &&
++          !info.resources[i].null_texture &&
++          !nir_uses_texture(nir, info.resources[i].index))
 +         continue;
 +      st->res[st->num_res].kind = info.resources[i].kind;
 +      st->res[st->num_res].index = info.resources[i].index;
