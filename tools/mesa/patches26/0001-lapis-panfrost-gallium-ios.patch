@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1680 @@
+@@ -0,0 +1,1716 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -1277,6 +1277,29 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +#define LAPIS_ZERO_VB 31u                /* the vertex buffer slot of zeros (no Metal index) */
 +static struct lapis_gpu_buf *zero_vb;
 +
++/* The AIR reflection lists buffers touched in all specialized code paths. Filter
++ * constant buffers whose loads vanish after Metal's function constants are
++ * folded; those slots need not be bound for this pipeline variant. */
++static bool
++nir_uses_ubo(nir_shader *nir, unsigned metal_index)
++{
++   nir_foreach_function_impl(impl, nir) {
++      nir_foreach_block(block, impl) {
++         nir_foreach_instr(instr, block) {
++            if (instr->type != nir_instr_type_intrinsic)
++               continue;
++            nir_intrinsic_instr *in = nir_instr_as_intrinsic(instr);
++            if (in->intrinsic != nir_intrinsic_load_ubo)
++               continue;
++            if (!nir_src_is_const(in->src[0]) ||
++                nir_src_as_uint(in->src[0]) == metal_index + LAPIS_UBO_SHIFT)
++               return true;
++         }
++      }
++   }
++   return false;
++}
++
 +/* one stage of a pipeline: AIR -> NIR -> a panfrost shader state */
 +static bool
 +stage_new(struct lapis_gpu *gpu, struct lapis_gpu_stage *st, mesa_shader_stage want, const void *bc,
@@ -1299,7 +1322,21 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      ralloc_free(mem);
 +      return false;
 +   }
++   shift_ubos(nir);
++   bool progress;
++   unsigned rounds = 0;
++   do {
++      progress = false;
++      NIR_PASS(progress, nir, nir_copy_prop);
++      NIR_PASS(progress, nir, nir_opt_constant_folding);
++      NIR_PASS(progress, nir, nir_opt_dce);
++      NIR_PASS(progress, nir, nir_opt_dead_cf);
++      NIR_PASS(progress, nir, nir_opt_if, nir_opt_if_optimize_phi_true_false);
++   } while (progress && ++rounds < 16);
 +   for (unsigned i = 0; i < info.num_resources && st->num_res < LAPIS_GPU_MAX_RES; i++) {
++      if (info.resources[i].kind == AIR_RESOURCE_CONSTANT_BUFFER &&
++          !nir_uses_ubo(nir, info.resources[i].index))
++         continue;
 +      st->res[st->num_res].kind = info.resources[i].kind;
 +      st->res[st->num_res].index = info.resources[i].index;
 +      st->res[st->num_res].write = info.resources[i].write || info.resources[i].ir_write;
@@ -1371,7 +1408,6 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      }
 +      r->velems.count = n;
 +   }
-+   shift_ubos(nir);
 +   {
 +      char *text = NULL;
 +      size_t len = 0;
