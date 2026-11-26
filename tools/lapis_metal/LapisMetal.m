@@ -2128,6 +2128,7 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	vsShown = YES;
 	LapisRenderPipeState *st = [LapisRenderPipeState new];
 	st.render = r;
+	st.label = [NSString stringWithFormat:@"%@ + %@", vs.name, fs.name];
 	return plainNew(gRenderPipelineClass, st);
 }
 
@@ -2235,6 +2236,13 @@ reSet(id self, BOOL fragment, id buffer, NSUInteger offset, NSUInteger index)
 {
 	surfTrace(self, [NSString stringWithFormat:@"set%@Buffer %lu bytes at %lu, index %lu", fragment ? @"Fragment" : @"Vertex",
 	    buffer ? (unsigned long)bufferState(buffer)->length : 0, (unsigned long)offset, (unsigned long)index]);
+	static unsigned shown;
+	if (shown++ < 96) {
+		struct lapis_buffer *b = buffer ? bufferState(buffer) : NULL;
+		say([NSString stringWithFormat:@"render buffer bind: %@ slot %lu %@ length %llu offset %lu",
+		    fragment ? @"fragment" : @"vertex", (unsigned long)index, buffer ? @"present" : @"nil",
+		    b ? (unsigned long long)b->length : 0, (unsigned long)offset]);
+	}
 	LapisRenderState *rs = stateOf(self);
 	if (index >= LAPIS_MAX_BINDINGS) {
 		say(@"refused: a buffer index past 30");
@@ -2372,6 +2380,9 @@ reDrawFull(id self, NSUInteger prim, NSUInteger start, NSUInteger count, NSUInte
 		/* (-(1000+i): device buffer, -(4000+i): constant buffer, -(2000+i): texture,
 		 * -(3000+i): sampler; +10000: the fragment stage's) */
 		int code = -r;
+		if (ps.label) {
+			say([@"draw pipeline: " stringByAppendingString:ps.label]);
+		}
 		NSString *what = code == 1 ? @"a vertex buffer of the vertex descriptor, the index buffer, or a primitive type past 4"
 		    : [NSString stringWithFormat:@"%s %s %d", code >= 10000 ? "fragment" : "vertex",
 		        (code % 10000) >= 4000 ? "constant buffer" : (code % 10000) >= 3000 ? "sampler"
