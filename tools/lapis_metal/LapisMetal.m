@@ -1805,19 +1805,6 @@ xrSurfaceOut(LapisTexState *t, void *base, size_t stride)
 		    diagnosticCopies + 1, (unsigned long)w, (unsigned long)h, (unsigned long)stride,
 		    (unsigned long long)colored, (unsigned long long)(w * h),
 		    first[0], first[1], first[2], first[3], center[0], center[1], center[2], center[3]]);
-		/* Encode whether the real GPU output contains any visible pixels. */
-		for (size_t y = 0; y < h; y++) {
-			uint8_t *row = (uint8_t *)base + y * stride;
-			for (size_t x = 0; x < w; x++) {
-				uint8_t *p = row + x * 4;
-				p[0] = colored ? 255 : 0;
-				p[1] = 255;
-				p[2] = colored ? 255 : 0;
-				p[3] = 255;
-			}
-		}
-		say([NSString stringWithFormat:@"DISPLAY TEST: copy %u is %@ based on GPU pixel count",
-		    diagnosticCopies + 1, colored ? @"white (non-black)" : @"green (all black)"]);
 		diagnosticCopies++;
 	}
 	free(tmp);
@@ -2140,11 +2127,26 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	/* only in the test program: in backboardd every pipeline's NIR (hundreds of
 	 * lines through the kernel's log and serial port) stalled the phone (m7d) */
 	static BOOL vsShown;
-	static int dumpNIR = -1;
-	if (dumpNIR < 0) {
-		dumpNIR = getprogname() && strcmp(getprogname(), "IOMFB_FDR_Loader") == 0;
+	static BOOL screenNIRShown;
+	static int dumpTestNIR = -1;
+	if (dumpTestNIR < 0) {
+		dumpTestNIR = getprogname() && strcmp(getprogname(), "IOMFB_FDR_Loader") == 0;
 	}
-	for (int frag = vsShown ? 1 : 0; dumpNIR && G.render_nir && frag < 2; frag++) {
+	BOOL screenPipeline = [vs.name isEqualToString:@"fixed_vert_lph_spc"] &&
+	    [fs.name isEqualToString:@"fixed_frag_lph_cpf"];
+	BOOL dumpPipelineNIR = dumpTestNIR || (screenPipeline && !screenNIRShown);
+	if (screenPipeline) {
+		screenNIRShown = YES;
+		for (unsigned i = 0; i < 31; i++) {
+			if (desc.attribs[i].format) {
+				say([NSString stringWithFormat:@"screen vertex attr %u format %u offset %u buffer %u stride %u step %u/%u",
+				    i, desc.attribs[i].format, desc.attribs[i].offset, desc.attribs[i].buffer,
+				    desc.layouts[desc.attribs[i].buffer].stride, desc.layouts[desc.attribs[i].buffer].step_function,
+				    desc.layouts[desc.attribs[i].buffer].step_rate]);
+			}
+		}
+	}
+	for (int frag = vsShown ? 1 : 0; dumpPipelineNIR && G.render_nir && frag < 2; frag++) {
 		size_t n = G.render_nir(r, frag, NULL, 0);
 		char *text = malloc(n + 1);
 		G.render_nir(r, frag, text, n + 1);
