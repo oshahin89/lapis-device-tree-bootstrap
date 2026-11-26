@@ -1805,15 +1805,19 @@ xrSurfaceOut(LapisTexState *t, void *base, size_t stride)
 		    diagnosticCopies + 1, (unsigned long)w, (unsigned long)h, (unsigned long)stride,
 		    (unsigned long long)colored, (unsigned long long)(w * h),
 		    first[0], first[1], first[2], first[3], center[0], center[1], center[2], center[3]]);
-		/* Force a visible panel test into the IOSurface before CoreAnimation swaps it. */
+		/* Encode whether the real GPU output contains any visible pixels. */
 		for (size_t y = 0; y < h; y++) {
 			uint8_t *row = (uint8_t *)base + y * stride;
 			for (size_t x = 0; x < w; x++) {
 				uint8_t *p = row + x * 4;
-				p[0] = 0; p[1] = 255; p[2] = 0; p[3] = 255;
+				p[0] = colored ? 255 : 0;
+				p[1] = 0;
+				p[2] = colored ? 0 : 255;
+				p[3] = 255;
 			}
 		}
-		say([NSString stringWithFormat:@"DISPLAY TEST: forced green into IOSurface copy %u", diagnosticCopies + 1]);
+		say([NSString stringWithFormat:@"DISPLAY TEST: copy %u is %@ based on GPU pixel count",
+		    diagnosticCopies + 1, colored ? @"blue (non-black)" : @"red (all black)"]);
 		diagnosticCopies++;
 	}
 	free(tmp);
