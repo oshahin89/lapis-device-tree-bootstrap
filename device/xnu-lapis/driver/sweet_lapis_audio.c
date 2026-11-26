@@ -73,6 +73,9 @@ static int au_sleep_chan;
 /* Opt-in PCM ingress probe. It consumes samples without touching the amps.
  * The bounded stack buffer keeps this safe to exercise before streaming exists. */
 static uint64_t au_probe_frames, au_probe_nonzero;
+/* One fixed-size packet for an opt-in speaker path experiment. */
+static int16_t au_probe_packet[960];
+static volatile int au_probe_packet_state; /* 0 empty, 1 being copied, 2 ready */
 
 static int
 au_probe_open(dev_t dev __unused, int flags __unused, int type __unused, struct proc *p __unused)
@@ -83,7 +86,7 @@ au_probe_open(dev_t dev __unused, int flags __unused, int type __unused, struct 
 static int
 au_probe_close(dev_t dev __unused, int flags __unused, int type __unused, struct proc *p __unused)
 {
-	printf("LAPIS AUDIO PROBE: total frames %llu, nonzero samples %llu (not played)\n",
+	printf("LAPIS AUDIO PROBE: total frames %llu, nonzero samples %llu\n",
 	    (unsigned long long)au_probe_frames, (unsigned long long)au_probe_nonzero);
 	return 0;
 }
@@ -91,13 +94,20 @@ au_probe_close(dev_t dev __unused, int flags __unused, int type __unused, struct
 static int
 au_probe_write(dev_t dev __unused, struct uio *uio, int flags __unused)
 {
-	int16_t samples[512];
+	int16_t samples[960];
 	if (uio_resid(uio) % 4 != 0) return EINVAL;
 	while (uio_resid(uio) > 0) {
 		user_ssize_t bytes = uio_resid(uio);
 		if (bytes > (user_ssize_t)sizeof(samples)) bytes = sizeof(samples);
 		int error = uiomove((caddr_t)samples, (int)bytes, uio);
 		if (error) return error;
+		if (bytes == sizeof(au_probe_packet) && __sync_bool_compare_and_swap(&au_probe_packet_state, 0, 1)) {
+			for (unsigned i = 0; i < 960; i++) {
+				int s = samples[i];
+				au_probe_packet[i] = (int16_t)(s < -500 ? -500 : s > 500 ? 500 : s);
+			}
+			__atomic_store_n(&au_probe_packet_state, 2, __ATOMIC_RELEASE);
+		}
 		uint64_t nonzero = 0;
 		for (unsigned i = 0; i < (unsigned)bytes / sizeof(samples[0]); i++) nonzero += samples[i] != 0;
 		__sync_fetch_and_add(&au_probe_frames, (uint64_t)bytes / 4);
@@ -123,7 +133,7 @@ au_probe_init(void)
 		printf("LAPIS AUDIO PROBE: device creation failed\n");
 		return;
 	}
-	printf("LAPIS AUDIO PROBE: /dev/lapis-audio-probe accepts stereo 48kHz s16le; samples not played\n");
+	printf("LAPIS AUDIO PROBE: /dev/lapis-audio-probe accepts stereo 48kHz s16le\n");
 }
 
 static uint32_t
@@ -268,6 +278,16 @@ au_sleep_ms(unsigned ms)
 static void
 au_thread(void *arg __unused, wait_result_t wr __unused)
 {
+	int pcm_probe = 0;
+	(void)PE_parse_boot_argn("lapisaudioplayprobe", &pcm_probe, sizeof(pcm_probe));
+	if (pcm_probe) {
+		for (unsigned i = 0; i < 600 && __atomic_load_n(&au_probe_packet_state, __ATOMIC_ACQUIRE) != 2; i++) au_sleep_ms(100);
+		if (__atomic_load_n(&au_probe_packet_state, __ATOMIC_ACQUIRE) != 2) {
+			printf("LAPIS AUDIO: PCM probe timed out; speaker left off\n");
+			goto out;
+		}
+		printf("LAPIS AUDIO: received PCM probe packet; starting speaker test\n");
+	}
 	au_gpio = ml_io_map(AU_GPIO_PA, 0x1000);
 	au_topck = ml_io_map(AU_TOPCK_PA, 0x1000);
 	au_apmix = ml_io_map(AU_APMIX_PA, 0x1000);
@@ -321,8 +341,9 @@ au_thread(void *arg __unused, wait_result_t wr __unused)
 
 	/* the chime: ring in AFE SRAM, memif DL0, DL0 -> I2S OUT4 */
 	for (uint32_t i = 0; i < AU_RING_BYTES / 4; i++) {
-		uint16_t s = (uint16_t)au_tone[i % 48];
-		*(volatile uint32_t *)(au_ring + i * 4) = (uint32_t)s << 16 | s;
+		uint16_t l = pcm_probe ? (uint16_t)au_probe_packet[(i % 480) * 2] : (uint16_t)au_tone[i % 48];
+		uint16_t r = pcm_probe ? (uint16_t)au_probe_packet[(i % 480) * 2 + 1] : l;
+		*(volatile uint32_t *)(au_ring + i * 4) = (uint32_t)r << 16 | l;
 	}
 	au_wr(au_afe, 0x4440, 0);
 	au_wr(au_afe, 0x4450, 0);

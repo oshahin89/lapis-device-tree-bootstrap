@@ -44,3 +44,19 @@ the MediaTek hardware driver.
    silence and repeated playback on the actual phone.
 
 The GPU and Metal advertisement are disabled in the current phone boot image.
+
+## PCM ingress probe (2026-11-26)
+
+Kernel CI run `45827754715` built the opt-in `lapisaudioprobe=1` character
+device. On the phone, the CPU-rendered UI and touch worked, and sweetlog
+reported `/dev/lapis-audio-probe` created with the GPU disabled. The separate
+`lapis_audio_probe` program wrote 480 stereo frames (960 nonzero samples);
+the device's close log reported exactly those counts. The program attempts to
+add a marker frame if its partial-frame rejection check fails; the count is
+consistent with rejection, though it does not independently prove the marker
+write succeeded if needed. This only verifies synthetic PCM ingress; it does
+not exercise CoreAudio or play sound.
+
+The original `IOMFB_FDR_Loader` was restored after the experiment and its
+slot verified as original. The installed dual boot image still enables the
+ingress probe; `lapisgpu=0` and `lapismetal=0` remain in its boot arguments.

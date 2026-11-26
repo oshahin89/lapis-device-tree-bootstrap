@@ -4,13 +4,13 @@
 #include <stdio.h>
 #include <unistd.h>
 
-/* This checks PCM ingress only; the kernel probe never sends it to the amps. */
+/* 10 ms of a quiet 1 kHz square wave; the optional kernel test repeats it. */
 int main(void)
 {
 	int fd = open("/dev/lapis-audio-probe", O_WRONLY);
 	if (fd < 0) { perror("lapis-audio-probe open"); return 1; }
 	int16_t samples[960];
-	for (unsigned i = 0; i < 960; i++) samples[i] = (i & 1) ? -100 : 100;
+	for (unsigned i = 0; i < 960; i++) samples[i] = ((i / 2) % 48 < 24) ? 500 : -500;
 	ssize_t written = write(fd, samples, sizeof(samples));
 	if (written != (ssize_t)sizeof(samples)) { perror("lapis-audio-probe write"); close(fd); return 2; }
 	errno = 0;
