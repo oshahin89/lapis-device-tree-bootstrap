@@ -85,6 +85,7 @@ static lck_mtx_t *au_stream_lock;
 static int au_stream_enabled;
 static int au_hal_real;
 static int au_hal_persistent;
+static int au_stream_faulted;
 static vm_offset_t au_scp;
 static uint64_t au_stream_accepted, au_stream_dropped;
 
@@ -111,6 +112,7 @@ static int
 au_probe_write(dev_t dev __unused, struct uio *uio, int flags __unused)
 {
 	int16_t samples[960];
+	if (au_hal_persistent && __atomic_load_n(&au_stream_faulted, __ATOMIC_ACQUIRE)) return EIO;
 	if (uio_resid(uio) % 4 != 0) return EINVAL;
 	while (uio_resid(uio) > 0) {
 		user_ssize_t bytes = uio_resid(uio);
@@ -543,7 +545,8 @@ restart:
 	tfa_both(0xe1, 1);
 	tfa_both(0x00, 0xf258);
 	uint32_t cur0 = au_rd(au_afe, 0x444c);
-	if (au_stream_enabled && au_stream_lock) (void)au_stream_pump(au_hal_persistent); else au_sleep_ms(300);
+	bool stream_ok = true;
+	if (au_stream_enabled && au_stream_lock) stream_ok = au_stream_pump(au_hal_persistent); else au_sleep_ms(300);
 	uint32_t cur1 = au_rd(au_afe, 0x444c);
 	tfa_both(0x00, 0xf250);
 	au_wr(au_afe, 0x4460, au_rd(au_afe, 0x4460) & ~(1u << 28));
@@ -551,7 +554,11 @@ restart:
 	au_wr(au_afe, 0x1580, 0x109ff800);
 	printf("LAPIS AUDIO: chime played, DL0 %#x -> %#x, amp 0x12 %#x, i2c errors %u\n",
 	    cur0, cur1, (unsigned)tfa_read(0x34, 0x12), au_errors);
-	if (au_hal_persistent) goto restart;
+	if (au_hal_persistent && stream_ok) goto restart;
+	if (au_hal_persistent && !stream_ok) {
+		__atomic_store_n(&au_stream_faulted, 1, __ATOMIC_RELEASE);
+		printf("LAPIS AUDIO STREAM: disabled after fault\n");
+	}
 out:
 	(void)thread_terminate(current_thread());
 	thread_block(THREAD_CONTINUE_NULL);
