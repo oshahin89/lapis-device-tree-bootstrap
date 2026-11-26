@@ -1,0 +1,28 @@
+name: lapis-audio-hal
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/lapis_audio_hal/**
+      - .github/workflows/lapis-audio-hal.yml
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build iOS audio HAL reference
+        run: |
+          set -euxo pipefail
+          mkdir -p out/HakiosAudio.driver
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.0 -O2 -Wall -bundle \
+            -framework CoreFoundation -o out/HakiosAudio.driver/HakiosAudio tools/lapis_audio_hal/audio_plugin.c
+          codesign -s - -f out/HakiosAudio.driver/HakiosAudio
+          cp tools/lapis_audio_hal/audio_plugin.plist out/HakiosAudio.driver/Info.plist
+          shasum -a 256 out/HakiosAudio.driver/* | tee out/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapis-audio-hal
+          path: out/

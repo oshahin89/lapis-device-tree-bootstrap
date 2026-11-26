@@ -82,3 +82,20 @@ behavior sanitizers on 2026-11-26. It is not yet connected to the kernel,
 hardware ring, HAL or application playback. A real-time worker must use the
 DL0 hardware read position safely, with an explicit guard and a policy for a
 late worker before any continuous playback experiment.
+
+## Short continuous-stream experiment (2026-11-26)
+
+Build `1f5305e` was installed from the mobile bundle with
+`lapisaudioprobe=1 lapisaudioplayprobe=1 lapisaudiostream=1` and the GPU
+disabled. The user heard two different tones. The preserved sweetlog reported
+72,000 frames accepted, zero dropped, 72,000 fed to the hardware ring, and
+59,900 silent frames; the last includes silence after the short source ends.
+This is one controlled test, not a measurement of long-term stability or proof
+that application audio works. The user must restore the original FDR loader
+and the known-good CPU image using the bundle's `restore.sh` after the test.
+
+The same boot's normal shutdown reached filesystem unmount and `CPU halted`,
+then panicked with `Halt/Restart Timed Out` at `IOPlatformExpert.cpp:884`.
+The user returned to Android with hardware buttons. The log establishes a
+shutdown timeout; the particular missing or failing platform power-off
+mechanism is not yet confirmed.
