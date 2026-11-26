@@ -83,6 +83,7 @@ static struct lapis_audio_queue au_stream_queue;
 static lck_grp_t *au_stream_group;
 static lck_mtx_t *au_stream_lock;
 static int au_stream_enabled;
+static int au_hal_real;
 static uint64_t au_stream_accepted, au_stream_dropped;
 
 /* The HakiOS HAL contract, in a discard-only compatibility probe. */
@@ -119,8 +120,14 @@ au_probe_write(dev_t dev __unused, struct uio *uio, int flags __unused)
 			unsigned count = (unsigned)bytes / 4;
 			for (unsigned i = 0; i < count; i++) {
 				int l = samples[i * 2], r = samples[i * 2 + 1];
-				l = l < -500 ? -500 : l > 500 ? 500 : l;
-				r = r < -500 ? -500 : r > 500 ? 500 : r;
+				if (au_hal_real) {
+					/* Preserve waveform shape with a conservative output ceiling. */
+					l = l * 500 / 32768;
+					r = r * 500 / 32768;
+				} else {
+					l = l < -500 ? -500 : l > 500 ? 500 : l;
+					r = r < -500 ? -500 : r > 500 ? 500 : r;
+				}
 				frames[i] = (uint16_t)l | ((uint32_t)(uint16_t)r << 16);
 			}
 			lck_mtx_lock(au_stream_lock);
@@ -158,8 +165,8 @@ au_hal_ioctl(dev_t dev __unused, u_long command, caddr_t data, int flags __unuse
 	if (volume->below > 960) return EINVAL;
 	__atomic_store_n(&au_hal_below, volume->below, __ATOMIC_RELAXED);
 	__atomic_store_n(&au_hal_muted, volume->muted != 0, __ATOMIC_RELAXED);
-	printf("LAPIS HAL PROBE: volume below %u eighth-dB muted %u (discard only)\n",
-	    volume->below, volume->muted != 0);
+	printf("LAPIS HAL PROBE: volume below %u eighth-dB muted %u (%s)\n",
+	    volume->below, volume->muted != 0, au_hal_real ? "speaker experiment" : "discard only");
 	return 0;
 }
 
@@ -177,19 +184,20 @@ au_probe_init(void)
 	(void)PE_parse_boot_argn("lapisaudioprobe", &enabled, sizeof(enabled));
 	(void)PE_parse_boot_argn("lapisaudiohalprobe", &hal_probe, sizeof(hal_probe));
 	(void)PE_parse_boot_argn("lapisaudiostream", &au_stream_enabled, sizeof(au_stream_enabled));
-	/* Never expose a discard probe as a real speaker while the amp is running. */
-	if (hal_probe) au_stream_enabled = 0;
+	/* Mode 1 is silent. Mode 2 is an explicit short speaker experiment. */
+	au_hal_real = hal_probe == 2 && au_stream_enabled;
+	if (hal_probe && !au_hal_real) au_stream_enabled = 0;
 	if (hal_probe) {
 		int major = cdevsw_add(-1, &au_hal_cdev);
 		if (major < 0 || !devfs_make_node(makedev(major, 0), DEVFS_CHAR, UID_ROOT, GID_WHEEL, 0666, "hakios-audio"))
 			printf("LAPIS HAL PROBE: device creation failed\n");
-		else printf("LAPIS HAL PROBE: /dev/hakios-audio ready, PCM discarded\n");
+		else printf("LAPIS HAL PROBE: /dev/hakios-audio ready (%s)\n", au_hal_real ? "speaker experiment" : "PCM discarded");
 	}
 	if (!enabled) { au_stream_enabled = 0; return; }
 	if (au_stream_enabled) {
 		au_stream_group = lck_grp_alloc_init("lapis-audio-stream", LCK_GRP_ATTR_NULL);
 		if (au_stream_group) au_stream_lock = lck_mtx_alloc_init(au_stream_group, LCK_ATTR_NULL);
-		if (!au_stream_lock) { au_stream_enabled = 0; printf("LAPIS AUDIO: stream lock unavailable\n"); }
+		if (!au_stream_lock) { au_stream_enabled = 0; au_hal_real = 0; printf("LAPIS AUDIO: stream lock unavailable\n"); }
 	}
 	int major = cdevsw_add(-1, &au_probe_cdev);
 	if (major < 0 || !devfs_make_node(makedev(major, 0), DEVFS_CHAR, UID_ROOT, GID_WHEEL, 0600, "lapis-audio-probe")) {
@@ -374,6 +382,18 @@ au_stream_pump(void)
 			lck_mtx_lock(au_stream_lock);
 			unsigned got = lapis_audio_queue_pop(&au_stream_queue, frames, count);
 			lck_mtx_unlock(au_stream_lock);
+			if (au_hal_real) {
+				unsigned muted = __atomic_load_n(&au_hal_muted, __ATOMIC_RELAXED);
+				unsigned below = __atomic_load_n(&au_hal_below, __ATOMIC_RELAXED);
+				unsigned shift = below / 48;
+				if (shift > 15) shift = 15;
+				for (unsigned i = 0; i < count; i++) {
+					int l = (int16_t)(frames[i] & 0xffff), r = (int16_t)(frames[i] >> 16);
+					if (muted) l = r = 0;
+					else { l /= (1 << shift); r /= (1 << shift); }
+					frames[i] = (uint16_t)l | ((uint32_t)(uint16_t)r << 16);
+				}
+			}
 			played += got;
 			underruns += count - got;
 			for (unsigned i = 0; i < count; i++) {
