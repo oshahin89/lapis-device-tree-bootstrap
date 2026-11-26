@@ -187,7 +187,7 @@ au_probe_init(void)
 	(void)PE_parse_boot_argn("lapisaudiohalprobe", &hal_probe, sizeof(hal_probe));
 	(void)PE_parse_boot_argn("lapisaudiostream", &au_stream_enabled, sizeof(au_stream_enabled));
 	/* Mode 1 is silent; 2 and 3 are opt-in bounded and restartable tests. */
-	au_hal_real = (hal_probe == 2 || hal_probe == 3) && au_stream_enabled;
+	au_hal_real = (hal_probe == 2 || hal_probe == 3) && au_stream_enabled && enabled;
 	au_hal_persistent = hal_probe == 3 && au_hal_real;
 	if (hal_probe && !au_hal_real) au_stream_enabled = 0;
 	if (hal_probe) {
@@ -196,7 +196,7 @@ au_probe_init(void)
 			printf("LAPIS HAL PROBE: device creation failed\n");
 		else printf("LAPIS HAL PROBE: /dev/hakios-audio ready (%s)\n", au_hal_real ? "speaker experiment" : "PCM discarded");
 	}
-	if (!enabled) { au_stream_enabled = 0; return; }
+	if (!enabled) { au_stream_enabled = 0; au_hal_real = 0; au_hal_persistent = 0; return; }
 	if (au_stream_enabled) {
 		au_stream_group = lck_grp_alloc_init("lapis-audio-stream", LCK_GRP_ATTR_NULL);
 		if (au_stream_group) au_stream_lock = lck_mtx_alloc_init(au_stream_group, LCK_ATTR_NULL);
