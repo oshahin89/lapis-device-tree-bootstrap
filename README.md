@@ -71,7 +71,7 @@ Then, on a Linux machine:
 ```sh
 # the kernel payload (boot-args included)
 python3 tools/ios-sweet/mkpayload.py kernel.development.sweet build/phone_ufs_debug.adt build/payload.bin \
-    --cmdline "debug=0xc serial=3 cpus=4 keepsyms=1 -noprogress sweethw=0 wdt=-1 rd=ufsroot0 ufsroot=iosroot ufslun=2 ufsrw=1 rootrw=1 launchd_unsecure_cache=1 unentitled_ios_sim_launch=1 ignition_level=1 lapisnt=1 sweetfb_noconsole=1 lapisbacklight=0"
+    --cmdline "debug=0xc serial=3 cpus=4 keepsyms=1 -noprogress sweethw=0 wdt=-1 rd=ufsroot0 ufsroot=iosroot ufslun=2 ufsrw=1 rootrw=1 launchd_unsecure_cache=1 unentitled_ios_sim_launch=1 ignition_level=1 lapisnt=1 sweetfb_noconsole=1 lapisbacklight=1 sweetfb_stayon=1"
 # one boot_b image: Android by default, iOS on Volume up (includes the GPU firmware when build/gpu/mali_csffw.bin exists)
 tools/lapis_dual_image.sh build/payload.bin build/lapis_dual.img
 ```
