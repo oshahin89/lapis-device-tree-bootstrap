@@ -1789,6 +1789,24 @@ xrSurfaceOut(LapisTexState *t, void *base, size_t stride)
 			dst[3] = 255;
 		}
 	}
+	static unsigned diagnosticCopies;
+	if (diagnosticCopies < 3) {
+		uint64_t colored = 0;
+		for (size_t y = 0; y < h; y++) {
+			const uint8_t *row = (const uint8_t *)base + y * stride;
+			for (size_t x = 0; x < w; x++) {
+				const uint8_t *p = row + x * 4;
+				colored += p[0] || p[1] || p[2];
+			}
+		}
+		const uint8_t *first = base;
+		const uint8_t *center = (const uint8_t *)base + (h / 2) * stride + (w / 2) * 4;
+		say([NSString stringWithFormat:@"XR surface copy %u %lux%lu stride %lu: colored %llu/%llu pixels; first BGRA %02x%02x%02x%02x center BGRA %02x%02x%02x%02x",
+		    diagnosticCopies + 1, (unsigned long)w, (unsigned long)h, (unsigned long)stride,
+		    (unsigned long long)colored, (unsigned long long)(w * h),
+		    first[0], first[1], first[2], first[3], center[0], center[1], center[2], center[3]]);
+		diagnosticCopies++;
+	}
 	free(tmp);
 	return YES;
 }
