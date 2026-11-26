@@ -43,7 +43,7 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +	SweetBacklightCreate(provider);
  	return true;
  }
-@@ -419,3 +425,226 @@
+@@ -419,3 +425,229 @@
  	IOPMPowerSource::free();
  }
 +
@@ -117,6 +117,9 @@ diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.c
 +	setProperty("AAPL,backlight-control", true);
 +	publishValue();
 +	registerService();
++	/* Backboardd reads the service but this device has no native backlight
++	 * controller for it to drive. Set the OLED DCS level ourselves on boot. */
++	apply(fValue);
 +	IOLog("LAPIS BACKLIGHT: service up, brightness %u/%u\n", fValue, LAPIS_BL_MAX);
 +	return true;
 +}
