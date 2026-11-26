@@ -108,7 +108,7 @@ diff -ruN a/src/gallium/meson.build b/src/gallium/meson.build
 diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis/lapis_target.c
 --- a/src/gallium/targets/lapis/lapis_target.c
 +++ b/src/gallium/targets/lapis/lapis_target.c
-@@ -0,0 +1,1770 @@
+@@ -0,0 +1,1780 @@
 +/*
 + * Copyright 2026 the lapis port authors
 + * SPDX-License-Identifier: MIT
@@ -1361,7 +1361,9 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   if (consts_desc)
 +      fill_constants(mem, bc, size, want == MESA_SHADER_VERTEX ? consts_desc->vs_consts : consts_desc->fs_consts,
 +                     want == MESA_SHADER_VERTEX ? consts_desc->num_vs_consts : consts_desc->num_fs_consts, &opts);
++   int64_t profile_start = os_time_get_nano();
 +   nir_shader *nir = air_to_nir(mem, bc, size, entry, &opts, gpu->screen->nir_options[want], &info, &why);
++   int64_t profile_air = os_time_get_nano();
 +   if (!nir || nir->info.stage != want) {
 +      snprintf(error, error_size, "%s: %s", entry,
 +               !nir ? (why ? why : "air_to_nir failed") : "not the stage the pipeline wants it for");
@@ -1380,6 +1382,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +      NIR_PASS(progress, nir, nir_opt_dead_cf);
 +      NIR_PASS(progress, nir, nir_opt_if, nir_opt_if_optimize_phi_true_false);
 +   } while (progress && ++rounds < 16);
++   int64_t profile_opt = os_time_get_nano();
 +   for (unsigned i = 0; i < info.num_resources && st->num_res < LAPIS_GPU_MAX_RES; i++) {
 +      if (info.resources[i].kind == AIR_RESOURCE_CONSTANT_BUFFER &&
 +          !nir_uses_ubo(nir, info.resources[i].index))
@@ -1472,6 +1475,7 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +         st->nir_text = text;
 +      }
 +   }
++   int64_t profile_prepare = os_time_get_nano();
 +   ralloc_steal(NULL, nir);
 +   ralloc_free(mem);
 +   struct pipe_shader_state ss = { .type = PIPE_SHADER_IR_NIR, .ir.nir = nir };
@@ -1479,6 +1483,12 @@ diff -ruN a/src/gallium/targets/lapis/lapis_target.c b/src/gallium/targets/lapis
 +   st->cso = want == MESA_SHADER_VERTEX ? gpu->ctx->create_vs_state(gpu->ctx, &ss)
 +                                        : gpu->ctx->create_fs_state(gpu->ctx, &ss);
 +   pthread_mutex_unlock(&gpu->lock);
++   int64_t profile_cso = os_time_get_nano();
++   static unsigned profile_count;
++   if (strstr(entry, "fixed_") && profile_count++ < 30)
++      lapis_drm_log("pipeline stage %s: AIR %lldms opt %lldms prep %lldms CSO %lldms rounds %u", entry,
++                    (long long)((profile_air-profile_start)/1000000), (long long)((profile_opt-profile_air)/1000000),
++                    (long long)((profile_prepare-profile_opt)/1000000), (long long)((profile_cso-profile_prepare)/1000000), rounds);
 +   if (!st->cso) {
 +      snprintf(error, error_size, "%s: panfrost refused the shader", entry);
 +      return false;
