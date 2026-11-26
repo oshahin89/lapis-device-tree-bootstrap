@@ -60,3 +60,25 @@ not exercise CoreAudio or play sound.
 The original `IOMFB_FDR_Loader` was restored after the experiment and its
 slot verified as original. The installed dual boot image still enables the
 ingress probe; `lapisgpu=0` and `lapismetal=0` remain in its boot arguments.
+
+## iOS-to-speaker packet probe (2026-11-26)
+
+With `lapisaudioplayprobe=1`, the kernel waits for one 480-frame PCM packet
+from the iOS test program, clips it to a conservative fixed level, repeats it
+in the AFE SRAM ring and plays it for 300 ms. The user heard a short tone;
+sweetlog reports the 480-frame write, then receipt of the packet and a moving
+DL0 pointer with zero I2C errors. This demonstrates the test program's PCM
+reached the speaker path, not continuous application playback or CoreAudio.
+After the test the original FDR loader and the previously booted CPU-rendered
+ingress-probe image were restored and checked by hash.
+
+## Continuous PCM queue preparation
+
+`device/xnu-lapis/driver/lapis_audio_queue.h` provides an 8192-frame bounded
+stereo queue for a caller that supplies its own lock. Its host-side check
+`tools/lapis_audio_probe/queue_check.c` exercises ordering, wraparound,
+overflow and zero-filled underruns; it passed with address and undefined
+behavior sanitizers on 2026-11-26. It is not yet connected to the kernel,
+hardware ring, HAL or application playback. A real-time worker must use the
+DL0 hardware read position safely, with an explicit guard and a policy for a
+late worker before any continuous playback experiment.
