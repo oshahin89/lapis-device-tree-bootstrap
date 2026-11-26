@@ -17,6 +17,7 @@
 #include <sys/systm.h>
 #include <kern/clock.h>
 #include <kern/thread.h>
+#include <kern/locks.h>
 #include <kern/sched_prim.h>
 #include <machine/machine_routines.h>
 #include <pexpert/pexpert.h>
@@ -25,6 +26,7 @@
 #include <sys/errno.h>
 #include <sys/proc.h>
 #include <sys/uio.h>
+#include "lapis_audio_queue.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern kern_return_t thread_terminate(thread_t);
@@ -76,6 +78,11 @@ static uint64_t au_probe_frames, au_probe_nonzero;
 /* One fixed-size packet for an opt-in speaker path experiment. */
 static int16_t au_probe_packet[960];
 static volatile int au_probe_packet_state; /* 0 empty, 1 being copied, 2 ready */
+static struct lapis_audio_queue au_stream_queue;
+static lck_grp_t *au_stream_group;
+static lck_mtx_t *au_stream_lock;
+static int au_stream_enabled;
+static uint64_t au_stream_accepted, au_stream_dropped;
 
 static int
 au_probe_open(dev_t dev __unused, int flags __unused, int type __unused, struct proc *p __unused)
@@ -101,6 +108,21 @@ au_probe_write(dev_t dev __unused, struct uio *uio, int flags __unused)
 		if (bytes > (user_ssize_t)sizeof(samples)) bytes = sizeof(samples);
 		int error = uiomove((caddr_t)samples, (int)bytes, uio);
 		if (error) return error;
+		if (au_stream_enabled && au_stream_lock) {
+			uint32_t frames[480];
+			unsigned count = (unsigned)bytes / 4;
+			for (unsigned i = 0; i < count; i++) {
+				int l = samples[i * 2], r = samples[i * 2 + 1];
+				l = l < -500 ? -500 : l > 500 ? 500 : l;
+				r = r < -500 ? -500 : r > 500 ? 500 : r;
+				frames[i] = (uint16_t)l | ((uint32_t)(uint16_t)r << 16);
+			}
+			lck_mtx_lock(au_stream_lock);
+			unsigned accepted = lapis_audio_queue_push(&au_stream_queue, frames, count);
+			au_stream_accepted += accepted;
+			au_stream_dropped += count - accepted;
+			lck_mtx_unlock(au_stream_lock);
+		}
 		if (bytes == sizeof(au_probe_packet) && __sync_bool_compare_and_swap(&au_probe_packet_state, 0, 1)) {
 			for (unsigned i = 0; i < 960; i++) {
 				int s = samples[i];
@@ -127,7 +149,13 @@ au_probe_init(void)
 {
 	int enabled = 0;
 	(void)PE_parse_boot_argn("lapisaudioprobe", &enabled, sizeof(enabled));
-	if (!enabled) return;
+	(void)PE_parse_boot_argn("lapisaudiostream", &au_stream_enabled, sizeof(au_stream_enabled));
+	if (!enabled) { au_stream_enabled = 0; return; }
+	if (au_stream_enabled) {
+		au_stream_group = lck_grp_alloc_init("lapis-audio-stream", LCK_GRP_ATTR_NULL);
+		if (au_stream_group) au_stream_lock = lck_mtx_alloc_init(au_stream_group, LCK_ATTR_NULL);
+		if (!au_stream_lock) { au_stream_enabled = 0; printf("LAPIS AUDIO: stream lock unavailable\n"); }
+	}
 	int major = cdevsw_add(-1, &au_probe_cdev);
 	if (major < 0 || !devfs_make_node(makedev(major, 0), DEVFS_CHAR, UID_ROOT, GID_WHEEL, 0600, "lapis-audio-probe")) {
 		printf("LAPIS AUDIO PROBE: device creation failed\n");
@@ -275,6 +303,59 @@ au_sleep_ms(unsigned ms)
 	thread_block(THREAD_CONTINUE_NULL);
 }
 
+/* Experimental bounded pump. Write only behind the DMA read head, leaving a
+ * 512-byte guard. If the worker is delayed enough to miss a wrap, stop. */
+static void
+au_stream_pump(void)
+{
+	uint32_t cur = au_rd(au_afe, 0x444c);
+	if (cur < AU_RING_PA || cur >= AU_RING_PA + AU_RING_BYTES) {
+		printf("LAPIS AUDIO STREAM: invalid initial DL0 pointer %#x\n", cur);
+		return;
+	}
+	uint32_t safe = (((cur - AU_RING_PA) & ~3u) + AU_RING_BYTES - 512u) % AU_RING_BYTES;
+	uint64_t last = mach_absolute_time(), underruns = 0, played = 0;
+	for (unsigned tick = 0; tick < 500; tick++) {
+		au_sleep_ms(5);
+		uint64_t now = mach_absolute_time(), elapsed_ns = 0;
+		absolutetime_to_nanoseconds(now - last, &elapsed_ns);
+		last = now;
+		if (elapsed_ns > 25000000ULL) {
+			printf("LAPIS AUDIO STREAM: worker late (%llu ns), stopping\n", (unsigned long long)elapsed_ns);
+			break;
+		}
+		cur = au_rd(au_afe, 0x444c);
+		if (cur < AU_RING_PA || cur >= AU_RING_PA + AU_RING_BYTES) {
+			printf("LAPIS AUDIO STREAM: invalid DL0 pointer %#x, stopping\n", cur);
+			break;
+		}
+		uint32_t next = (((cur - AU_RING_PA) & ~3u) + AU_RING_BYTES - 512u) % AU_RING_BYTES;
+		uint32_t bytes = (next + AU_RING_BYTES - safe) % AU_RING_BYTES;
+		if (bytes > 5120u) { printf("LAPIS AUDIO STREAM: pointer advanced too far, stopping\n"); break; }
+		while (bytes) {
+			uint32_t frames[256];
+			unsigned count = bytes / 4;
+			if (count > 256) count = 256;
+			lck_mtx_lock(au_stream_lock);
+			unsigned got = lapis_audio_queue_pop(&au_stream_queue, frames, count);
+			lck_mtx_unlock(au_stream_lock);
+			played += got;
+			underruns += count - got;
+			for (unsigned i = 0; i < count; i++) {
+				*(volatile uint32_t *)(au_ring + safe) = frames[i];
+				safe = (safe + 4) % AU_RING_BYTES;
+			}
+			__asm__ volatile("dsb oshst" ::: "memory");
+			bytes -= count * 4;
+		}
+	}
+	lck_mtx_lock(au_stream_lock);
+	printf("LAPIS AUDIO STREAM: accepted %llu dropped %llu fed %llu silent %llu frames\n",
+	    (unsigned long long)au_stream_accepted, (unsigned long long)au_stream_dropped,
+	    (unsigned long long)played, (unsigned long long)underruns);
+	lck_mtx_unlock(au_stream_lock);
+}
+
 static void
 au_thread(void *arg __unused, wait_result_t wr __unused)
 {
@@ -341,8 +422,8 @@ au_thread(void *arg __unused, wait_result_t wr __unused)
 
 	/* the chime: ring in AFE SRAM, memif DL0, DL0 -> I2S OUT4 */
 	for (uint32_t i = 0; i < AU_RING_BYTES / 4; i++) {
-		uint16_t l = pcm_probe ? (uint16_t)au_probe_packet[(i % 480) * 2] : (uint16_t)au_tone[i % 48];
-		uint16_t r = pcm_probe ? (uint16_t)au_probe_packet[(i % 480) * 2 + 1] : l;
+		uint16_t l = au_stream_enabled ? 0 : pcm_probe ? (uint16_t)au_probe_packet[(i % 480) * 2] : (uint16_t)au_tone[i % 48];
+		uint16_t r = au_stream_enabled ? 0 : pcm_probe ? (uint16_t)au_probe_packet[(i % 480) * 2 + 1] : l;
 		*(volatile uint32_t *)(au_ring + i * 4) = (uint32_t)r << 16 | l;
 	}
 	au_wr(au_afe, 0x4440, 0);
@@ -379,7 +460,7 @@ au_thread(void *arg __unused, wait_result_t wr __unused)
 	tfa_both(0xe1, 1);
 	tfa_both(0x00, 0xf258);
 	uint32_t cur0 = au_rd(au_afe, 0x444c);
-	au_sleep_ms(300);
+	if (au_stream_enabled && au_stream_lock) au_stream_pump(); else au_sleep_ms(300);
 	uint32_t cur1 = au_rd(au_afe, 0x444c);
 	tfa_both(0x00, 0xf250);
 	au_wr(au_afe, 0x4460, au_rd(au_afe, 0x4460) & ~(1u << 28));
