@@ -1837,6 +1837,37 @@ xrSurfaceIn(LapisTexState *t, const void *base, size_t stride)
 	return YES;
 }
 
+/* Log a bounded, useful summary of the large fixed-function NIR shader. */
+static void
+logNIRSummary(NSString *name, char *text)
+{
+	static const char *tokens[] = { "load_input", "tex", "load_ubo", "load_ssbo", "store_output", "load_const", "deref" };
+	unsigned counts[sizeof(tokens) / sizeof(tokens[0])] = { 0 };
+	unsigned lineNo = 0, interesting = 0;
+	char *line = text;
+	while (line && *line) {
+		char *end = strchr(line, '\n');
+		if (end) *end = '\0';
+		BOOL match = NO;
+		for (unsigned i = 0; i < sizeof(tokens) / sizeof(tokens[0]); i++) {
+			if (strstr(line, tokens[i])) {
+				counts[i]++;
+				match = YES;
+			}
+		}
+		if (lineNo < 12 || (match && interesting < 64)) {
+			say([NSString stringWithFormat:@"NIR %@ line %u: %s", name, lineNo, line]);
+			if (match) interesting++;
+		}
+		lineNo++;
+		if (!end) break;
+		*end = '\n';
+		line = end + 1;
+	}
+	say([NSString stringWithFormat:@"NIR %@ summary: %u lines; input %u tex %u ubo %u ssbo %u output %u const %u deref %u",
+	    name, lineNo, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6]]);
+}
+
 static void
 surfaceIn(LapisTexState *t)
 {
@@ -2134,9 +2165,9 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 	}
 	BOOL screenPipeline = [vs.name isEqualToString:@"fixed_vert_lph_spc"] &&
 	    [fs.name isEqualToString:@"fixed_frag_lph_cpf"];
-	BOOL dumpPipelineNIR = dumpTestNIR || (screenPipeline && !screenNIRShown);
+	BOOL dumpScreenNIRNow = screenPipeline && !screenNIRShown;
+	BOOL dumpPipelineNIR = dumpTestNIR || dumpScreenNIRNow;
 	if (screenPipeline) {
-		screenNIRShown = YES;
 		for (unsigned i = 0; i < 31; i++) {
 			if (desc.attribs[i].format) {
 				say([NSString stringWithFormat:@"screen vertex attr %u format %u offset %u buffer %u stride %u step %u/%u",
@@ -2146,19 +2177,16 @@ deviceNewRenderPipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *d, NSErr
 			}
 		}
 	}
-	for (int frag = vsShown ? 1 : 0; dumpPipelineNIR && G.render_nir && frag < 2; frag++) {
+	for (int frag = dumpScreenNIRNow ? 0 : vsShown ? 1 : 0; dumpPipelineNIR && G.render_nir && frag < 2; frag++) {
 		size_t n = G.render_nir(r, frag, NULL, 0);
 		char *text = malloc(n + 1);
 		G.render_nir(r, frag, text, n + 1);
 		say([NSString stringWithFormat:@"NIR of %@ (%zu bytes):", frag ? fs.name : vs.name, n]);
-		for (NSString *line in [@(text) componentsSeparatedByString:@"\n"]) {
-			if (line.length) {
-				say([@"  " stringByAppendingString:line]);
-			}
-		}
+		logNIRSummary(frag ? fs.name : vs.name, text);
 		free(text);
 	}
 	vsShown = YES;
+	if (screenPipeline) screenNIRShown = YES;
 	LapisRenderPipeState *st = [LapisRenderPipeState new];
 	st.render = r;
 	st.label = [NSString stringWithFormat:@"%@ + %@", vs.name, fs.name];
