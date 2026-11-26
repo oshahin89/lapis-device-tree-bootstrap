@@ -1,0 +1,22 @@
+--- a/iokit/Kernel/IOPlatformExpert.cpp
++++ b/iokit/Kernel/IOPlatformExpert.cpp
+@@ -360,6 +360,19 @@
+ 	}
+ #endif
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET) && defined(__arm64__)
++	/* Lapis experiment: enter PSCI only after IOKit shutdown callouts. */
++	int lapis_shutdown = 0;
++	if ((type == kPEHaltCPU || type == kPERestartCPU) &&
++	    PE_parse_boot_argn("lapisshutdown", &lapis_shutdown, sizeof(lapis_shutdown)) && lapis_shutdown) {
++		register uint64_t x0 __asm__("x0") = type == kPEHaltCPU ? 0x84000008ULL : 0x84000009ULL;
++		IOLog("LAPIS POWER: PSCI %s\n", type == kPEHaltCPU ? "SYSTEM_OFF" : "SYSTEM_RESET");
++		__asm__ volatile("smc #0" : "+r"(x0) : : "x1", "x2", "x3", "x4", "x5", "x6", "x7",
++		    "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17", "cc", "memory");
++		IOLog("LAPIS POWER: PSCI returned %d; using original path\n", (int32_t)x0);
++	}
++#endif
++
+ 	if (PE_halt_restart) {
+ 		return (*PE_halt_restart)(type);
+ 	} else {
