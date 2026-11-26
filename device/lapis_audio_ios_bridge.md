@@ -102,3 +102,22 @@ then panicked with `Halt/Restart Timed Out` at `IOPlatformExpert.cpp:884`.
 The user returned to Android with hardware buttons. The log establishes a
 shutdown timeout; the particular missing or failing platform power-off
 mechanism is not yet confirmed.
+
+## HakiOS HAL compatibility (2026-11-26)
+
+On the discard-only `lapisaudiohalprobe=1` boot, the FDR test using HakiOS
+HAL code opened `/dev/hakios-audio`, set muted volume (384 eighth-dB below
+maximum), and wrote four stereo frames; sweetlog recorded all four frames
+and eight nonzero samples. The user restored the original FDR and known-good
+CPU image afterward. This exercises the HAL functions in a test executable;
+it does not prove mediaserverd loads the plug-in or that apps can play audio.
+
+The HakiOS HAL opens its sink during initialization and retains that file
+descriptor across start/stop cycles. Therefore a permanent Lapis sink cannot
+use `open` and `close` alone as playback start and stop signals. It must track
+incoming frames, safely stop after inactivity, restart for subsequent writes,
+honor mute and volume, and handle delays without overwriting the hardware DMA
+reader. The current bounded experiment runs for 2.5 seconds only and is not a
+permanent sink. The separate `lapisaudiohalprobe=2` experiment exercises the
+actual HAL write path and a software mute against the speaker, and remains
+opt-in and untested on the device at the time of writing.
