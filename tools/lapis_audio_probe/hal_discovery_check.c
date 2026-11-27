@@ -7,7 +7,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#ifdef LAPIS_HAL_CLEANUP_ONLY
+#if defined(LAPIS_HAL_CLEANUP_ONLY) || defined(LAPIS_HAL_REPORT_IOCTL)
 #include <sys/ioctl.h>
 #endif
 #include <zlib.h>
@@ -34,7 +34,7 @@ static void report(unsigned code)
 {
 	int fd = open(LAPIS_HAL_TEST_DEVICE, O_WRONLY);
 	if (fd < 0) return;
-#ifdef LAPIS_HAL_CLEANUP_ONLY
+#if defined(LAPIS_HAL_CLEANUP_ONLY) || defined(LAPIS_HAL_REPORT_IOCTL)
 	/* ioctl is logged immediately, even while another process holds the device. */
 	struct { uint32_t below, muted; } v = { code, 1 };
 	(void)ioctl(fd, _IOW('r', 1, typeof(v)), &v);

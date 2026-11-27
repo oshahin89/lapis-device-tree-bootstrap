@@ -238,6 +238,18 @@ static struct device devices[] = {
 static AudioServerPlugInHostRef host;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static int sink = -1;                   /* /dev/hakios-audio */
+#if defined(LAPIS_HAL_ROUTE_PROBE)
+/* Discard-only diagnostics: each code is emitted at most once per process. */
+static unsigned route_seen;
+static void route_marker(unsigned code)
+{
+	unsigned bit = 1u << (code - 385);
+	if (sink >= 0 && !(__atomic_fetch_or(&route_seen, bit, __ATOMIC_RELAXED) & bit)) {
+		struct hakios_audio_volume marker = { code, 1 };
+		(void)ioctl(sink, HAKIOS_AUDIO_SET_VOLUME, &marker);
+	}
+}
+#endif
 static Float64 ticks_per_frame;
 static UInt64 written, refused;         /* frames since the speaker's I/O started */
 static Boolean inactive[OBJECT_LAST + 1];       /* streams the HAL has switched off */
@@ -355,7 +367,7 @@ initialize(__unused AudioServerPlugInDriverRef driver, AudioServerPlugInHostRef 
 #if defined(LAPIS_HAL_DISCOVERY_PROBE)
 	/* The discard-only kernel probe logs this when mediaserverd loads us. */
 	if (sink >= 0) {
-		struct hakios_audio_volume marker = { 384, 1 };
+	struct hakios_audio_volume marker = { 384, 1 };
 		(void)ioctl(sink, HAKIOS_AUDIO_SET_VOLUME, &marker);
 	}
 #endif
@@ -766,6 +778,12 @@ get_property_data(AudioServerPlugInDriverRef driver, AudioObjectID object, pid_t
 		CFRetain(v.u.string);
 	}
 	*size = v.size;
+#if defined(LAPIS_HAL_ROUTE_PROBE)
+	if (object == OBJECT_PLUGIN && address->mSelector == kAudioPlugInPropertyDeviceList && v.size >= sizeof(UInt32))
+		route_marker(385);
+	if (object == OBJECT_SPEAKER && address->mSelector == kAudioDevicePropertyDeviceUID)
+		route_marker(386);
+#endif
 	return 0;
 }
 
@@ -894,6 +912,9 @@ start_io(__unused AudioServerPlugInDriverRef driver, AudioObjectID object, __unu
 	if (d == NULL || object != d->object) {
 		return kAudioHardwareBadObjectError;
 	}
+#if defined(LAPIS_HAL_ROUTE_PROBE)
+	if (object == OBJECT_SPEAKER) route_marker(387);
+#endif
 	pthread_mutex_lock(&lock);
 	if (d->running++ == 0) {
 		d->anchor = mach_absolute_time();
@@ -1023,6 +1044,9 @@ do_io_operation(__unused AudioServerPlugInDriverRef driver, __unused AudioObject
 	} else if (operation == kAudioServerPlugInIOOperationWriteMix && stream == OBJECT_ACTUATOR_OUTPUT) {
 		actuator_write(buffer, frames);
 	} else if (operation == kAudioServerPlugInIOOperationWriteMix && stream == d->output) {
+#if defined(LAPIS_HAL_ROUTE_PROBE)
+		if (stream == OBJECT_SPEAKER_OUTPUT && frames != 0) route_marker(388);
+#endif
 		/* the kernel takes it all or leaves it: this thread must not wait */
 		if (sink < 0 || write(sink, buffer, (size_t)frames * HAKIOS_AUDIO_FRAME) < 0) {
 			refused += frames;
