@@ -39,3 +39,28 @@ opt-in XNU microphone probe be attempted.
 The current iOS HAL code can ask for `/dev/hakios-mic`, but Lapis does not yet
 implement that device; missing input is padded with silence. Speaker playback,
 CPU rendering and persistent audio should be preserved during microphone work.
+
+## Android register trace and XNU probe preparation
+
+The user's private trace had 15,105 entries in the buffer and 15,105 written.
+Around 1213.66–1213.70 seconds, writes from the audio capture thread reached
+the `0-05` regmap and the MT6878 AFE; around 1230.79 seconds related settings
+were reversed. The saved Android boot log identifies `0-05` as chip ID `0x69`.
+The codec writes include `AUDENC_ANA_CON2/3` (`0x250a/0x250b`), microphone
+bias (`0x2519`), and the UL digital control (`0x238b`). The trace records writes
+but not initial values or all hardware state, so it is not a replay script.
+
+The Android AFE writes identify VUL9 base/end `0x11059000..0x110643ff`, then
+VUL9 control at `0x4f30`. This observed region overlaps all 8,064 bytes of the
+existing XNU speaker ring at `0x11060000..0x11061f7f`. Android's captured
+address range must not be reused concurrently with that ring. Buffer allocation,
+cache coherency, the producer/consumer cursor, overrun handling, routing and
+format require separate design. `tools/lapis_mic_trace_analyze.py` summarizes
+the relevant writes and reports overlap without exposing audio samples.
+
+MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
+thread using that channel without synchronization could corrupt transactions.
+The opt-in `lapismicprobe=1` preparation performs only codec register reads,
+once on the existing keys thread, and reads the VUL9 AFE configuration. It
+must first be compiled and validated on-device; it does not enable the ADC,
+create `/dev/hakios-mic`, or prove microphone capture.

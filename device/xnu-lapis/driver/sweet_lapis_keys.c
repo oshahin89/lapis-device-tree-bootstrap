@@ -90,14 +90,14 @@ pmif_wait(uint32_t fsm)
 
 /* One PMIC byte (extended register long read, 16-bit address). */
 static bool
-pmic_read(uint32_t addr, uint8_t *out)
+pmic_read_sid(uint32_t sid, uint32_t addr, uint8_t *out)
 {
 	if (!pmif_wait(0)) {
 		keys.pmic_errors++;
 		return false;
 	}
 	keys_wr(keys.pmif, KEYS_SW + SW_ACC,
-	    (3u << 30) | (PMIC_SID << 24) | (addr & 0xffffu));
+	    (3u << 30) | (sid << 24) | (addr & 0xffffu));
 	if (!pmif_wait(6)) {
 		keys.pmic_errors++;
 		return false;
@@ -105,6 +105,41 @@ pmic_read(uint32_t addr, uint8_t *out)
 	*out = (uint8_t)keys_rd(keys.pmif, KEYS_SW + SW_RDATA);
 	keys_wr(keys.pmif, KEYS_SW + SW_VLDCLR, 1);
 	return true;
+}
+
+static bool
+pmic_read(uint32_t addr, uint8_t *out)
+{
+	return pmic_read_sid(PMIC_SID, addr, out);
+}
+
+/* Run on the key polling thread so no second caller can race SWINF channel 2.
+ * This probe issues only PMIF reads; it never changes codec configuration. */
+static void
+mic_readonly_probe(void)
+{
+	int enabled = 0;
+	(void)PE_parse_boot_argn("lapismicprobe", &enabled, sizeof(enabled));
+	if (!enabled) return;
+	uint8_t id = 0;
+	if (!pmic_read_sid(5, 0x09, &id) || id != 0x69) {
+		printf("LAPIS MIC PROBE: codec ID unavailable or unexpected: %#x\n", id);
+		return;
+	}
+	printf("LAPIS MIC PROBE: MT6369 ID %#x; read-only register check\n", id);
+	static const uint32_t regs[] = { 0x2388, 0x238b, 0x238f, 0x23d3, 0x23db, 0x23de,
+	    0x250a, 0x250b, 0x2519, 0x251a };
+	for (unsigned i = 0; i < sizeof(regs) / sizeof(regs[0]); i++) {
+		uint8_t value = 0;
+		if (pmic_read_sid(5, regs[i], &value))
+			printf("LAPIS MIC PROBE: codec reg %#x = %#x\n", regs[i], value);
+		else
+			printf("LAPIS MIC PROBE: codec reg %#x read failed\n", regs[i]);
+	}
+	vm_offset_t afe = ml_io_map(0x11050000u, 0x6000);
+	if (!afe) { printf("LAPIS MIC PROBE: AFE map failed\n"); return; }
+	printf("LAPIS MIC PROBE: VUL9 base=%#x current=%#x end=%#x con=%#x\n",
+	    keys_rd(afe, 0x4f14), keys_rd(afe, 0x4f1c), keys_rd(afe, 0x4f24), keys_rd(afe, 0x4f30));
 }
 
 static void
@@ -161,6 +196,7 @@ keys_thread(void *arg, wait_result_t wr)
 	keys.use_kp = (keys_rd(keys.kpd, KEYS_KP_MEM1) & KEYS_VOLDN_KP) != 0;
 	printf("LAPIS KEYS: pmic id=%02x top=%02x use pmic=%d gpio54=%d kp=%d\n",
 	    id, top, keys.use_pmic, keys.use_gpio, keys.use_kp);
+	mic_readonly_probe();
 
 	for (;;) {
 		bool now[K_COUNT];
