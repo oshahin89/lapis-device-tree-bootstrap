@@ -165,15 +165,25 @@ full ring traversal, copy
 offered spans immediately and provide memory ordering; the helper alone cannot
 prove that the pointer or samples are valid on this hardware.
 
-The host-only `mic_pipeline_check.c` combines a simulated wrapping DMA ring,
-cursor guard, candidate S16LE and S24LE-in-32 conversion, and the mono queue.
-It exercises ordering across wrap and a late-poll failure. This is a synthetic
-software test: no codec, physical DMA, app permissions, hardware synchronization
-or real microphone capture has been verified by it.
+`lapis_mic_pipeline.h` combines the cursor guard, candidate PCM conversion,
+mono queue and error handling into a hardware-neutral pipeline. It wipes the
+queue on a cursor fault and does not register a device or start hardware.
+The host-only `mic_pipeline_check.c` feeds it a simulated wrapping DMA ring in
+S16LE and S24LE-in-32 and exercises ordering and a late-poll failure. This is
+a synthetic software test: no codec, physical DMA, app permissions, hardware
+synchronization or real microphone capture has been verified by it.
 
 Run all software-only checks together with
 `tools/lapis_audio_probe/run_host_checks.sh`. They build with address and
 undefined-behavior sanitizers and do not require a phone or retain recordings.
+
+`mic_live_check.c` prepares an optional app-independent on-device check for a
+future `/dev/hakios-mic`: after a 60-second delay it reads for up to two minutes
+and reports only frame counts, nonzero counts, peak and errors, wiping each
+temporary buffer. It saves no PCM. The optional aggregate-report ioctl is a
+proposed contract and has no kernel implementation yet; stderr capture and
+on-device timing still need validation. This direct device check cannot prove
+AVAudioSession routing or real app recording.
 
 MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
 thread using that channel without synchronization could corrupt transactions.
