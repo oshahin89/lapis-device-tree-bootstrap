@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - tools/lapis_audio_probe/**
+      - tools/lapis_audio_hal/**
       - .github/workflows/lapis-audio-probe.yml
 permissions:
   contents: read
@@ -41,7 +42,17 @@ jobs:
           strip -x out/lapis_hal_fs_check
           codesign -s - -f out/lapis_hal_fs_check
           test "$(stat -f %z out/lapis_hal_fs_check)" -le 147456
-          shasum -a 256 out/lapis_audio_probe out/lapis_hal_check out/lapis_hal_driver_check out/lapis_hal_sound_check out/lapis_hal_cycle_check out/lapis_hal_fs_check | tee out/SHA256.txt
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.0 -O2 -Wall -bundle -DLAPIS_HAL_DISCOVERY_PROBE -framework CoreFoundation -o out/HakiosAudio.discovery tools/lapis_audio_hal/audio_plugin.c
+          codesign -s - -f out/HakiosAudio.discovery
+          gzip -n -c out/HakiosAudio.discovery > out/hal_probe.gz
+          xxd -i -n lapis_hal_gz out/hal_probe.gz > out/hal_probe_gz.h
+          xxd -i -n lapis_hal_plist tools/lapis_audio_hal/audio_plugin.plist > out/hal_probe_plist.h
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.0 -O2 -Wall -Wextra -Iout -lz -o out/lapis_hal_discovery_check tools/lapis_audio_probe/hal_discovery_check.c
+          strip -x out/lapis_hal_discovery_check
+          codesign -s - -f out/lapis_hal_discovery_check
+          test "$(stat -f %z out/lapis_hal_discovery_check)" -le 147456
+          rm out/hal_probe.gz out/hal_probe_gz.h out/hal_probe_plist.h
+          shasum -a 256 out/lapis_audio_probe out/lapis_hal_check out/lapis_hal_driver_check out/lapis_hal_sound_check out/lapis_hal_cycle_check out/lapis_hal_fs_check out/HakiosAudio.discovery out/lapis_hal_discovery_check | tee out/SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
           name: lapis-audio-probe

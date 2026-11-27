@@ -352,6 +352,13 @@ initialize(__unused AudioServerPlugInDriverRef driver, AudioServerPlugInHostRef 
 	ticks_per_frame = 1e9 * timebase.denom / timebase.numer / HAKIOS_AUDIO_RATE;
 	sink = open(HAKIOS_AUDIO_DEVICE, O_WRONLY);
 	say("hakios: audio: the speaker is with the HAL (%s: %s)\n", HAKIOS_AUDIO_DEVICE, sink < 0 ? strerror(errno) : "open");
+#if defined(LAPIS_HAL_DISCOVERY_PROBE)
+	/* The discard-only kernel probe logs this when mediaserverd loads us. */
+	if (sink >= 0) {
+		struct hakios_audio_volume marker = { 384, 1 };
+		(void)ioctl(sink, HAKIOS_AUDIO_SET_VOLUME, &marker);
+	}
+#endif
 	return 0;
 }
 

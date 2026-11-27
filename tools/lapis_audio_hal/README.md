@@ -1,9 +1,10 @@
 # HakiOS CoreAudio reference build
 
-These files are copied without modification from the HakiOS `main` branch at
+These files are based on the HakiOS `main` branch at
 commit `63fc2b4633bac3af8e57dadab9f5a8d4cb940438`, under the upstream MIT
 terms in `LICENSE.upstream`. They are built as a compatibility investigation
-for Lapis's iOS 16 user space.
+for Lapis's iOS 16 user space. The only source change is the optional
+`LAPIS_HAL_DISCOVERY_PROBE` marker ioctl, disabled in the ordinary build.
 
 The plug-in expects `/dev/hakios-audio` and VirtualAudio routing. Neither is
 currently connected to Lapis's experimental PCM output. Do not install this
