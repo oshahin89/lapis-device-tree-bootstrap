@@ -264,3 +264,27 @@ starts with a marker so cursor movement can be distinguished from bytes
 actually written by VUL9. The log contains counts and peaks, with no PCM
 dump. A quiet or static MTKAIF status alone is inconclusive because the
 monitor selector and protocol limit what it exposes.
+
+The v4 hardware log shows that the volume chord triggered the probe and the
+MTKAIF and UL0 enable readbacks passed. Both ADC trims stayed at 21. VUL9
+replaced 216,250 inspected words, with no remaining markers and zero nonzero
+words on either channel. All five sampled monitors stayed zero. This
+confirms that VUL9 wrote zeros and does not distinguish a silent codec
+uplink from a receiver or AFE routing issue. DMA stopped and register
+restoration passed. The separate DL0-to-VUL1 check rewrote 752 words and
+two subsequent speaker starts logged no dropped frames or I2C errors.
+
+The MT6369 driver exposes an AIF output mux that can feed a generated signal
+instead of the analog uplink (AFE_TOP_CON0, UL_SINE_ON). A bounded digital
+test at that mux can check the codec-to-SoC link independently of mic bias
+and ADC input. The SoC-side receiver and VUL9 would still have to pass the
+generated signal for the result to be positive.
+
+The v5 image first samples the analog input for two seconds. It then enables
+the codec test clock and generator, selects UL SGEN, lets the VUL9 ring
+wrap, and measures another second. It adds per-channel sample-transition
+counts so a constant nonzero word is distinguishable from a changing
+signal. The DAC input selector is preserved. The generator and mux state
+are restored with the rest of the transaction. The vendor driver confirms
+the UL mux exists, but its DAPM generator path is documented for downlink.
+A silent codec-tone phase alone cannot prove that the link is broken.
