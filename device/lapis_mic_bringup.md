@@ -158,11 +158,22 @@ The effective UID, sandbox behavior and a restrictive access policy still need
 verification before exposing actual microphone samples.
 
 `lapis_mic_cursor.h` prepares generic read-side DMA cursor accounting with a
-guard region, wrap handling and a fail-closed polling deadline. Its host test
-covers boundary and error cases. The caller must verify the real DMA sample
-rate and format, choose a deadline shorter than a full ring traversal, copy
+guard region, wrap handling, a maximum per-poll advance and a fail-closed
+polling deadline. Its host test covers boundary and error cases. The caller must
+verify the real DMA sample rate and format, choose a deadline shorter than a
+full ring traversal, copy
 offered spans immediately and provide memory ordering; the helper alone cannot
 prove that the pointer or samples are valid on this hardware.
+
+The host-only `mic_pipeline_check.c` combines a simulated wrapping DMA ring,
+cursor guard, candidate S16LE and S24LE-in-32 conversion, and the mono queue.
+It exercises ordering across wrap and a late-poll failure. This is a synthetic
+software test: no codec, physical DMA, app permissions, hardware synchronization
+or real microphone capture has been verified by it.
+
+Run all software-only checks together with
+`tools/lapis_audio_probe/run_host_checks.sh`. They build with address and
+undefined-behavior sanitizers and do not require a phone or retain recordings.
 
 MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
 thread using that channel without synchronization could corrupt transactions.

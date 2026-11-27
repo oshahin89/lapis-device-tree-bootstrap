@@ -6,7 +6,7 @@
 
 struct lapis_mic_cursor {
     uint64_t base, last_ns, max_gap_ns;
-    uint32_t size, frame, guard, writer, reader, pending;
+    uint32_t size, frame, guard, max_step, writer, reader, pending;
     int faulted;
 };
 struct lapis_mic_spans { uint32_t offset1, bytes1, offset2, bytes2; };
@@ -15,6 +15,7 @@ enum lapis_mic_cursor_result {
     LAPIS_MIC_CURSOR_OK = 0,
     LAPIS_MIC_CURSOR_INVALID,
     LAPIS_MIC_CURSOR_LATE,
+    LAPIS_MIC_CURSOR_DISCONTINUITY,
     LAPIS_MIC_CURSOR_OVERRUN
 };
 
@@ -22,13 +23,14 @@ enum lapis_mic_cursor_result {
  * configured DMA rate. The caller must configure and verify that rate. */
 static inline enum lapis_mic_cursor_result
 lapis_mic_cursor_init(struct lapis_mic_cursor *c, uint64_t base, uint32_t size,
-    uint32_t frame, uint32_t guard, uint64_t initial, uint64_t now_ns, uint64_t max_gap_ns)
+    uint32_t frame, uint32_t guard, uint32_t max_step, uint64_t initial, uint64_t now_ns, uint64_t max_gap_ns)
 {
     if (!c || !frame || !size || size % frame || guard >= size || guard % frame ||
-        !max_gap_ns || base + size < base || initial < base || initial >= base + size ||
+        !max_step || max_step >= size || max_step % frame || !max_gap_ns ||
+        base + size < base || initial < base || initial >= base + size ||
         (initial - base) % frame) return LAPIS_MIC_CURSOR_INVALID;
     *c = (struct lapis_mic_cursor){ .base = base, .last_ns = now_ns, .max_gap_ns = max_gap_ns,
-        .size = size, .frame = frame, .guard = guard, .writer = (uint32_t)(initial - base),
+        .size = size, .frame = frame, .guard = guard, .max_step = max_step, .writer = (uint32_t)(initial - base),
         .reader = (uint32_t)(initial - base), .pending = 0, .faulted = 0 };
     return LAPIS_MIC_CURSOR_OK;
 }
@@ -52,6 +54,10 @@ lapis_mic_cursor_observe(struct lapis_mic_cursor *c, uint64_t current, uint64_t 
     }
     uint32_t writer = (uint32_t)(current - c->base);
     uint32_t advance = (uint32_t)(((uint64_t)writer + c->size - c->writer) % c->size);
+    if (advance > c->max_step) {
+        c->faulted = 1;
+        return LAPIS_MIC_CURSOR_DISCONTINUITY;
+    }
     if (advance && advance >= c->size - c->pending) {
         c->faulted = 1;
         return LAPIS_MIC_CURSOR_OVERRUN;
