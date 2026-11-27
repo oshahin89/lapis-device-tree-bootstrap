@@ -13,6 +13,9 @@
 #include <zlib.h>
 #include "hal_probe_gz.h"
 #include "hal_probe_plist.h"
+#if defined(LAPIS_HAL_PERSISTENT) && !defined(LAPIS_VIRTUAL_TEST)
+#error Persistent audio requires VirtualAudio verification
+#endif
 
 #ifndef LAPIS_HAL_TEST_ROOT
 #define LAPIS_HAL_TEST_ROOT ""
@@ -196,6 +199,11 @@ failed:
 	int complete = matches(BIN, binary, size) && matches(PLIST, lapis_hal_plist, lapis_hal_plist_len);
 #ifdef LAPIS_VIRTUAL_TEST
 	if (virtual_link_state() < 0) { free(binary); report(51); return 1; }
+#endif
+#ifdef LAPIS_HAL_PERSISTENT
+	/* Never replace or remove existing data when verifying a persistent install. */
+	if (!complete || virtual_link_state() != 1) { free(binary); report(46); return 1; }
+	free(binary); report(12); return 0;
 #endif
 	if (complete) sleep(LAPIS_HAL_CLEAN_DELAY); /* let mediaserverd discover it on the second boot */
 	/* Check again before deleting anything. */

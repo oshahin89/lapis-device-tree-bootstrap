@@ -88,8 +88,17 @@ jobs:
           codesign -s - -f out/lapis_system_audio_cleanup
           test "$(stat -f %z out/lapis_system_audio_check)" -le 147456
           test "$(stat -f %z out/lapis_system_audio_cleanup)" -le 147456
+          xxd -i -n lapis_hal_gz tools/lapis_audio_probe/system-audio-tested.gz > out/hal_probe_gz.h
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.0 -O2 -Wall -Wextra -DLAPIS_VIRTUAL_TEST -DLAPIS_HAL_PERSISTENT -DLAPIS_HAL_REPORT_IOCTL -Iout -lz -o out/lapis_audio_persistent_install tools/lapis_audio_probe/hal_discovery_check.c
+          strip -x out/lapis_audio_persistent_install
+          codesign -s - -f out/lapis_audio_persistent_install
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=16.0 -O2 -Wall -Wextra -DLAPIS_VIRTUAL_TEST -DLAPIS_HAL_CLEANUP_ONLY -DLAPIS_HAL_CLEAN_DELAY=0 -Iout -lz -o out/lapis_audio_persistent_cleanup tools/lapis_audio_probe/hal_discovery_check.c
+          strip -x out/lapis_audio_persistent_cleanup
+          codesign -s - -f out/lapis_audio_persistent_cleanup
+          test "$(stat -f %z out/lapis_audio_persistent_install)" -le 147456
+          test "$(stat -f %z out/lapis_audio_persistent_cleanup)" -le 147456
           rm out/hal_probe.gz out/hal_probe_gz.h out/hal_probe_plist.h
-          shasum -a 256 out/lapis_audio_probe out/lapis_hal_check out/lapis_hal_driver_check out/lapis_hal_sound_check out/lapis_hal_cycle_check out/lapis_hal_fs_check out/HakiosAudio.discovery out/lapis_hal_discovery_check out/lapis_hal_cleanup_check out/HakiosAudio.route out/lapis_hal_route_check out/lapis_hal_route_cleanup out/lapis_virtual_check out/lapis_virtual_cleanup out/HakiosAudio.system out/lapis_system_audio_check out/lapis_system_audio_cleanup | tee out/SHA256.txt
+          shasum -a 256 out/lapis_audio_probe out/lapis_hal_check out/lapis_hal_driver_check out/lapis_hal_sound_check out/lapis_hal_cycle_check out/lapis_hal_fs_check out/HakiosAudio.discovery out/lapis_hal_discovery_check out/lapis_hal_cleanup_check out/HakiosAudio.route out/lapis_hal_route_check out/lapis_hal_route_cleanup out/lapis_virtual_check out/lapis_virtual_cleanup out/HakiosAudio.system out/lapis_system_audio_check out/lapis_system_audio_cleanup out/lapis_audio_persistent_install out/lapis_audio_persistent_cleanup | tee out/SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
           name: lapis-audio-probe
