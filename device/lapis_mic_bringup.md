@@ -238,3 +238,9 @@ uses CLR/SET aliases to obtain low bits 0x09). It also loads the observed AFE
 MTKAIF1 receiver timing and ADDA UL0 coefficients. Register changes remain
 subject to readback and rollback. Successful DMA alone does not establish
 an active codec uplink.
+
+The second hardware boot accepted the transmit mux, timing and filter changes.
+The probe read 216,414 VUL9 words with zero in the analyzed low 24 bits of
+both channels. Restoration and subsequent ringtone playback passed. The
+next revision adds the codec driver's RC trim check and power retry for each
+ADC, and reports full-word and low-24-bit nonzero counts independently.

@@ -3,6 +3,25 @@
 #include "lapis_pmif.h"
 #include "lapis_mic_cursor.h"
 
+/* MT6369's Android DAPM handlers retry ADC power when RC trim is at an
+ * endpoint. The enclosing transaction already owns and restores bit 4. */
+static bool
+au_mic_check_trim(uint16_t control, uint16_t status)
+{
+	uint8_t trim, previous;
+	if (lapis_pmif_shared_read(5, status, &trim) != LAPIS_PMIF_OK) return false;
+	unsigned initial = trim & 0x1f;
+	if (initial == 0 || initial == 0x1f) {
+		if (lapis_pmif_shared_update(5, control, 0x10, 0, &previous) != LAPIS_PMIF_OK ||
+		    lapis_pmif_shared_update(5, control, 0x10, 0x10, &previous) != LAPIS_PMIF_OK)
+			return false;
+		au_sleep_ms(2);
+		if (lapis_pmif_shared_read(5, status, &trim) != LAPIS_PMIF_OK) return false;
+	}
+	printf("LAPIS MIC: ADC trim reg=%#x initial=%u final=%u\n", status, initial, trim & 0x1f);
+	return true;
+}
+
 static bool
 au_mic_probe(void)
 {
@@ -113,6 +132,11 @@ au_mic_probe(void)
 			goto stop;
 		}
 		au_sleep_ms(2);
+		if ((step->reg == 0x2509 && !au_mic_check_trim(0x2509, 0x2512)) ||
+		    (step->reg == 0x250b && !au_mic_check_trim(0x250b, 0x2513))) {
+			printf("LAPIS MIC: ADC trim check failed at %#x\n", step->reg);
+			goto stop;
+		}
 	}
 	dma_started = true;
 	au_wr(au_afe, 0x4f30, on | 0x100a49);
@@ -124,6 +148,7 @@ au_mic_probe(void)
 	struct lapis_mic_cursor position;
 	bool cursor_ready = false;
 	uint32_t cursor = 0;
+	unsigned raw_nonzero[2] = {0, 0};
 	unsigned observed = 0, nonzero[2] = {0, 0}, peak[2] = {0, 0};
 	for (unsigned tick = 0; tick < 200; tick++) {
 		au_sleep_ms(10);
@@ -149,7 +174,9 @@ au_mic_probe(void)
 		const uint32_t counts[] = { spans.bytes1, spans.bytes2 };
 		for (unsigned span = 0; span < 2; span++) {
 			for (uint32_t i = starts[span] / 4; i < (starts[span] + counts[span]) / 4; i++) {
-				uint32_t u = ring[i] & 0xffffffu;
+				uint32_t raw = ring[i];
+				raw_nonzero[i & 1] += raw != 0;
+				uint32_t u = raw & 0xffffffu;
 				unsigned mag = u & 0x800000u ? 0x1000000u - u : u;
 				nonzero[i & 1] += mag != 0;
 				if (mag > peak[i & 1]) peak[i & 1] = mag;
@@ -157,8 +184,8 @@ au_mic_probe(void)
 			}
 		}
 	}
-	printf("LAPIS MIC: cursor=%#x words=%u nonzero=%u/%u peak24=%u/%u\n",
-	    cursor, observed, nonzero[0], nonzero[1], peak[0], peak[1]);
+	printf("LAPIS MIC: cursor=%#x words=%u raw_nonzero=%u/%u nonzero24=%u/%u peak24=%u/%u\n",
+	    cursor, observed, raw_nonzero[0], raw_nonzero[1], nonzero[0], nonzero[1], peak[0], peak[1]);
 	passed = nonzero[0] || nonzero[1];
 stop:
 	if (dma_started) {
