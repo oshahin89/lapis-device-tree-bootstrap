@@ -226,3 +226,15 @@ engine is busy, or power or register verification fails, the log identifies
 the stage. A restoration failure stops the audio worker for that boot. This
 image exercises microphone hardware in the kernel. Normal iOS app routing
 through `/dev/hakios-mic` is a separate integration step.
+
+The first combined boot confirmed the volume-key request and 100 concurrent
+PMIF reads without failures. DL0-to-VUL1 replaced 766 SRAM words, and the
+microphone VUL9 cursor delivered 216,784 words. Both microphone channels
+were zero throughout. The cleanup reported success, VUL9 stopped, and
+speaker playback restarted with no reported drops or I2C failures.
+
+The next probe sets the codec GPIO_MODE7 transmit mux (the Android driver
+uses CLR/SET aliases to obtain low bits 0x09). It also loads the observed AFE
+MTKAIF1 receiver timing and ADDA UL0 coefficients. Register changes remain
+subject to readback and rollback. Successful DMA alone does not establish
+an active codec uplink.
