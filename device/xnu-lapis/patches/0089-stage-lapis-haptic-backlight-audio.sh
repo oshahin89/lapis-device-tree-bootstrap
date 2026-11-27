@@ -5,7 +5,7 @@
 set -euo pipefail
 [[ "${MACHINE_CONFIG:-}" == SWEET ]] || exit 0
 root=${LAPIS_PROJECT_ROOT:-}
-for f in sweet_lapis_haptic.c sweet_lapis_display.c sweet_lapis_audio.c lapis_audio_queue.h; do
+for f in sweet_lapis_haptic.c sweet_lapis_display.c sweet_lapis_audio.c lapis_audio_queue.h lapis_mic_hw_probe.h; do
     [[ -n "$root" && -f "$root/device/xnu-lapis/driver/$f" ]] || {
         echo 'LAPIS_PROJECT_ROOT does not point at the lapis workspace' >&2; exit 1;
     }

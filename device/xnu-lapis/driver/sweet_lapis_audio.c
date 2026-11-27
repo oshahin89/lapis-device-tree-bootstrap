@@ -517,6 +517,20 @@ au_capture_dma_check(void)
 	    (unsigned)(!cursor_hi && cursor >= base && cursor < base + size), changed);
 }
 
+#include "lapis_mic_hw_probe.h"
+
+/* One explicit request per diagnostic boot. State 1 is armed, 2 is queued. */
+static unsigned au_mic_request_state;
+void lapis_mic_request(void);
+void
+lapis_mic_request(void)
+{
+	unsigned armed = 1;
+	if (__atomic_compare_exchange_n(&au_mic_request_state, &armed, 2, false,
+	    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+		printf("LAPIS MIC: capture requested by volume buttons\n");
+}
+
 static void
 au_thread(void *arg __unused, wait_result_t wr __unused)
 {
@@ -524,16 +538,20 @@ au_thread(void *arg __unused, wait_result_t wr __unused)
 	(void)PE_parse_boot_argn("lapisaudioplayprobe", &pcm_probe, sizeof(pcm_probe));
 	(void)PE_parse_boot_argn("lapismicsnapshot", &mic_snapshot, sizeof(mic_snapshot));
 	(void)PE_parse_boot_argn("lapismicdmacheck", &mic_dma_check, sizeof(mic_dma_check));
-restart:
+restart:;
+	bool mic_requested = false;
 	if (au_hal_persistent) {
 		for (;;) {
 			lck_mtx_lock(au_stream_lock);
 			unsigned available = au_stream_queue.count;
 			lck_mtx_unlock(au_stream_lock);
-			if (available) break;
+			unsigned queued = 2;
+			mic_requested = __atomic_compare_exchange_n(&au_mic_request_state, &queued, 3,
+			    false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+			if (available || mic_requested) break;
 			au_sleep_ms(20);
 		}
-		printf("LAPIS AUDIO: queued PCM; starting speaker\n");
+		if (!mic_requested) printf("LAPIS AUDIO: queued PCM; starting speaker\n");
 	} else if (pcm_probe) {
 		for (unsigned i = 0; i < 600 && __atomic_load_n(&au_probe_packet_state, __ATOMIC_ACQUIRE) != 2; i++) au_sleep_ms(100);
 		if (__atomic_load_n(&au_probe_packet_state, __ATOMIC_ACQUIRE) != 2) {
@@ -582,6 +600,11 @@ restart:
 	if (mic_snapshot) {
 		au_mic_snapshot();
 		mic_snapshot = 0;
+	}
+	if (mic_requested) {
+		if (au_mic_probe()) goto restart;
+		__atomic_store_n(&au_stream_faulted, 1, __ATOMIC_RELEASE);
+		goto out;
 	}
 	au_wr(au_afe, 0x1204, 0xb8);
 	au_wr(au_afe, 0x13c4, 0x80098465);
@@ -676,6 +699,10 @@ sweet_lapis_audio_init(void)
 		printf("LAPIS AUDIO: disabled (lapisaudio=0)\n");
 		return;
 	}
+	int mic_test = 0;
+	(void)PE_parse_boot_argn("lapismiccapture", &mic_test, sizeof(mic_test));
+	if (mic_test && au_hal_persistent)
+		__atomic_store_n(&au_mic_request_state, 1, __ATOMIC_RELEASE);
 	if (kernel_thread_start(au_thread, NULL, &thread) == KERN_SUCCESS) {
 		thread_deallocate(thread);
 	} else {

@@ -215,3 +215,14 @@ once on the existing keys thread. It avoids AFE MMIO until the clock state
 is established. It
 must first be compiled and validated on-device; it does not enable the ADC,
 create `/dev/hakios-mic`, or prove microphone capture.
+
+The combined diagnostic image arms a single capture request with
+`lapismiccapture=1`. Holding both volume keys for about one second queues the
+request. The AFE owner services it while playback is idle. It configures the
+MT6369 and VUL9, checks DMA cursor bounds, reports per-channel peak and nonzero
+counts, and restores prior settings. The first ringtone playback can exercise
+the separate DL0-to-VUL1 capture check in the same boot. If the codec or another
+engine is busy, or power or register verification fails, the log identifies
+the stage. A restoration failure stops the audio worker for that boot. This
+image exercises microphone hardware in the kernel. Normal iOS app routing
+through `/dev/hakios-mic` is a separate integration step.

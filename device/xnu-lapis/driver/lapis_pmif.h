@@ -33,6 +33,7 @@ enum lapis_pmif_result {
 
 /* Kernel adapter: reports UNAVAILABLE until its mapping and lock are ready. */
 enum lapis_pmif_result lapis_pmif_shared_read(uint32_t sid, uint32_t addr, uint8_t *out);
+enum lapis_pmif_result lapis_pmif_audio_vote(int enable, uint8_t *before);
 enum lapis_pmif_result lapis_pmif_shared_update(uint32_t sid, uint32_t addr,
                                                 uint8_t mask, uint8_t value, uint8_t *before);
 

@@ -24,6 +24,7 @@
 #include "lapis_pmif.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
+extern void lapis_mic_request(void);
 extern void sweet_hid_key(int key, int down);
 extern void lapis_haptic_pulse(unsigned ms);  /* sweet_lapis_haptic.c: a click per press */
 extern kern_return_t thread_terminate(thread_t);
@@ -157,6 +158,31 @@ lapis_pmif_shared_update(uint32_t sid, uint32_t addr, uint8_t mask, uint8_t valu
 	return result;
 }
 
+/* VS1 uses write-one set/clear aliases. Verify through the state register. */
+enum lapis_pmif_result
+lapis_pmif_audio_vote(int enable, uint8_t *before)
+{
+	vm_offset_t base = __atomic_load_n(&keys.pmif, __ATOMIC_ACQUIRE);
+	lck_mtx_t *lock = __atomic_load_n(&pmif_lock, __ATOMIC_ACQUIRE);
+	if (!lock || !base) return LAPIS_PMIF_UNAVAILABLE;
+	struct lapis_pmif_io io = { (void *)base, pmif_io_read, pmif_io_write, pmif_io_delay };
+	uint8_t actual = 0;
+	lck_mtx_lock(lock);
+	enum lapis_pmif_result result = lapis_pmif_read_byte(&io, 4, 0x189a, 2000, &actual);
+	if (result == LAPIS_PMIF_OK) {
+		*before = actual & 1;
+		if (*before != !!enable) {
+			result = lapis_pmif_write_byte(&io, 4, enable ? 0x189b : 0x189c, 2000, 1);
+			if (result == LAPIS_PMIF_OK)
+				result = lapis_pmif_read_byte(&io, 4, 0x189a, 2000, &actual);
+			if (result == LAPIS_PMIF_OK && (actual & 1) != !!enable)
+				result = LAPIS_PMIF_VERIFY_FAILED;
+		}
+	}
+	lck_mtx_unlock(lock);
+	return result;
+}
+
 static int pmif_probe_sleep_chan;
 
 static void
@@ -279,9 +305,12 @@ keys_thread(void *arg, wait_result_t wr)
 	pmif_shared_probe();
 	mic_readonly_probe();
 
+	unsigned mic_hold = 0;
 	for (;;) {
 		bool now[K_COUNT];
 		if (keys_sample(now)) {
+			if (!(now[K_VOLUP] && now[K_VOLDN])) mic_hold = 0;
+			else if (mic_hold < 50 && ++mic_hold == 50) lapis_mic_request();
 			for (int k = 0; k < K_COUNT; k++) {
 				if (now[k] != keys.down[k] && now[k] == keys.pending[k]) {
 					keys.down[k] = now[k];
