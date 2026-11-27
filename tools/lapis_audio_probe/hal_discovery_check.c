@@ -40,6 +40,7 @@ static int write_new(const char *path, const void *data, size_t len, mode_t mode
 {
 	int fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, mode);
 	if (fd < 0) return -1;
+	if (fchmod(fd, mode) != 0) { close(fd); unlink(path); return -1; }
 	const uint8_t *p = data;
 	size_t left = len;
 	while (left) {
@@ -104,6 +105,7 @@ int main(void)
 	struct stat other;
 	if (lstat(OTHER, &other) == 0 || errno != ENOENT) { free(binary); report(50); return 1; }
 	if (mkdir(DIR, 0755) == 0) {
+		if (chmod(DIR, 0755) != 0) { rmdir(DIR); free(binary); report(44); return 1; }
 		int have_bin = 0, have_plist = 0, have_mark = 0;
 		/* Mark Info.plist last so discovery cannot see a partial bundle. */
 		if (write_new(MARK, owner, sizeof(owner) - 1, 0600) == 0) have_mark = 1; else goto failed;
