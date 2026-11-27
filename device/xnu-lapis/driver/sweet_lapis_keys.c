@@ -122,7 +122,8 @@ mic_readonly_probe(void)
 	(void)PE_parse_boot_argn("lapismicprobe", &enabled, sizeof(enabled));
 	if (!enabled) return;
 	uint8_t id = 0;
-	if (!pmic_read_sid(5, 0x09, &id) || id != 0x69) {
+	/* Android's MT6369 driver identifies the device via PMIC_SWCID (0x0b). */
+	if (!pmic_read_sid(5, 0x0b, &id) || id != 0x69) {
 		printf("LAPIS MIC PROBE: codec ID unavailable or unexpected: %#x\n", id);
 		return;
 	}
