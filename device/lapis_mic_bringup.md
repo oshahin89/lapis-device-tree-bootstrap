@@ -65,6 +65,15 @@ The traced VUL9 control value `0x100a49` has sample-rate field `0xa` in bits
 This is an inference about that hardware capture stage; the app-facing format
 and channel packing were not measured.
 
+The same `0x100a49` has HD mode 1 and stereo mode selected. In the published
+MT6878 FE implementation, with 32-bit memif support enabled and the VUL9
+descriptor's default `hd_msb_shift`, this is consistent with `S24_LE` in
+32-bit slots. It is not proof of the byte alignment or microphone channel on
+this device. `lapis_mic_pcm.h` offers explicit candidate converters for
+S16LE stereo and low-justified S24LE-in-32 stereo; host checks cover signed
+extremes, channel selection, capacity and incomplete frames. Neither
+converter is attached to hardware until the actual sample packing is checked.
+
 The same control value has the published `VUL9_ON` bit 28 clear. The change
 from `0x100a48` to `0x100a49` changes bit 0 (HD mode), not bit 28 (enable).
 Do not interpret that pair as proof that the AP enabled VUL9. The trace records
@@ -143,6 +152,17 @@ must hold the same mutex for the complete sequence.
 Its host test covers ordering, wraparound, overflow, short reads and erasure.
 It is not yet connected to DMA or a device node; hardware sample format,
 permissions, lifecycle and concurrent speaker ownership remain to be solved.
+The base image's `com.apple.mediaserverd` launchd plist specifies
+`UserName = mobile`, so a future input device cannot assume it opens as root.
+The effective UID, sandbox behavior and a restrictive access policy still need
+verification before exposing actual microphone samples.
+
+`lapis_mic_cursor.h` prepares generic read-side DMA cursor accounting with a
+guard region, wrap handling and a fail-closed polling deadline. Its host test
+covers boundary and error cases. The caller must verify the real DMA sample
+rate and format, choose a deadline shorter than a full ring traversal, copy
+offered spans immediately and provide memory ordering; the helper alone cannot
+prove that the pointer or samples are valid on this hardware.
 
 MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
 thread using that channel without synchronization could corrupt transactions.
