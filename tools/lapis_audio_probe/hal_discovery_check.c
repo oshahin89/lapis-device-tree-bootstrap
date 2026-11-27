@@ -109,6 +109,7 @@ int main(void)
 		if (write_new(MARK, owner, sizeof(owner) - 1, 0600) == 0) have_mark = 1; else goto failed;
 		if (write_new(BIN, binary, size, 0755) == 0) have_bin = 1; else goto failed;
 		if (write_new(PLIST, lapis_hal_plist, lapis_hal_plist_len, 0644) == 0) have_plist = 1; else goto failed;
+		sync();
 		free(binary);
 		report(11); /* installed; reboot iOS once for discovery */
 		return 0;
@@ -140,6 +141,7 @@ failed:
 	int clean_plist = remove_if_present(PLIST);
 	int clean_bin = remove_if_present(BIN);
 	int clean = clean_plist && clean_bin && unlink(MARK) == 0 && rmdir(DIR) == 0;
+	sync();
 	free(binary);
 	report(clean ? (complete ? 21 : 49) : 48);
 	return clean ? 0 : 1;
