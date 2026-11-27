@@ -86,6 +86,24 @@ capture. The probe performs its reads on the key polling thread to serialize
 the existing PMIF channel; any future independent microphone worker needs a
 shared PMIF transaction lock or another verified coordination mechanism.
 
+## Next implementation boundaries
+
+1. Provide serialized PMIF transactions for the keys and microphone paths,
+   with bounded timeouts. Do not replay the Android register stream verbatim:
+   regmap writes omit reads, prior state, and work done by the DSP.
+2. Manage shared AFE power and clocks across input and output. The current
+   speaker worker can reset shared controls when it starts; input and output
+   cannot safely own those controls independently.
+3. Establish an independently owned, DMA-accessible capture buffer with
+   known cache behavior and a hardware write cursor; do not use Android's
+   overlapping VUL9 range. Bound and detect overruns.
+4. Determine channel layout and sample representation before converting to
+   the HAL's 48 kHz mono signed 16-bit nonblocking input contract. Missing
+   samples must be zero-filled, not stale memory.
+5. Test microphone enable/disable, repeated capture, volume buttons and
+   simultaneous speaker activity. Initial diagnostics should report state and
+   counts without saving or transmitting microphone recordings.
+
 MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
 thread using that channel without synchronization could corrupt transactions.
 The opt-in `lapismicprobe=1` preparation performs only codec register reads,
