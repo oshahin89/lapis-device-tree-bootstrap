@@ -126,3 +126,23 @@ The mode-2 HAL speaker experiment was subsequently tested: the log recorded
 mute, unmute, mute; 96,000 frames accepted and fed, zero dropped, and no I2C
 errors. The user heard the sound and then silence. This remains a short
 standalone test calling HAL functions directly, not application playback.
+
+## System audio and persistent installation (2026-11-27)
+
+With the HakiOS HAL plug-in and VirtualAudio enabled temporarily, iOS called
+the speaker's start and write operations. On the bounded persistent-speaker
+kernel (`lapisaudiohalprobe=3`), the user heard system audio. One run recorded
+2,185,216 accepted frames, zero dropped, multiple idle-stop/restart cycles and
+zero reported I2C errors; this is evidence for the exercised run, not a
+long-term or all-applications guarantee. The temporary plug-in and the
+VirtualAudio symlink were removed and removal was confirmed inside iOS.
+
+The same tested plug-in was then installed persistently. The user reported
+working audio with the sample ceiling raised from 500 to 1000 out of 32768,
+but little perceived volume difference. The first boot recorded 1,829,888
+accepted frames, zero dropped and zero reported I2C errors. The original FDR
+loader was restored afterward while leaving the plug-in, symlink and speaker
+boot in place; persistence across a subsequent iOS reboot has not yet been
+confirmed. A further 4000/32768 ceiling is being built for a controlled volume
+comparison. Android-equivalent loudness and long-duration stability are not yet
+established. GPU and Metal remain disabled.
