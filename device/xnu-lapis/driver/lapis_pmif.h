@@ -24,10 +24,14 @@ struct lapis_pmif_io {
 enum lapis_pmif_result {
     LAPIS_PMIF_OK = 0,
     LAPIS_PMIF_INVALID,
+    LAPIS_PMIF_UNAVAILABLE,
     LAPIS_PMIF_IDLE_TIMEOUT,
     LAPIS_PMIF_READ_TIMEOUT,
     LAPIS_PMIF_WRITE_TIMEOUT
 };
+
+/* Kernel adapter: reports UNAVAILABLE until its mapping and lock are ready. */
+enum lapis_pmif_result lapis_pmif_shared_read(uint32_t sid, uint32_t addr, uint8_t *out);
 
 static inline int
 lapis_pmif_valid(const struct lapis_pmif_io *io, uint32_t sid, uint32_t addr, unsigned polls)

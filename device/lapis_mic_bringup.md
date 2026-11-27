@@ -104,15 +104,20 @@ shared PMIF transaction lock or another verified coordination mechanism.
    simultaneous speaker activity. Initial diagnostics should report state and
    counts without saving or transmitting microphone recordings.
 
-`device/xnu-lapis/driver/lapis_pmif.h` now contains a hardware-independent
-single-byte PMIF transaction core. Callers must supply MMIO callbacks and
-serialize the entire transaction (and any read/modify/write sequence); this
-header does not yet create or use a shared lock and is not connected to the
-live keys or audio driver. Its host check exercises normal reads/writes, stale
-valid handling, invalid inputs and bounded timeout paths under address and
-undefined-behavior sanitizers. A timed-out write has unknown hardware outcome,
-and an idle controller alone does not prove codec acceptance: stable fields
-must be read back when a later hardware experiment makes that safe.
+`device/xnu-lapis/driver/lapis_pmif.h` contains a hardware-independent
+single-byte PMIF transaction core. Its host check exercises normal reads and
+writes, stale-valid handling, invalid inputs and bounded timeout paths under
+address and undefined-behavior sanitizers. The keys driver now prepares a
+shared mutex and exposes a serialized read adapter; if lock allocation fails,
+external access is refused and key polling retains its original fallback.
+The opt-in `lapispmifcheck=1` starts a second thread that reads the codec ID
+100 times while key polling runs. This is prepared source, not yet validated
+on the phone. No shared codec-writing interface is exposed by this step.
+
+A timed-out write has unknown hardware outcome, and an idle controller alone
+does not prove codec acceptance: stable fields must be read back when a later
+hardware experiment makes that safe. Any future read/modify/write operation
+must hold the same mutex for the complete sequence.
 
 MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
 thread using that channel without synchronization could corrupt transactions.

@@ -17,9 +17,11 @@
 #include <sys/systm.h>
 #include <kern/clock.h>
 #include <kern/thread.h>
+#include <kern/locks.h>
 #include <kern/sched_prim.h>
 #include <machine/machine_routines.h>
 #include <pexpert/pexpert.h>
+#include "lapis_pmif.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern void sweet_hid_key(int key, int down);
@@ -59,6 +61,8 @@ static struct {
 } keys;
 
 static int keys_sleep_chan;
+static lck_grp_t *pmif_group;
+static lck_mtx_t *pmif_lock;
 
 static uint32_t
 keys_rd(vm_offset_t base, uint32_t off)
@@ -92,19 +96,83 @@ pmif_wait(uint32_t fsm)
 static bool
 pmic_read_sid(uint32_t sid, uint32_t addr, uint8_t *out)
 {
+	bool ok = false;
+	lck_mtx_t *lock = __atomic_load_n(&pmif_lock, __ATOMIC_ACQUIRE);
+	if (lock) lck_mtx_lock(lock);
 	if (!pmif_wait(0)) {
 		keys.pmic_errors++;
-		return false;
+		goto done;
 	}
 	keys_wr(keys.pmif, KEYS_SW + SW_ACC,
 	    (3u << 30) | (sid << 24) | (addr & 0xffffu));
 	if (!pmif_wait(6)) {
 		keys.pmic_errors++;
-		return false;
+		goto done;
 	}
 	*out = (uint8_t)keys_rd(keys.pmif, KEYS_SW + SW_RDATA);
 	keys_wr(keys.pmif, KEYS_SW + SW_VLDCLR, 1);
-	return true;
+	ok = true;
+done:
+	if (lock) lck_mtx_unlock(lock);
+	return ok;
+}
+
+/* External read callers share the same mutex as key polling. If allocation or
+ * PMIF mapping failed, refuse external access rather than race the fallback. */
+static uint32_t pmif_io_read(void *ctx, uint32_t off)
+{
+	return keys_rd((vm_offset_t)ctx, KEYS_SW + off);
+}
+static void pmif_io_write(void *ctx, uint32_t off, uint32_t value)
+{
+	keys_wr((vm_offset_t)ctx, KEYS_SW + off, value);
+}
+static void pmif_io_delay(void *ctx __unused) { delay(1); }
+
+enum lapis_pmif_result
+lapis_pmif_shared_read(uint32_t sid, uint32_t addr, uint8_t *out)
+{
+	vm_offset_t base = __atomic_load_n(&keys.pmif, __ATOMIC_ACQUIRE);
+	lck_mtx_t *lock = __atomic_load_n(&pmif_lock, __ATOMIC_ACQUIRE);
+	if (!lock || !base) return LAPIS_PMIF_UNAVAILABLE;
+	struct lapis_pmif_io io = { (void *)base, pmif_io_read, pmif_io_write, pmif_io_delay };
+	lck_mtx_lock(lock);
+	enum lapis_pmif_result result = lapis_pmif_read_byte(&io, sid, addr, 2000, out);
+	lck_mtx_unlock(lock);
+	return result;
+}
+
+static int pmif_probe_sleep_chan;
+
+static void
+pmif_probe_thread(void *arg __unused, wait_result_t wr __unused)
+{
+	unsigned good = 0, failed = 0;
+	for (unsigned i = 0; i < 100; i++) {
+		uint8_t id = 0;
+		enum lapis_pmif_result result = lapis_pmif_shared_read(5, 0x0b, &id);
+		if (result == LAPIS_PMIF_OK && id == 0x69) good++; else failed++;
+		uint64_t deadline;
+		clock_interval_to_deadline(10, NSEC_PER_MSEC, &deadline);
+		(void)assert_wait_deadline(&pmif_probe_sleep_chan, THREAD_UNINT, deadline);
+		thread_block(THREAD_CONTINUE_NULL);
+	}
+	printf("LAPIS PMIF PROBE: shared reads=%u failed=%u (key polling concurrent)\n", good, failed);
+	(void)thread_terminate(current_thread());
+	thread_block(THREAD_CONTINUE_NULL);
+}
+
+static void
+pmif_shared_probe(void)
+{
+	int enabled = 0;
+	(void)PE_parse_boot_argn("lapispmifcheck", &enabled, sizeof(enabled));
+	if (!enabled) return;
+	thread_t thread;
+	if (kernel_thread_start(pmif_probe_thread, NULL, &thread) == KERN_SUCCESS)
+		thread_deallocate(thread);
+	else
+		printf("LAPIS PMIF PROBE: thread start failed\n");
 }
 
 static bool
@@ -179,7 +247,7 @@ keys_thread(void *arg, wait_result_t wr)
 
 	keys.gpio = ml_io_map(KEYS_GPIO_PA, 0x1000);
 	keys.kpd = ml_io_map(KEYS_KPD_PA, 0x1000);
-	keys.pmif = ml_io_map(KEYS_PMIF_PA, 0x1000);
+	__atomic_store_n(&keys.pmif, ml_io_map(KEYS_PMIF_PA, 0x1000), __ATOMIC_RELEASE);
 	if (!keys.gpio || !keys.kpd || !keys.pmif) {
 		printf("LAPIS KEYS: map failed\n");
 		goto out;
@@ -193,6 +261,7 @@ keys_thread(void *arg, wait_result_t wr)
 	keys.use_kp = (keys_rd(keys.kpd, KEYS_KP_MEM1) & KEYS_VOLDN_KP) != 0;
 	printf("LAPIS KEYS: pmic id=%02x top=%02x use pmic=%d gpio54=%d kp=%d\n",
 	    id, top, keys.use_pmic, keys.use_gpio, keys.use_kp);
+	pmif_shared_probe();
 	mic_readonly_probe();
 
 	for (;;) {
@@ -232,6 +301,10 @@ sweet_lapis_keys_init(void)
 		printf("LAPIS KEYS: disabled (lapiskeys=0)\n");
 		return;
 	}
+	pmif_group = lck_grp_alloc_init("lapis-pmif", LCK_GRP_ATTR_NULL);
+	lck_mtx_t *lock = pmif_group ? lck_mtx_alloc_init(pmif_group, LCK_ATTR_NULL) : NULL;
+	__atomic_store_n(&pmif_lock, lock, __ATOMIC_RELEASE);
+	if (!lock) printf("LAPIS KEYS: shared PMIF unavailable; key-only fallback\n");
 	if (kernel_thread_start(keys_thread, NULL, &thread) == KERN_SUCCESS) {
 		thread_deallocate(thread);
 	} else {

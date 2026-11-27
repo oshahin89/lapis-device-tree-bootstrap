@@ -8,4 +8,5 @@ root=${LAPIS_PROJECT_ROOT:-}
     echo 'LAPIS_PROJECT_ROOT does not point at the lapis workspace' >&2; exit 1;
 }
 cp "$root/device/xnu-lapis/driver/sweet_lapis_keys.c" bsd/dev/sweet_lapis_keys.c
+cp "$root/device/xnu-lapis/driver/lapis_pmif.h" bsd/dev/lapis_pmif.h
 echo "Staged lapis keys driver"
