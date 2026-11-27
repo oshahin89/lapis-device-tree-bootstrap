@@ -142,6 +142,21 @@ lapis_pmif_shared_read(uint32_t sid, uint32_t addr, uint8_t *out)
 	return result;
 }
 
+/* Only for codec fields known to be readable and stable. The mutex covers
+ * read, masked update and verification, preventing lost updates from peers. */
+enum lapis_pmif_result
+lapis_pmif_shared_update(uint32_t sid, uint32_t addr, uint8_t mask, uint8_t value, uint8_t *before)
+{
+	vm_offset_t base = __atomic_load_n(&keys.pmif, __ATOMIC_ACQUIRE);
+	lck_mtx_t *lock = __atomic_load_n(&pmif_lock, __ATOMIC_ACQUIRE);
+	if (!lock || !base) return LAPIS_PMIF_UNAVAILABLE;
+	struct lapis_pmif_io io = { (void *)base, pmif_io_read, pmif_io_write, pmif_io_delay };
+	lck_mtx_lock(lock);
+	enum lapis_pmif_result result = lapis_pmif_update_byte(&io, sid, addr, 2000, mask, value, before);
+	lck_mtx_unlock(lock);
+	return result;
+}
+
 static int pmif_probe_sleep_chan;
 
 static void

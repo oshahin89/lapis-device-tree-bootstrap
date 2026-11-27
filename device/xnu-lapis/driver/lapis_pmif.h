@@ -27,11 +27,14 @@ enum lapis_pmif_result {
     LAPIS_PMIF_UNAVAILABLE,
     LAPIS_PMIF_IDLE_TIMEOUT,
     LAPIS_PMIF_READ_TIMEOUT,
-    LAPIS_PMIF_WRITE_TIMEOUT
+    LAPIS_PMIF_WRITE_TIMEOUT,
+    LAPIS_PMIF_VERIFY_FAILED
 };
 
 /* Kernel adapter: reports UNAVAILABLE until its mapping and lock are ready. */
 enum lapis_pmif_result lapis_pmif_shared_read(uint32_t sid, uint32_t addr, uint8_t *out);
+enum lapis_pmif_result lapis_pmif_shared_update(uint32_t sid, uint32_t addr,
+                                                uint8_t mask, uint8_t value, uint8_t *before);
 
 static inline int
 lapis_pmif_valid(const struct lapis_pmif_io *io, uint32_t sid, uint32_t addr, unsigned polls)
@@ -97,5 +100,27 @@ lapis_pmif_write_byte(const struct lapis_pmif_io *io, uint32_t sid, uint32_t add
     io->write(io->context, LAPIS_PMIF_ACC, (3u << 30) | (1u << 29) | (sid << 24) | addr);
     if (!lapis_pmif_wait(io, LAPIS_PMIF_IDLE, polls, &status)) return LAPIS_PMIF_WRITE_TIMEOUT;
     return LAPIS_PMIF_OK;
+}
+
+/* The caller holds the same lock over this entire read/modify/write/readback.
+ * Only use with ordinary, readable configuration registers whose selected bits
+ * are stable. On any failure after the write, the final hardware state is
+ * unknown; no automatic rollback is attempted. */
+static inline enum lapis_pmif_result
+lapis_pmif_update_byte(const struct lapis_pmif_io *io, uint32_t sid, uint32_t addr,
+                       unsigned polls, uint8_t mask, uint8_t value, uint8_t *before)
+{
+    if (!before || !mask) return LAPIS_PMIF_INVALID;
+    uint8_t old = 0, actual = 0;
+    enum lapis_pmif_result result = lapis_pmif_read_byte(io, sid, addr, polls, &old);
+    if (result != LAPIS_PMIF_OK) return result;
+    *before = old;
+    uint8_t desired = (uint8_t)((old & (uint8_t)~mask) | (value & mask));
+    if (desired == old) return LAPIS_PMIF_OK;
+    result = lapis_pmif_write_byte(io, sid, addr, polls, desired);
+    if (result != LAPIS_PMIF_OK) return result;
+    result = lapis_pmif_read_byte(io, sid, addr, polls, &actual);
+    if (result != LAPIS_PMIF_OK) return result;
+    return ((actual ^ desired) & mask) ? LAPIS_PMIF_VERIFY_FAILED : LAPIS_PMIF_OK;
 }
 #endif

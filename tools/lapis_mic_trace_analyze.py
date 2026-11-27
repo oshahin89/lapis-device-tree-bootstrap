@@ -8,6 +8,7 @@ from pathlib import Path
 CODEC = '0-05'
 AFE = '11050000.mt6878-afe-pcm'
 REGS = {
+    0x0bd0: 'ADDA_UL0_SRC_CON0',
     0x4f10: 'VUL9_BASE_MSB', 0x4f14: 'VUL9_BASE',
     0x4f18: 'VUL9_CUR_MSB', 0x4f1c: 'VUL9_CUR',
     0x4f20: 'VUL9_END_MSB', 0x4f24: 'VUL9_END',

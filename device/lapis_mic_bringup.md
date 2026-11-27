@@ -72,6 +72,19 @@ Linux regmap writes, not necessarily direct MMIO or DSP writes. The observed
 `hd_mode=1`, together with the generic FE driver's format mapping, is not
 enough on its own to prove the app-facing PCM format or sample packing.
 
+The trace also shows the SoC UL0 source control at `0xbd0` changing from
+`0x60400` to `0x60401` during capture and back on stop; the published MT6878
+driver identifies bit 0 as the UL source enable. The recorder also configures
+the PMIC audio serial interface before enabling the codec UL source. These
+observed transitions are useful evidence, but neither they nor a raw replay
+establish the complete clock, pin, DMA or calibration state.
+
+In the captured runtime device tree, the audio clock and data MOSI pins are
+164 and 166, and data MISO0/MISO1 are 170 and 171; each `on` pinmux uses
+function 1. An Android boot log reports MTKAIF calibration phases 2 and 2 for
+that boot. Those values and pin settings do not prove the current iOS boot
+retains the same calibration or electrical pin configuration.
+
 The existing XNU speaker worker initializes shared AFE control registers on
 each speaker restart and turns parts of the output path off after inactivity.
 An input implementation must coordinate shared clocks and AFE ownership with
@@ -117,12 +130,19 @@ shared mutex and exposes a serialized read adapter; if lock allocation fails,
 external access is refused and key polling retains its original fallback.
 The opt-in `lapispmifcheck=1` starts a second thread that reads the codec ID
 100 times while key polling runs. This is prepared source, not yet validated
-on the phone. No shared codec-writing interface is exposed by this step.
+on the phone. A shared masked update now holds the mutex across read, write,
+and readback of stable configuration fields. It is not called by a live
+driver yet; a failed or timed-out write has an unknown hardware outcome.
 
 A timed-out write has unknown hardware outcome, and an idle controller alone
 does not prove codec acceptance: stable fields must be read back when a later
 hardware experiment makes that safe. Any future read/modify/write operation
 must hold the same mutex for the complete sequence.
+
+`lapis_mic_queue.h` is a bounded mono S16 queue for the existing HAL contract.
+Its host test covers ordering, wraparound, overflow, short reads and erasure.
+It is not yet connected to DMA or a device node; hardware sample format,
+permissions, lifecycle and concurrent speaker ownership remain to be solved.
 
 MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
 thread using that channel without synchronization could corrupt transactions.
