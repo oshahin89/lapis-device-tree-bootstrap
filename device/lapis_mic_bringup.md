@@ -65,6 +65,27 @@ The traced VUL9 control value `0x100a49` has sample-rate field `0xa` in bits
 This is an inference about that hardware capture stage; the app-facing format
 and channel packing were not measured.
 
+The same control value has the published `VUL9_ON` bit 28 clear. The change
+from `0x100a48` to `0x100a49` changes bit 0 (HD mode), not bit 28 (enable).
+Do not interpret that pair as proof that the AP enabled VUL9. The trace records
+Linux regmap writes, not necessarily direct MMIO or DSP writes. The observed
+`hd_mode=1`, together with the generic FE driver's format mapping, is not
+enough on its own to prove the app-facing PCM format or sample packing.
+
+The existing XNU speaker worker initializes shared AFE control registers on
+each speaker restart and turns parts of the output path off after inactivity.
+An input implementation must coordinate shared clocks and AFE ownership with
+that worker; blindly replaying Android's start/stop writes could disrupt audio
+output even if a separate capture buffer were selected.
+
+On the first XNU read-only probe boot, the user confirmed working speaker and
+volume buttons. The log identified MT6369 software ID `0x69` and successfully
+read all ten requested codec registers; `0x250a`, `0x250b`, and `0x2519` were
+zero. This establishes register reachability at idle, not ADC operation or
+capture. The probe performs its reads on the key polling thread to serialize
+the existing PMIF channel; any future independent microphone worker needs a
+shared PMIF transaction lock or another verified coordination mechanism.
+
 MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
 thread using that channel without synchronization could corrupt transactions.
 The opt-in `lapismicprobe=1` preparation performs only codec register reads,
