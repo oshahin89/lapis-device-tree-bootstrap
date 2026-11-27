@@ -126,8 +126,8 @@ au_probe_write(dev_t dev __unused, struct uio *uio, int flags __unused)
 				int l = samples[i * 2], r = samples[i * 2 + 1];
 				if (au_hal_real) {
 					/* Preserve waveform shape with a conservative output ceiling. */
-					l = l * 1000 / 32768;
-					r = r * 1000 / 32768;
+					l = l * 4000 / 32768;
+					r = r * 4000 / 32768;
 				} else {
 					l = l < -500 ? -500 : l > 500 ? 500 : l;
 					r = r < -500 ? -500 : r > 500 ? 500 : r;
