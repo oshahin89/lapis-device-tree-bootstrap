@@ -448,12 +448,82 @@ au_mic_snapshot(void)
 	    au_rd(au_afe, 0x4f20), au_rd(au_afe, 0x4f24), au_rd(au_afe, 0x4f30));
 }
 
+/* Exercise capture DMA with the existing DL0 stream. This runs once on the
+ * speaker worker and keeps the codec and microphone bias untouched. */
+static void
+au_capture_dma_check(void)
+{
+	const uint32_t base = 0x1105b000u, size = 0x2000u;
+	const uint32_t enable = 1u << 28, marker = 0x5aa5a55au;
+	const uint32_t offsets[] = { 0x4d90, 0x4d94, 0x4da0, 0x4da4, 0x2304, 0x2324 };
+	const uint32_t config[] = { 0, base, 0, base + size - 1, 1, 2 };
+	uint32_t old[sizeof(offsets) / sizeof(offsets[0])];
+	const uint32_t control = au_rd(au_afe, 0x4db0);
+	/* Android assigns this SRAM to capture and playback streams in different
+	 * modes. Refuse access when those engines still report enabled. */
+	if ((control & (enable | (1u << 7))) ||
+	    ((au_rd(au_afe, 0x4640) | au_rd(au_afe, 0x4e10) | au_rd(au_afe, 0x4f30)) & enable)) {
+		printf("LAPIS MIC DMA: skipped because an audio engine is active\n");
+		return;
+	}
+	const uint32_t other_routes[] = { 0x2300, 0x2308, 0x2310, 0x2320, 0x2328, 0x2330 };
+	for (unsigned i = 0; i < sizeof(other_routes) / sizeof(other_routes[0]); i++) {
+		if (au_rd(au_afe, other_routes[i])) {
+			printf("LAPIS MIC DMA: skipped because UL1 has another route\n");
+			return;
+		}
+	}
+	volatile uint32_t *ring = (volatile uint32_t *)ml_io_map(base, size);
+	if (!ring) {
+		printf("LAPIS MIC DMA: capture SRAM map failed\n");
+		return;
+	}
+	for (unsigned i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) old[i] = au_rd(au_afe, offsets[i]);
+	for (unsigned i = 0; i < size / 4; i++) ring[i] = marker;
+	__asm__ volatile("dsb oshst" ::: "memory");
+	bool ready = true;
+	for (unsigned i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) {
+		au_wr(au_afe, offsets[i], config[i]);
+		/* The low four address bits can be read as zero. */
+		uint32_t mask = i == 1 || i == 3 ? ~0xfu : ~0u;
+		if ((au_rd(au_afe, offsets[i]) & mask) != (config[i] & mask)) ready = false;
+	}
+	uint32_t cursor = 0, cursor_hi = 0;
+	if (ready) {
+		/* 48 kHz, signed stereo S16, normal mode. */
+		const uint32_t mode = enable | (0xau << 8) | (1u << 6) | (1u << 3);
+		au_wr(au_afe, 0x4db0, mode);
+		const uint32_t mode_mask = enable | (0x1fu << 8) | (1u << 6) | (1u << 3) | 0x37u;
+		ready = (au_rd(au_afe, 0x4db0) & mode_mask) == mode;
+		if (ready) {
+			au_sleep_ms(15);
+			cursor = au_rd(au_afe, 0x4d9c);
+			cursor_hi = au_rd(au_afe, 0x4d98);
+		}
+		au_wr(au_afe, 0x4db0, control);
+		if (au_rd(au_afe, 0x4db0) & enable) {
+			printf("LAPIS MIC DMA: UL1 did not stop, skipping buffer access\n");
+			return;
+		}
+	}
+	for (unsigned i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) au_wr(au_afe, offsets[i], old[i]);
+	unsigned changed = 0;
+	for (unsigned i = 0; i < size / 4; i++) {
+		if (ring[i] != marker) changed++;
+		ring[i] = 0;
+	}
+	__asm__ volatile("dsb oshst" ::: "memory");
+	printf("LAPIS MIC DMA: config=%u cursor_in_range=%u words_written=%u\n", (unsigned)ready,
+	    (unsigned)(!cursor_hi && cursor >= base && cursor < base + size), changed);
+}
+
 static void
 au_thread(void *arg __unused, wait_result_t wr __unused)
 {
-	int pcm_probe = 0, mic_snapshot = 0;
+	int pcm_probe = 0, mic_snapshot = 0, mic_dma_check = 0;
 	(void)PE_parse_boot_argn("lapisaudioplayprobe", &pcm_probe, sizeof(pcm_probe));
 	(void)PE_parse_boot_argn("lapismicsnapshot", &mic_snapshot, sizeof(mic_snapshot));
+	(void)PE_parse_boot_argn("lapismicdmacheck", &mic_dma_check, sizeof(mic_dma_check));
 restart:
 	if (au_hal_persistent) {
 		for (;;) {
@@ -566,6 +636,10 @@ restart:
 	tfa_both(0xe0, 1);
 	tfa_both(0xe1, 1);
 	tfa_both(0x00, 0xf258);
+	if (mic_dma_check) {
+		au_capture_dma_check();
+		mic_dma_check = 0;
+	}
 	uint32_t cur0 = au_rd(au_afe, 0x444c);
 	bool stream_ok = true;
 	if (au_stream_enabled && au_stream_lock) stream_ok = au_stream_pump(au_hal_persistent); else au_sleep_ms(300);

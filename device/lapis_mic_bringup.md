@@ -107,6 +107,16 @@ vote (`0-04`, `0x189b`) immediately before capture, with matching teardown
 configuration after speaker-side AFE clock setup. It can be used in the same
 boot as the PMIF probe and does not read sample memory.
 
+`lapismicdmacheck=1` adds a one-shot digital DMA check on that same worker
+after DL0 starts. The published MT6878 interconnect routes DL0 to VUL1, so
+the check uses that route and a dedicated 8 KiB window at `0x1105b000` to
+isolate DMA from codec initialization. It checks that the overlapping engines
+seen in the Android trace are idle, checks configuration readback, and reports
+cursor bounds and how many SRAM words the engine replaced. It restores the
+tested DMA and routing registers after confirming the engine is stopped. It
+reports counts only and clears the test buffer. This still needs on-device
+validation and does not establish that VUL9 receives microphone input.
+
 The existing XNU speaker worker initializes shared AFE control registers on
 each speaker restart and turns parts of the output path off after inactivity.
 An input implementation must coordinate shared clocks and AFE ownership with
