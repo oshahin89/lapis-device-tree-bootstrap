@@ -27,14 +27,15 @@ au_mic_probe(void)
 {
 	const uint32_t base = 0x11059000u, size = 0x4000u;
 	const uint32_t on = 1u << 28;
+	const uint32_t untouched = 0xac51e379u;
 	const uint32_t offsets[] = {
 		0x04, 0x14, 0x1204, 0x1190, 0x11f0, 0x1200,
 		0x0bd4, 0x0bec, 0x0bf0, 0x0bf4, 0x0bf8, 0x0bfc, 0x0bd0,
 		0x2500, 0x2520, 0x4f10, 0x4f14, 0x4f20, 0x4f24,
 	};
 	const uint32_t values[] = {
-		0, 3, 0xb9, 0x80010000, 0x80010000, 0x06303100,
-		0x7fff0412, 0, 0x3fb8, 0x3fb80000, 0x3fb80000, 0xc048, 0x60401,
+		0, 3, 0xb8, 0x00010000, 0x00010000, 0x06303100,
+		0x7fff0412, 0, 0x3fb8, 0x3fb80000, 0x3fb80000, 0xc048, 0x60400,
 		1u << 16, 1u << 17, 0, base, 0, base + size - 1,
 	};
 	struct codec_step { uint16_t reg; uint8_t mask, value; };
@@ -95,7 +96,7 @@ au_mic_probe(void)
 	const uint32_t gpio_mode[] = { 0x01010000, 0x00001100 };
 	uint32_t gpio_saved[2];
 	for (unsigned i = 0; i < 2; i++) gpio_saved[i] = au_rd(au_gpio, gpio_offsets[i]);
-	for (unsigned i = 0; i < size / 4; i++) ring[i] = 0;
+	for (unsigned i = 0; i < size / 4; i++) ring[i] = untouched;
 	__asm__ volatile("dsb oshst" ::: "memory");
 	for (unsigned i = 0; i < 2; i++)
 		au_wr(au_gpio, gpio_offsets[i], (gpio_saved[i] & ~gpio_mask[i]) | gpio_mode[i]);
@@ -119,8 +120,30 @@ au_mic_probe(void)
 		printf("LAPIS MIC: oscillator update failed\n");
 		goto stop;
 	}
+	/* Follow the receiver transition seen in the Android trace after power.
+	 * All four registers are already covered by the MMIO rollback. */
+	au_wr(au_afe, 0x1204, 0xb8);
+	au_wr(au_afe, 0x1204, 0xb9);
+	au_wr(au_afe, 0x1190, 0x00010000);
+	au_wr(au_afe, 0x11f0, 0x00010000);
+	au_wr(au_afe, 0x1190, 0x80010000);
+	au_wr(au_afe, 0x11f0, 0x80010000);
+	if (au_rd(au_afe, 0x1204) != 0xb9 ||
+	    au_rd(au_afe, 0x1190) != 0x80010000 ||
+	    au_rd(au_afe, 0x11f0) != 0x80010000) {
+		printf("LAPIS MIC: MTKAIF receiver enable readback failed\n");
+		goto stop;
+	}
 	for (unsigned i = 0; i < sizeof(codec) / sizeof(codec[0]); i++) {
 		const struct codec_step *step = &codec[i];
+		/* Enable the SoC UL source after codec clock setup, before mic bias. */
+		if (step->reg == 0x230c) {
+			au_wr(au_afe, 0x0bd0, 0x60401);
+			if (au_rd(au_afe, 0x0bd0) != 0x60401) {
+				printf("LAPIS MIC: UL0 enable readback failed\n");
+				goto stop;
+			}
+		}
 		if (lapis_pmif_shared_read(5, step->reg, &saved[i]) != LAPIS_PMIF_OK) goto stop;
 		applied++;
 		uint8_t before = saved[i];
@@ -150,8 +173,26 @@ au_mic_probe(void)
 	uint32_t cursor = 0;
 	unsigned raw_nonzero[2] = {0, 0};
 	unsigned observed = 0, nonzero[2] = {0, 0}, peak[2] = {0, 0};
+	unsigned untouched_words = 0;
+	/* The selected MTKAIF debug field and pad status can be static or
+	 * unavailable in this protocol. Count activity without logging PCM. */
+	const struct {
+		uint32_t offset, mask;
+	} monitors[] = {
+		{ 0x1208, 0xffff }, { 0x1188, ~0u }, { 0x0be8, 0xffffff },
+		{ 0x4f2c, ~0u }, { 0x4f28, ~0u },
+	};
+	unsigned monitor_nonzero[sizeof(monitors) / sizeof(monitors[0])] = {0};
+	unsigned monitor_changes[sizeof(monitors) / sizeof(monitors[0])] = {0};
+	uint32_t monitor_previous[sizeof(monitors) / sizeof(monitors[0])] = {0};
 	for (unsigned tick = 0; tick < 200; tick++) {
 		au_sleep_ms(10);
+		for (unsigned i = 0; i < sizeof(monitors) / sizeof(monitors[0]); i++) {
+			uint32_t value = au_rd(au_afe, monitors[i].offset) & monitors[i].mask;
+			monitor_nonzero[i] += value != 0;
+			monitor_changes[i] += tick != 0 && value != monitor_previous[i];
+			monitor_previous[i] = value;
+		}
 		uint64_t now;
 		absolutetime_to_nanoseconds(mach_absolute_time(), &now);
 		cursor = au_rd(au_afe, 0x4f1c);
@@ -175,6 +216,10 @@ au_mic_probe(void)
 		for (unsigned span = 0; span < 2; span++) {
 			for (uint32_t i = starts[span] / 4; i < (starts[span] + counts[span]) / 4; i++) {
 				uint32_t raw = ring[i];
+				if (raw == untouched) {
+					untouched_words++;
+					continue;
+				}
 				raw_nonzero[i & 1] += raw != 0;
 				uint32_t u = raw & 0xffffffu;
 				unsigned mag = u & 0x800000u ? 0x1000000u - u : u;
@@ -184,8 +229,12 @@ au_mic_probe(void)
 			}
 		}
 	}
-	printf("LAPIS MIC: cursor=%#x words=%u raw_nonzero=%u/%u nonzero24=%u/%u peak24=%u/%u\n",
-	    cursor, observed, raw_nonzero[0], raw_nonzero[1], nonzero[0], nonzero[1], peak[0], peak[1]);
+	printf("LAPIS MIC: cursor=%#x words=%u untouched=%u raw_nonzero=%u/%u nonzero24=%u/%u peak24=%u/%u\n",
+	    cursor, observed, untouched_words, raw_nonzero[0], raw_nonzero[1],
+	    nonzero[0], nonzero[1], peak[0], peak[1]);
+	for (unsigned i = 0; i < sizeof(monitors) / sizeof(monitors[0]); i++)
+		printf("LAPIS MIC: monitor=%#x nonzero=%u changes=%u\n",
+		    monitors[i].offset, monitor_nonzero[i], monitor_changes[i]);
 	passed = nonzero[0] || nonzero[1];
 stop:
 	if (dma_started) {

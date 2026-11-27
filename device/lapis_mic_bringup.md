@@ -244,3 +244,23 @@ The probe read 216,414 VUL9 words with zero in the analyzed low 24 bits of
 both channels. Restoration and subsequent ringtone playback passed. The
 next revision adds the codec driver's RC trim check and power retry for each
 ADC, and reports full-word and low-24-bit nonzero counts independently.
+
+The v3 retry log confirms that holding both volume buttons triggered capture.
+Both ADC trim registers (0x2512 and 0x2513) read 21, so neither needed a
+power retry. VUL9 delivered 217,208 words, with zero nonzero samples in
+both channels even when checking all 32 bits. The probe stopped DMA and
+restored the registers, and speaker playback started again afterward.
+
+The Android trace shows an MTKAIF receiver enable sequence that v3 replaces
+with final register values: 0x1204 goes from 0xb8 to 0xb9, then both 0x1190
+and 0x11f0 go from 0x00010000 to 0x80010000 before UL0 is enabled. Treat
+this as a candidate to verify alongside MTKAIF and UL0 monitor readings.
+The v3 log does not localize where the signal becomes zero.
+
+The combined test applies that receiver sequence and checks the enable
+readbacks. During the same two-second window, it counts activity at the pad,
+selected MTKAIF monitor, UL0 channel 2 and both VUL9 channels. The buffer
+starts with a marker so cursor movement can be distinguished from bytes
+actually written by VUL9. The log contains counts and peaks, with no PCM
+dump. A quiet or static MTKAIF status alone is inconclusive because the
+monitor selector and protocol limit what it exposes.
