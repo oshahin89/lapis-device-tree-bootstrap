@@ -58,6 +58,12 @@ cache coherency, the producer/consumer cursor, overrun handling, routing and
 format require separate design. `tools/lapis_mic_trace_analyze.py` summarizes
 the relevant writes and reports overlap without exposing audio samples.
 
+The Lapis runtime device tree gives audio SRAM as `0x11059000..0x11064fff`.
+`0x11059000..0x1105cfff` is a 16 KiB capture candidate outside the XNU speaker
+ring and inside the range Android used for VUL9. At 48 kHz stereo with
+32-bit slots it wraps in about 42.7 ms. Ownership and address acceptance
+still require validation before mapping it for capture.
+
 The traced VUL9 control value `0x100a49` has sample-rate field `0xa` in bits
 8–12. The independently published MT6878 driver maps that encoding to 48 kHz
 ([control mapping](https://github.com/mt6878-devs/android_kernel_device_modules/blob/034b70b1cbe1bb56f134bcb9d462daaec89aec7b/sound/soc/mediatek/mt6878/mt6878-afe-control.c),
@@ -93,6 +99,13 @@ In the captured runtime device tree, the audio clock and data MOSI pins are
 function 1. An Android boot log reports MTKAIF calibration phases 2 and 2 for
 that boot. Those values and pin settings do not prove the current iOS boot
 retains the same calibration or electrical pin configuration.
+
+The Android trace also records the UL0 ADC clock enable and an MT6363 VS1
+vote (`0-04`, `0x189b`) immediately before capture, with matching teardown
+(`0x189c`). Confirm both dependencies before enabling the ADC from XNU.
+`lapismicsnapshot=1` adds a one-time read of pinmux, MTKAIF, ADDA UL0 and VUL9
+configuration after speaker-side AFE clock setup. It can be used in the same
+boot as the PMIF probe and does not read sample memory.
 
 The existing XNU speaker worker initializes shared AFE control registers on
 each speaker restart and turns parts of the output path off after inactivity.

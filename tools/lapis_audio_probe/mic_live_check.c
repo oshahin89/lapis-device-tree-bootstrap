@@ -42,10 +42,15 @@ int main(void)
     uint64_t start = now_ns(), frames = 0, nonzero = 0, errors = 0, odd_reads = 0;
     unsigned peak = 0;
     if (!start) { close(fd); return 2; }
+    int clock_failed = 0;
     for (;;) {
         uint64_t now = now_ns();
-        if (!now || now < start || now - start >= LAPIS_MIC_SELFTEST_DURATION_NS) break;
-        uint8_t bytes[1024];
+        if (!now || now < start) {
+            clock_failed = 1;
+            break;
+        }
+        if (now - start >= LAPIS_MIC_SELFTEST_DURATION_NS) break;
+        uint8_t bytes[4096];
         ssize_t n = read(fd, bytes, sizeof(bytes));
         if (n > 0) {
             if (n & 1) odd_reads++;
@@ -59,11 +64,13 @@ int main(void)
             }
         } else if (n < 0 && errno != EAGAIN && errno != EINTR) {
             errors++;
-            if (errors >= 10) break;
         }
         volatile uint8_t *wipe = bytes;
         for (unsigned i = 0; i < sizeof(bytes); i++) wipe[i] = 0;
-        usleep(10000);
+        if (errors >= 10) break;
+        /* Drain available PCM before sleeping. A fixed pause after each read
+         * needlessly throttles short reads on a 48 kHz stream. */
+        if (n <= 0) usleep(10000);
     }
     fprintf(stderr, "LAPIS MIC SELFTEST: frames=%llu nonzero=%llu peak=%u errors=%llu odd=%llu\n",
         (unsigned long long)frames, (unsigned long long)nonzero, peak,
@@ -72,5 +79,5 @@ int main(void)
     if (ioctl(fd, LAPIS_MIC_SELFTEST_REPORT, &report) != 0)
         fprintf(stderr, "LAPIS MIC SELFTEST: aggregate report ioctl unavailable errno=%d\n", errno);
     close(fd);
-    return !frames || !nonzero || errors || odd_reads ? 3 : 0;
+    return !frames || !nonzero || errors || odd_reads || clock_failed ? 3 : 0;
 }

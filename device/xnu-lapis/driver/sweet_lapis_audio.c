@@ -431,11 +431,29 @@ au_stream_pump(bool persistent)
 	return ok;
 }
 
+/* Run within the speaker worker, after its clock and power checks. Keep this
+ * opt-in snapshot free of register writes and sample reads. */
+static void
+au_mic_snapshot(void)
+{
+	uint32_t mosi = au_rd(au_gpio, 0x440), miso = au_rd(au_gpio, 0x450);
+	printf("LAPIS MIC AFE: pinmux 164=%u 166=%u 170=%u 171=%u\n",
+	    (mosi >> 16) & 0xf, (mosi >> 24) & 0xf, (miso >> 8) & 0xf, (miso >> 12) & 0xf);
+	printf("LAPIS MIC AFE: UL0=%#x MTKAIF0=%#x RX2=%#x MTKAIF1=%#x RX2=%#x\n",
+	    au_rd(au_afe, 0xbd0), au_rd(au_afe, 0x1190), au_rd(au_afe, 0x11a0),
+	    au_rd(au_afe, 0x11f0), au_rd(au_afe, 0x1200));
+	printf("LAPIS MIC AFE: VUL9 base=%#x:%08x cur=%#x:%08x end=%#x:%08x control=%#x\n",
+	    au_rd(au_afe, 0x4f10), au_rd(au_afe, 0x4f14),
+	    au_rd(au_afe, 0x4f18), au_rd(au_afe, 0x4f1c),
+	    au_rd(au_afe, 0x4f20), au_rd(au_afe, 0x4f24), au_rd(au_afe, 0x4f30));
+}
+
 static void
 au_thread(void *arg __unused, wait_result_t wr __unused)
 {
-	int pcm_probe = 0;
+	int pcm_probe = 0, mic_snapshot = 0;
 	(void)PE_parse_boot_argn("lapisaudioplayprobe", &pcm_probe, sizeof(pcm_probe));
+	(void)PE_parse_boot_argn("lapismicsnapshot", &mic_snapshot, sizeof(mic_snapshot));
 restart:
 	if (au_hal_persistent) {
 		for (;;) {
@@ -491,6 +509,10 @@ restart:
 	}
 	au_wr(au_afe, 0x14, 9);
 	au_wr(au_afe, 0x38, 0x375);
+	if (mic_snapshot) {
+		au_mic_snapshot();
+		mic_snapshot = 0;
+	}
 	au_wr(au_afe, 0x1204, 0xb8);
 	au_wr(au_afe, 0x13c4, 0x80098465);
 	au_wr(au_afe, 0x13c8, 0x0410c462);
