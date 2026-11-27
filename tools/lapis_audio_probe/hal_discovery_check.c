@@ -1,4 +1,4 @@
-/* Two-boot, self-cleaning HAL discovery probe. It never enables VirtualAudio. */
+/* Two-boot, self-cleaning HAL probe; VirtualAudio is opt-in for experiments. */
 #include <errno.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -28,6 +28,23 @@
 #define PLIST BUNDLE_DIR "/Info.plist"
 #define MARK BUNDLE_DIR "/.lapis-owned"
 #define OTHER LAPIS_HAL_TEST_ROOT "/System/Library/Audio/Plug-Ins/HAL/HakiosAudio.driver"
+#ifdef LAPIS_VIRTUAL_TEST
+#define VIRTUAL_LINK LAPIS_HAL_TEST_ROOT "/Library/Audio/Plug-Ins/HAL/VirtualAudio.plugin"
+#define VIRTUAL_TARGET "/Library/Audio/Plug-Ins/HAL.disabled/VirtualAudio.plugin"
+#define VIRTUAL_DISABLED LAPIS_HAL_TEST_ROOT VIRTUAL_TARGET
+
+/* 0 absent, 1 our exact symlink, -1 unexpected or inaccessible. */
+static int virtual_link_state(void)
+{
+	struct stat st;
+	if (lstat(VIRTUAL_LINK, &st) != 0) return errno == ENOENT ? 0 : -1;
+	if (!S_ISLNK(st.st_mode)) return -1;
+	char buf[sizeof(VIRTUAL_TARGET)];
+	ssize_t n = readlink(VIRTUAL_LINK, buf, sizeof(buf));
+	return n == (ssize_t)(sizeof(VIRTUAL_TARGET) - 1) &&
+	    memcmp(buf, VIRTUAL_TARGET, sizeof(VIRTUAL_TARGET) - 1) == 0 ? 1 : -1;
+}
+#endif
 static const char owner[] = "lapis-hal-discovery-v1\n";
 
 static void report(unsigned code)
@@ -133,6 +150,9 @@ int main(void)
 	struct stat existing;
 	if (lstat(BUNDLE_DIR, &existing) != 0) {
 		int absent = errno == ENOENT;
+#ifdef LAPIS_VIRTUAL_TEST
+		if (virtual_link_state() != 0) absent = 0;
+#endif
 		free(binary); report(absent ? 21 : 45); return absent ? 0 : 1;
 	}
 	/* Enter the normal existing-directory verification path without creating. */
@@ -145,6 +165,11 @@ int main(void)
 		if (write_new(MARK, owner, sizeof(owner) - 1, 0600) == 0) have_mark = 1; else goto failed;
 		if (write_new(BIN, binary, size, 0755) == 0) have_bin = 1; else goto failed;
 		if (write_new(PLIST, lapis_hal_plist, lapis_hal_plist_len, 0644) == 0) have_plist = 1; else goto failed;
+#ifdef LAPIS_VIRTUAL_TEST
+		struct stat virtual_dir;
+		if (stat(VIRTUAL_DISABLED, &virtual_dir) || !S_ISDIR(virtual_dir.st_mode) ||
+		    virtual_link_state() != 0 || symlink(VIRTUAL_TARGET, VIRTUAL_LINK) != 0) goto failed;
+#endif
 		sync();
 		free(binary);
 		report(11); /* installed; reboot iOS once for discovery */
@@ -169,12 +194,21 @@ failed:
 		free(binary); report(46); return 1;
 	}
 	int complete = matches(BIN, binary, size) && matches(PLIST, lapis_hal_plist, lapis_hal_plist_len);
+#ifdef LAPIS_VIRTUAL_TEST
+	if (virtual_link_state() < 0) { free(binary); report(51); return 1; }
+#endif
 	if (complete) sleep(LAPIS_HAL_CLEAN_DELAY); /* let mediaserverd discover it on the second boot */
 	/* Check again before deleting anything. */
 	if (!only_owned_names() || !matches(MARK, owner, sizeof(owner) - 1) || !matches_or_missing(BIN, binary, size) ||
 	    !matches_or_missing(PLIST, lapis_hal_plist, lapis_hal_plist_len)) {
 		free(binary); report(47); return 1;
 	}
+#ifdef LAPIS_VIRTUAL_TEST
+	int link_state = virtual_link_state();
+	if (link_state < 0 || (link_state == 1 && unlink(VIRTUAL_LINK) != 0)) {
+		free(binary); report(51); return 1;
+	}
+#endif
 	int clean_plist = remove_if_present(PLIST);
 	int clean_bin = remove_if_present(BIN);
 	int clean = clean_plist && clean_bin && unlink(MARK) == 0 && rmdir(BUNDLE_DIR) == 0;
