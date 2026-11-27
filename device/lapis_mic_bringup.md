@@ -58,6 +58,13 @@ cache coherency, the producer/consumer cursor, overrun handling, routing and
 format require separate design. `tools/lapis_mic_trace_analyze.py` summarizes
 the relevant writes and reports overlap without exposing audio samples.
 
+The traced VUL9 control value `0x100a49` has sample-rate field `0xa` in bits
+8–12. The independently published MT6878 driver maps that encoding to 48 kHz
+([control mapping](https://github.com/mt6878-devs/android_kernel_device_modules/blob/034b70b1cbe1bb56f134bcb9d462daaec89aec7b/sound/soc/mediatek/mt6878/mt6878-afe-control.c),
+[rate constants](https://github.com/mt6878-devs/android_kernel_device_modules/blob/034b70b1cbe1bb56f134bcb9d462daaec89aec7b/sound/soc/mediatek/common/mtk-base-afe.h)).
+This is an inference about that hardware capture stage; the app-facing format
+and channel packing were not measured.
+
 MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
 thread using that channel without synchronization could corrupt transactions.
 The opt-in `lapismicprobe=1` preparation performs only codec register reads,
