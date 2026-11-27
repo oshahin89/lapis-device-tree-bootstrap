@@ -86,6 +86,11 @@ capture. The probe performs its reads on the key polling thread to serialize
 the existing PMIF channel; any future independent microphone worker needs a
 shared PMIF transaction lock or another verified coordination mechanism.
 
+The published MT6369 DAPM routes explicitly require `ADC_L_EN` when using
+`ADC_R`, even for the right-input route. That matches captured writes to both
+left and right analog controls. A right-input bring-up must account for this
+dependency and check it against the device's clock, bias and speaker state.
+
 ## Next implementation boundaries
 
 1. Provide serialized PMIF transactions for the keys and microphone paths,
