@@ -1,6 +1,7 @@
 /* Bounded MT6369/VUL9 capture experiment, included by the AFE owner.
  * Register values come from Lapis's Android capture trace. */
 #include "lapis_pmif.h"
+#include "lapis_mic_cursor.h"
 
 static bool
 au_mic_probe(void)
@@ -117,23 +118,45 @@ au_mic_probe(void)
 		goto stop;
 	}
 	printf("LAPIS MIC: capturing aggregate signal for two seconds\n");
-	au_sleep_ms(2000);
-	uint32_t cursor = au_rd(au_afe, 0x4f1c);
-	uint32_t cursor_hi = au_rd(au_afe, 0x4f18);
-	au_wr(au_afe, 0x4f30, control);
-	dma_started = (au_rd(au_afe, 0x4f30) & on) != 0;
-	if (!dma_started && !cursor_hi && cursor >= base && cursor < base + size) {
-		unsigned nonzero[2] = {0, 0}, peak[2] = {0, 0};
-		for (unsigned i = 0; i < size / 4; i++) {
-			uint32_t u = ring[i] & 0xffffffu;
-			unsigned mag = u & 0x800000u ? 0x1000000u - u : u;
-			nonzero[i & 1] += mag != 0;
-			if (mag > peak[i & 1]) peak[i & 1] = mag;
+	struct lapis_mic_cursor position;
+	bool cursor_ready = false;
+	uint32_t cursor = 0;
+	unsigned observed = 0, nonzero[2] = {0, 0}, peak[2] = {0, 0};
+	for (unsigned tick = 0; tick < 200; tick++) {
+		au_sleep_ms(10);
+		uint64_t now;
+		absolutetime_to_nanoseconds(mach_absolute_time(), &now);
+		cursor = au_rd(au_afe, 0x4f1c);
+		if (au_rd(au_afe, 0x4f18) || cursor < base || cursor >= base + size) {
+			if (cursor_ready) break;
+			continue;
 		}
-		printf("LAPIS MIC: cursor=%#x nonzero=%u/%u peak24=%u/%u\n",
-		    cursor, nonzero[0], nonzero[1], peak[0], peak[1]);
-		passed = nonzero[0] || nonzero[1];
+		if (!cursor_ready) {
+			cursor_ready = lapis_mic_cursor_init(&position, base, size, 8, 512, 0x3000,
+			    cursor, now, 30000000) == LAPIS_MIC_CURSOR_OK;
+			continue;
+		}
+		struct lapis_mic_spans spans;
+		enum lapis_mic_cursor_result result = lapis_mic_cursor_observe(&position, cursor, now, &spans);
+		if (result != LAPIS_MIC_CURSOR_OK) {
+			printf("LAPIS MIC: cursor fault %u\n", (unsigned)result);
+			break;
+		}
+		const uint32_t starts[] = { spans.offset1, spans.offset2 };
+		const uint32_t counts[] = { spans.bytes1, spans.bytes2 };
+		for (unsigned span = 0; span < 2; span++) {
+			for (uint32_t i = starts[span] / 4; i < (starts[span] + counts[span]) / 4; i++) {
+				uint32_t u = ring[i] & 0xffffffu;
+				unsigned mag = u & 0x800000u ? 0x1000000u - u : u;
+				nonzero[i & 1] += mag != 0;
+				if (mag > peak[i & 1]) peak[i & 1] = mag;
+				observed++;
+			}
+		}
 	}
+	printf("LAPIS MIC: cursor=%#x words=%u nonzero=%u/%u peak24=%u/%u\n",
+	    cursor, observed, nonzero[0], nonzero[1], peak[0], peak[1]);
+	passed = nonzero[0] || nonzero[1];
 stop:
 	if (dma_started) {
 		au_wr(au_afe, 0x4f30, control);
