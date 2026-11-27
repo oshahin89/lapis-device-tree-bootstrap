@@ -146,3 +146,11 @@ boot in place; persistence across a subsequent iOS reboot has not yet been
 confirmed. A further 4000/32768 ceiling is being built for a controlled volume
 comparison. Android-equivalent loudness and long-duration stability are not yet
 established. GPU and Metal remain disabled.
+
+The user subsequently booted with the original FDR restored and the persistent
+plug-in in place, using the 4000/32768 speaker ceiling. They reported louder
+ringtone playback and working adjustment with the Settings slider. The log
+recorded 7,498,752 accepted frames, zero reported drops, multiple idle/restart
+cycles and zero reported I2C errors. This confirms persistence and the tested
+ringtone/slider path; hardware volume-button control, other audio sources,
+extended playback and equivalence to Android loudness remain unverified.
