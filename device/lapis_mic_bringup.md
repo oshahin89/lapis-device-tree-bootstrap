@@ -61,6 +61,7 @@ the relevant writes and reports overlap without exposing audio samples.
 MT6363 key polling already uses PMIF SWINF channel 2. A separate microphone
 thread using that channel without synchronization could corrupt transactions.
 The opt-in `lapismicprobe=1` preparation performs only codec register reads,
-once on the existing keys thread, and reads the VUL9 AFE configuration. It
+once on the existing keys thread. It avoids AFE MMIO until the clock state
+is established. It
 must first be compiled and validated on-device; it does not enable the ADC,
 create `/dev/hakios-mic`, or prove microphone capture.

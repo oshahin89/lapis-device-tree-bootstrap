@@ -136,10 +136,6 @@ mic_readonly_probe(void)
 		else
 			printf("LAPIS MIC PROBE: codec reg %#x read failed\n", regs[i]);
 	}
-	vm_offset_t afe = ml_io_map(0x11050000u, 0x6000);
-	if (!afe) { printf("LAPIS MIC PROBE: AFE map failed\n"); return; }
-	printf("LAPIS MIC PROBE: VUL9 base=%#x current=%#x end=%#x con=%#x\n",
-	    keys_rd(afe, 0x4f14), keys_rd(afe, 0x4f1c), keys_rd(afe, 0x4f24), keys_rd(afe, 0x4f30));
 }
 
 static void
