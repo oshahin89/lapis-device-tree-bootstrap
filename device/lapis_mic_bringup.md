@@ -288,3 +288,13 @@ signal. The DAC input selector is preserved. The generator and mux state
 are restored with the rest of the transaction. The vendor driver confirms
 the UL mux exists, but its DAPM generator path is documented for downlink.
 A silent codec-tone phase alone cannot prove that the link is broken.
+
+The v5 phone log shows 59,206 analog words and 20,634 codec-tone words
+written by VUL9, all zero. Both phases ended early with cursor fault 1 at
+`0x110590cc` and `0x1105931c`. Those addresses are word-aligned and land
+on the second 32-bit slot of a stereo frame. The generic reader expects
+a frame-aligned cursor. The VUL9 probe now validates the raw pointer and
+rounds it down to a frame boundary before applying the existing read guard.
+The v5 hardware log shows successful register restoration, both volume
+buttons responding, and two later speaker streams reporting zero dropped
+frames and I2C errors.

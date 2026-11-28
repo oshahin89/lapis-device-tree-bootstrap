@@ -79,17 +79,22 @@ au_mic_measure(volatile uint32_t *ring, uint32_t base, uint32_t size,
 		uint64_t now;
 		absolutetime_to_nanoseconds(mach_absolute_time(), &now);
 		cursor = au_rd(au_afe, 0x4f1c);
-		if (au_rd(au_afe, 0x4f18) || cursor < base || cursor >= base + size) {
+		uint32_t high = au_rd(au_afe, 0x4f18);
+		if (high || cursor < base || cursor >= base + size || (cursor - base) % 4) {
+			printf("LAPIS MIC: phase=%s invalid VUL9 cursor=%#x:%08x\n", phase, high, cursor);
 			if (cursor_ready) break;
 			continue;
 		}
+		/* VUL9 can report either 32-bit slot of a stereo frame. Round
+		 * back to the frame start before applying the 512-byte guard. */
+		uint32_t frame_cursor = base + ((cursor - base) & ~7u);
 		if (!cursor_ready) {
 			cursor_ready = lapis_mic_cursor_init(&position, base, size, 8, 512, 0x3000,
-			    cursor, now, 30000000) == LAPIS_MIC_CURSOR_OK;
+			    frame_cursor, now, 30000000) == LAPIS_MIC_CURSOR_OK;
 			continue;
 		}
 		struct lapis_mic_spans spans;
-		enum lapis_mic_cursor_result result = lapis_mic_cursor_observe(&position, cursor, now, &spans);
+		enum lapis_mic_cursor_result result = lapis_mic_cursor_observe(&position, frame_cursor, now, &spans);
 		if (result != LAPIS_MIC_CURSOR_OK) {
 			printf("LAPIS MIC: cursor fault %u\n", (unsigned)result);
 			break;
